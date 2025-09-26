@@ -107,10 +107,21 @@ export async function POST(req: Request) {
       return NextResponse.json({ sample, hash, totalRows: array.length });
     }
 
+
     // 2) Exportación en distintos formatos
     if (action === "export") {
-      const { rows, format, fileName } = options;
-      if (!rows || rows.length === 0) return NextResponse.json({ error: "No hay datos para exportar" }, { status: 400 });
+      const { rows, format, fileName } = options as {
+        rows: Record<string, unknown>[];
+        format: string;
+        fileName?: string;
+      };
+
+      if (!rows || rows.length === 0) {
+        return NextResponse.json(
+          { error: "No hay datos para exportar" },
+          { status: 400 }
+        );
+      }
 
       // JSON → devolver directamente
       if (format === "json") return NextResponse.json(rows);
@@ -118,30 +129,63 @@ export async function POST(req: Request) {
       // XML → generar string
       if (format === "xml") {
         const xml = toXML(rows);
-        return new Response(xml, { headers: { "Content-Type": "application/xml" } });
+        return new Response(xml, {
+          headers: { "Content-Type": "application/xml" },
+        });
       }
+
+      // TXT → generar tabla alineada
       if (format === "txt") {
-        const text = (rows as Record<string, unknown>[])
+        const headers = Object.keys(rows[0]);
+        const colWidths = headers.map(
+          (h, i) =>
+            Math.max(
+              h.length,
+              ...rows.map((row) =>
+                String(Object.values(row)[i]).length
+              )
+            )
+        );
+
+        let text = "";
+
+        // encabezados
+        text +=
+          headers
+            .map((h, i) => h.padEnd(colWidths[i] + 2))
+            .join("") + "\n";
+
+        // separador
+        text +=
+          colWidths.map((w) => "-".repeat(w + 2)).join("") + "\n";
+
+        // filas
+        text += rows
           .map((row) =>
-            Object.values(row).join("\t")
+            Object.values(row)
+              .map((val, i) => String(val).padEnd(colWidths[i] + 2))
+              .join("")
           )
           .join("\n");
 
         return new Response(text, {
           headers: {
             "Content-Type": "text/plain",
-            "Content-Disposition": `attachment; filename=${fileName || "muestra"}.txt`,
+            "Content-Disposition": `attachment; filename=${
+              fileName || "muestra"
+            }.txt`,
           },
         });
       }
-
-
       // Excel / CSV → generar workbook con datos
       const worksheet = XLSX.utils.json_to_sheet(rows);
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Datos");
 
-      const arrayBuffer = XLSX.write(workbook, { type: "array", bookType: format as any});
+      const arrayBuffer = XLSX.write(workbook, {
+        type: "array",
+        bookType: format as any,
+      });
 
       return new Response(arrayBuffer, {
         headers: {
@@ -149,10 +193,13 @@ export async function POST(req: Request) {
             format === "csv"
               ? "text/csv"
               : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-          "Content-Disposition": `attachment; filename=${fileName || "muestra"}.${format}`,
+          "Content-Disposition": `attachment; filename=${
+            fileName || "muestra"
+          }.${format}`,
         },
       });
     }
+
 
     return NextResponse.json({ error: "Acción no válida" }, { status: 400 });
   } catch (err: any) {

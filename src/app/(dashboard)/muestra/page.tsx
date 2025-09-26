@@ -290,6 +290,9 @@ export default function MuestraPage() {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [useHeaders, setUseHeaders] = useState(true);
   const [datasetName, setDatasetName] = useState("");
+  // Estado nuevo para exportación
+  const [selectedTabId, setSelectedTabId] = useState<string>("");
+
 
   // Dataset de pestaña activa (ya lo tienes)
   const currentRows =
@@ -389,8 +392,14 @@ export default function MuestraPage() {
 
   // === Exportación vía API con manejo de error ===
   const exportData = async (format: string) => {
-    if (!currentRows || currentRows.length === 0) {
-      alert("No hay datos para exportar.");
+    if (!selectedTabId) {
+      alert("Debes seleccionar una pestaña de muestreo.");
+      return;
+    }
+
+    const rows = tabs.find((t) => t.id === selectedTabId)?.rows || [];
+    if (!rows.length) {
+      alert("La pestaña seleccionada no tiene datos.");
       return;
     }
 
@@ -400,7 +409,7 @@ export default function MuestraPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "export",
-          rows: currentRows,
+          rows,
           format,
           fileName: sampleParams.fileName,
         }),
@@ -423,6 +432,7 @@ export default function MuestraPage() {
       alert(`Error inesperado: ${e.message}`);
     }
   };
+
 
   // === Subida de archivo Excel/CSV vía API con manejo de error ===
   const handleFileUpload = async () => {
@@ -839,38 +849,57 @@ export default function MuestraPage() {
           <div className="bg-white p-6 rounded shadow-lg w-80 space-y-4">
             <h2 className="text-lg font-bold mb-2">Exportar Datos</h2>
             <p className="text-sm text-gray-600">Selecciona el formato:</p>
-            <div className="flex flex-col space-y-2">
-              <button
-                onClick={() => exportData("xlsx")}
-                className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-              >
-                Excel (.xlsx)
-              </button>
-              <button
-                onClick={() => exportData("csv")}
-                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-              >
-                CSV (.csv)
-              </button>
-              <button
-                onClick={() => exportData("json")}
-                className="bg-violet-600 text-white px-4 py-2 rounded hover:bg-violet-700"
-              >
-                JSON (.json)
-              </button>
-              <button
-                onClick={() => exportData("xml")}
-                className="bg-yellow-400 text-white px-4 py-2 rounded hover:bg-yellow-500"
-              >
-                XML (.xml)
-              </button>
-              <button
-                onClick={() => exportData("txt")}
-                className="bg-orange-400 text-white px-4 py-2 rounded hover:bg-orange-500"
-              >
-                TXT (.txt)
-              </button>
-            </div>
+              <div className="flex flex-col space-y-2">
+                <button
+                  onClick={() => exportData("xlsx")}
+                  className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+                >
+                  Excel (.xlsx)
+                </button>
+                <button
+                  onClick={() => exportData("csv")}
+                  className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+                >
+                  CSV (.csv)
+                </button>
+                <button
+                  onClick={() => exportData("json")}
+                  className="bg-violet-600 text-white px-4 py-2 rounded hover:bg-violet-700"
+                >
+                  JSON (.json)
+                </button>
+                <button
+                  onClick={() => exportData("xml")}
+                  className="bg-yellow-400 text-white px-4 py-2 rounded hover:bg-yellow-500"
+                >
+                  XML (.xml)
+                </button>
+                <button
+                  onClick={() => exportData("txt")}
+                  className="bg-orange-400 text-white px-4 py-2 rounded hover:bg-orange-500"
+                >
+                  TXT (.txt)
+                </button>
+              </div>
+              {/* Selector de pestaña */}
+              <label className="flex flex-col text-sm font-medium text-gray-700">
+                Selecciona la pestaña de muestreo:
+                <select
+                  value={selectedTabId}
+                  onChange={(e) => setSelectedTabId(e.target.value)}
+                  className="mt-1 border rounded px-2 py-1"
+                >
+                  <option value="">--Seleccionar pestaña--</option>
+                  {tabs.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            <p className="text-xs text-gray-500">
+              Solo se exportarán los datos de la pestaña seleccionada.
+            </p>
             <div className="flex justify-end mt-3">
               <button
                 onClick={() => setShowExportModal(false)}
