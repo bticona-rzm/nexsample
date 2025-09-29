@@ -29,6 +29,7 @@ interface EvaluationProps {
     setActiveTab: Dispatch<SetStateAction<string>>;
     // handleEvaluation AHORA DEBE ACEPTAR EL MÉTODO
     handleEvaluation: (method: 'cell-classical' | 'stringer-bound') => Promise<void>; 
+    tolerableError:number;
 }
 
 const Evaluation: React.FC<EvaluationProps> = (props) => {
@@ -93,6 +94,9 @@ const Evaluation: React.FC<EvaluationProps> = (props) => {
                             setPrecisionValue={props.setPrecisionValue}
                             estimatedPopulationValue={props.estimatedPopulationValue}
                             estimatedSampleSize={props.estimatedSampleSize}
+                            sampleInterval={props.sampleInterval} // Debes tener este valor de la planificación
+                            tolerableError={props.tolerableError} // Debes tener este valor de la planificación  
+                            highValueLimit={props.highValueLimit} // Generalmente es igual a sampleInterval
                         />
                     )}
                     {selectedMethod === 'stringer-bound' && (

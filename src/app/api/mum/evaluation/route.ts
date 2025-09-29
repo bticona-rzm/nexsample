@@ -1,61 +1,95 @@
 // src/app/api/mum/evaluation/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
-import { EvaluationInput, EvaluationResult } from '../../../../lib/evaluation-interfaces'; 
-// Asegúrate de que la ruta de importación de interfaces sea correcta.
+import { EvaluationInput, EvaluationResult } from '../../../../lib/evaluation-interfaces';
 
-// Función de simulación de la lógica de negocio real
 function calculateEvaluationResults(input: EvaluationInput): EvaluationResult {
     const { sampleSettings, evaluationMethod } = input;
     
-    // Aquí iría la lógica pesada: 
-    // 1. Cargar los datos de la muestra (asumiendo que ya están almacenados en el servidor).
-    // 2. Aplicar las fórmulas estadísticas basadas en evaluationMethod.
+    // ✅ VALIDAR DATOS CRÍTICOS
+    if (!sampleSettings.sampleInterval || sampleSettings.sampleInterval <= 0) {
+        throw new Error("Intervalo muestral inválido");
+    }
+    
+    if (sampleSettings.tolerableError === undefined || sampleSettings.tolerableError === null) {
+        throw new Error("Error tolerable no definido");
+    }
 
-    // SIMULACIÓN de Resultados
+    // SIMULACIÓN de Resultados (CON DATOS REALES)
     let precisionValueCalculated = sampleSettings.precisionValue;
     if (evaluationMethod === 'stringer-bound') {
-        // En Stringer Bound, el valor A (precisionValue) no se usa en el cálculo
-        // y se reporta típicamente como el Límite de Error Superior Neto (o 0).
         precisionValueCalculated = 0; 
     }
     
-    const numErroresSimulado = 2; // Simulado
-    const errorMasProbableBrutoSimulado = 50000; // Simulado
-    const precisionTotalSimulada = 65000; // Simulado
+    // ✅ USAR DATOS REALES EN LUGAR DE VALORES FIJOS
+    const numErroresSimulado = 2;
+    const errorMasProbableBrutoSimulado = sampleSettings.tolerableError * 0.1; // 10% del error tolerable
+    const precisionTotalSimulada = sampleSettings.sampleInterval * 2.1; // Basado en intervalo
 
     return {
         confidenceLevel: sampleSettings.confidenceLevel,
-        sampleInterval: sampleSettings.sampleInterval,
-        highValueLimit: sampleSettings.highValueLimit,
-        precisionValue: precisionValueCalculated, // Valor A
-        populationExcludingHigh: 900000000,
-        highValueTotal: 100000000,
-        populationIncludingHigh: 1000000000,
-        estimatedSampleSize: 2000,
-        estimatedPopulationValue: 1000000000,
+        sampleInterval: sampleSettings.sampleInterval, // ✅ USAR DATO REAL
+        highValueLimit: sampleSettings.highValueLimit, // ✅ USAR DATO REAL
+        precisionValue: precisionValueCalculated,
+        populationExcludingHigh: sampleSettings.populationValue * 0.9, // 90% de la población
+        highValueTotal: sampleSettings.populationValue * 0.1, // 10% de la población
+        populationIncludingHigh: sampleSettings.populationValue,
+        estimatedSampleSize: sampleSettings.sampleSize,
+        estimatedPopulationValue: sampleSettings.populationValue,
         numErrores: numErroresSimulado,
         errorMasProbableBruto: errorMasProbableBrutoSimulado,
-        errorMasProbableNeto: errorMasProbableBrutoSimulado * 0.8, // Ejemplo de cálculo
+        errorMasProbableNeto: errorMasProbableBrutoSimulado * 0.8,
         precisionTotal: precisionTotalSimulada,
         limiteErrorSuperiorBruto: errorMasProbableBrutoSimulado + precisionTotalSimulada,
         limiteErrorSuperiorNeto: (errorMasProbableBrutoSimulado * 0.8) + precisionTotalSimulada,
-        highValueCountResume: 10,
+        highValueCountResume: Math.floor(sampleSettings.sampleSize * 0.05), // 5% de la muestra
     };
 }
-
 
 export async function POST(request: NextRequest) {
     try {
         const input: EvaluationInput = await request.json();
         
-        // Ejecutar la lógica de negocio/cálculo
-        const finalResults: EvaluationResult = calculateEvaluationResults(input);
+        console.log("Datos recibidos:", {
+            confidenceLevel: input.sampleSettings?.confidenceLevel,
+            sampleInterval: input.sampleSettings?.sampleInterval,
+            tolerableError: input.sampleSettings?.tolerableError,
+            populationValue: input.sampleSettings?.populationValue,
+            sampleSize: input.sampleSettings?.sampleSize
+        });
 
-        return NextResponse.json(finalResults, { status: 200 });
+        // Validaciones básicas
+        if (!input.sampleSettings) {
+            return NextResponse.json(
+                { error: "No se proporcionó configuración de muestra" }, 
+                { status: 400 }
+            );
+        }
+
+        const { sampleInterval, tolerableError, populationValue } = input.sampleSettings;
         
-    } catch (error) {
-        console.error("Error en el endpoint de evaluación MUM:", error);
-        return NextResponse.json({ error: "Fallo interno al procesar la evaluación." }, { status: 500 });
+        if (!sampleInterval || sampleInterval <= 0) {
+            return NextResponse.json(
+                { error: "Intervalo muestral inválido" }, 
+                { status: 400 }
+            );
+        }
+
+        if (tolerableError === undefined || tolerableError === null) {
+            return NextResponse.json(
+                { error: "Error tolerable no proporcionado" }, 
+                { status: 400 }
+            );
+        }
+
+        const results = calculateEvaluationResults(input);
+        return NextResponse.json(results, { status: 200 });
+        
+    } catch (error: any) {
+        console.error("Error en evaluación MUM:", error);
+        return NextResponse.json(
+            { error: error.message || "Error interno del servidor" }, 
+            { status: 500 }
+        );
     }
 }

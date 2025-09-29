@@ -388,6 +388,7 @@ export default function MumPage() {
                             handleEvaluation={handleEvaluation}
                             setActiveTab={setActiveTab}
                             headers={headers} 
+                            tolerableError={tolerableError}
                         />
                     )}
                 </div>

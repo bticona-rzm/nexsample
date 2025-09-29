@@ -8,6 +8,9 @@ interface CellClassicalPPSFormProps {
     setPrecisionValue: (value: number) => void;
     estimatedPopulationValue: number;
     estimatedSampleSize: number;
+    sampleInterval: number;
+    tolerableError: number;
+    highValueLimit: number;
 }
 
 const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({ onOk, confidenceLevel, precisionValue, setPrecisionValue, estimatedPopulationValue, estimatedSampleSize }) => {
