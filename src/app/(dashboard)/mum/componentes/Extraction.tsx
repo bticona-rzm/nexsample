@@ -145,14 +145,16 @@ const Extraction: React.FC<ExtractionProps> = ({
             const newRandomStartPoint = Math.floor(Math.random() * sampleInterval) + 1;
             setRandomStartPoint(newRandomStartPoint);
 
+            // ✅ CORRECCIÓN: Usar sampleInterval como límite para valores altos
             const newHighValueLimit = sampleInterval;
             if (!modifyHighValueLimit) {
                 setHighValueLimit(newHighValueLimit);
             }
 
+            // ✅ CORRECCIÓN: Identificar valores altos correctamente
             const highValueRecords = excelData.filter(row => {
                 const value = parseFloat(row[sampleField]);
-                return !isNaN(value) && Math.abs(value) >= (modifyHighValueLimit ? highValueLimit : newHighValueLimit);
+                return !isNaN(value) && Math.abs(value) >= sampleInterval; // ← CORREGIDO
             });
             setHighValueCount(highValueRecords.length);
         }
@@ -174,7 +176,7 @@ const Extraction: React.FC<ExtractionProps> = ({
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    excelData, estimatedSampleSize, sampleInterval, highValueLimit, 
+                    excelData, estimatedSampleSize, sampleInterval, highValueLimit: sampleInterval, 
                     highValueManagement, sampleField, randomStartPoint, 
                     estimatedPopulationValue, extractionType, 
                     extractionFilename: extractionFilename || "muestra_extraida",
@@ -190,14 +192,18 @@ const Extraction: React.FC<ExtractionProps> = ({
             const result = await response.json();
             
             // 2. Descargar el archivo principal de muestra
-            const sampleBlob = new Blob([Buffer.from(result.sampleFileBase64, 'base64')], { type: 'application/octet-stream' });
+            const sampleBlob = new Blob([Buffer.from(result.sampleFileBase64, 'base64')], { 
+                type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+            });
             saveAs(sampleBlob, `${result.extractionFilename}.xlsx`);
             
             let successMessage = `Extracción completada. Archivo "${result.extractionFilename}.xlsx" generado.`;
 
             // 3. Descargar el archivo de valores altos (si aplica)
             if (result.highValueFileBase64) {
-                const highValueBlob = new Blob([Buffer.from(result.highValueFileBase64, 'base64')], { type: 'application/octet-stream' });
+                const highValueBlob = new Blob([Buffer.from(result.highValueFileBase64, 'base64')], { 
+                    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+                });
                 saveAs(highValueBlob, `${result.highValueFilename}.xlsx`);
                 successMessage += ` Archivo de valores altos "${result.highValueFilename}.xlsx" generado.`;
             }
@@ -209,6 +215,27 @@ const Extraction: React.FC<ExtractionProps> = ({
             console.error("Error al realizar la extracción:", error);
             alert(`Error en la extracción: ${error instanceof Error ? error.message : "Error desconocido."}`);
         }
+    };
+
+    // ✅ CORRECCIÓN: Mejorar el texto informativo sobre valores altos
+    const getHighValueText = () => {
+        if (!sampleField || !excelData.length) return null;
+        
+        const highValueRecords = excelData.filter(row => {
+            const value = parseFloat(row[sampleField]);
+            return !isNaN(value) && Math.abs(value) >= sampleInterval;
+        });
+
+        return (
+            <p className="mt-4 text-sm text-gray-600">
+                Existen <strong>{highValueRecords.length}</strong> elementos con un valor igual o superior a {sampleInterval.toLocaleString()}. 
+                {highValueRecords.length > 0 && (
+                    <span className="block mt-1 text-gray-600">
+                        Los elementos con valor ≥ {sampleInterval.toLocaleString()} tendrán 100% de probabilidad de ser seleccionados.
+                    </span>
+                )}
+            </p>
+        );
     };
 
     const renderExtraccion = () => {
@@ -355,9 +382,7 @@ const Extraction: React.FC<ExtractionProps> = ({
                                 />
                             </div>
                         </div>
-                        <p className="mt-4 text-sm text-gray-600">
-                            Existen **{highValueCount}** elementos con un valor igual o superior a {highValueLimit.toLocaleString()}.
-                        </p>
+                        {getHighValueText()}
                     </div>
 
                     {/* Value Table */}
