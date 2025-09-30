@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 
+import { readExcelFile } from '@/lib/apiClient';
+
 // Props para el formulario de Cell & Classical PPS
 interface CellClassicalPPSFormProps {
     onOk: (method: 'cell-classical') => Promise<void>; 
@@ -13,7 +15,9 @@ interface CellClassicalPPSFormProps {
     highValueLimit: number;
 }
 
-const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({ onOk, confidenceLevel, precisionValue, setPrecisionValue, estimatedPopulationValue, estimatedSampleSize }) => {
+const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({ onOk, confidenceLevel, precisionValue, setPrecisionValue, estimatedPopulationValue, estimatedSampleSize, sampleInterval,
+    tolerableError,
+    highValueLimit  }) => {
     // Estados para la lógica del formulario
     const [isClassical, setIsClassical] = useState(false);
     const [precisionLimit, setPrecisionLimit] = useState<'upper' | 'upper-lower'>('upper');
@@ -90,20 +94,54 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({ onOk, confi
     const handleOkClick = async () => {
         // Validación mínima
         if (!mainFile || !bookValueField || !auditedValueField) {
-            alert("Por favor, suba el archivo principal y seleccione los campos 'Book value' y 'Audited value'.");
+            alert("Por favor, complete todos los campos requeridos");
             return;
         }
 
         setIsLoading(true);
+
         try {
-            // EL ERROR ESTABA AQUÍ: DEBÍAS LLAMAR A onOk CON EL ARGUMENTO.
+            // 1. LEER Y PROCESAR ARCHIVO REAL
+            const fileData = await readExcelFile(mainFile); // Necesitas implementar esta función
+            
+            // 2. PREPARAR DATOS REALES DE MUESTRA
+            const sampleData = fileData.map((row: any) => ({
+                reference: row[referenceField]?.toString() || `item-${Math.random()}`,
+                bookValue: parseFloat(row[bookValueField]) || 0,
+                auditedValue: parseFloat(row[auditedValueField]) || 0
+            }));
+
+            // 3. ENVIAR AL BACKEND REAL
+            const response = await fetch('/api/mum/evaluation/cell-classical', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    sampleData: sampleData, // ✅ DATOS REALES DEL ARCHIVO
+                    sampleInterval: sampleInterval,
+                    confidenceLevel: confidenceLevel,
+                    populationValue: estimatedPopulationValue,
+                    tolerableError: tolerableError
+                }),
+            });
+
+            if (!response.ok) {
+                throw new Error('Error en la evaluación');
+            }
+
+            const results = await response.json();
+
+            // 4. MANEJAR RESULTADOS REALES
+            console.log("Resultados evaluación REALES:", results);
+            
+            // Aquí deberías pasar los resultados al componente padre
+            // para que los muestre en el Summary
             await onOk('cell-classical'); 
-        } catch (error) {
-            // El error es manejado por el componente padre Evaluation.tsx.
-            // Si llega aquí, es que hubo un error de red o de back-end.
-            console.error("Error al ejecutar la evaluación desde el formulario:", error);
-            // El componente Evaluation ya muestra la alerta, pero se puede añadir una aquí también si se quiere:
-            // alert("Fallo al evaluar. Verifique su conexión.");
+
+        } catch (error: any) {
+            console.error("Error en evaluación:", error);
+            alert(`Error: ${error.message}`);
         } finally {
             setIsLoading(false);
         }

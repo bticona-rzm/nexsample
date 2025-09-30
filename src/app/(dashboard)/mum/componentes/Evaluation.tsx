@@ -36,16 +36,16 @@ const Evaluation: React.FC<EvaluationProps> = (props) => {
     const [selectedMethod, setSelectedMethod] = useState<'cell-classical' | 'stringer-bound'>('cell-classical');
     const [showSummary, setShowSummary] = useState(false);
 
-    // Función para manejar el clic en el botón "Ok" de los formularios hijos
-    // Acepta el método de evaluación como argumento
+    const [evaluationResults, setEvaluationResults] = useState<any>(null);
     const handleEvaluationProcess = async (method: 'cell-classical' | 'stringer-bound') => {
         try {
-            // Llama a la función del padre con el método seleccionado
-            await props.handleEvaluation(method);
+            // Aquí llamarías a tu API real y guardarías los resultados
+            const results = await props.handleEvaluation(method); // Esto debería devolver resultados reales
+            setEvaluationResults(results);
             setShowSummary(true);
         } catch (error) {
             console.error("Error durante la evaluación:", error);
-            alert("Ocurrió un error al realizar la evaluación. Por favor, verifica tus datos e intenta de nuevo.");
+            alert("Ocurrió un error al realizar la evaluación.");
         }
     };
 
@@ -134,7 +134,7 @@ const Evaluation: React.FC<EvaluationProps> = (props) => {
                     // handleSummary/handleEvaluation ahora deberá aceptar el método si lo necesita
                     handleSummary={() => props.handleEvaluation(selectedMethod)} // Adaptamos el handleSummary
                     evaluationMethod={selectedMethod} 
-                    onBack={handleBack} 
+                    onBack={handleBack}
                 />
             )}
         </div>
