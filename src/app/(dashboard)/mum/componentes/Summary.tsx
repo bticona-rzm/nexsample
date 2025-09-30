@@ -113,38 +113,38 @@ const Summary: React.FC<SummaryProps> = ({
                 {/* Resultados Excluyendo Elementos de Valor Alto */}
                 <tr>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Tamaño de muestra</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">{estimatedSampleSize?.toFixed(2) || '0.00'}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">{estimatedSampleSize?.toFixed(2) || '0.00'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{estimatedSampleSize?.toFixed(2) || '0.00'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{estimatedSampleSize?.toFixed(2) || '0.00'}</td>
                 </tr>
                 <tr>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Número de errores</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">{numErrores?.toFixed(2) || '0.00'}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">{numErrores?.toFixed(2) || '0.00'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{numErrores?.toFixed(2) || '0.00'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{numErrores?.toFixed(2) || '0.00'}</td>
                 </tr>
                 <tr>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Error más probable bruto</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">{formatNumber(errorMasProbableBruto)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">{formatNumber(errorMasProbableBruto)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(errorMasProbableBruto)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(errorMasProbableBruto)}</td>
                 </tr>
                 <tr>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Error más probable neto</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">{formatNumber(errorMasProbableNeto)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">{formatNumber(errorMasProbableNeto)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(errorMasProbableNeto)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(errorMasProbableNeto)}</td>
                 </tr>
                 <tr>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Precisión total</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">{formatNumber(precisionTotal)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">{formatNumber(precisionTotal)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(precisionTotal)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(precisionTotal)}</td>
                 </tr>
                 <tr>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Límite de error superior bruto</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">{formatNumber(limiteErrorSuperiorBruto)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">{formatNumber(limiteErrorSuperiorBruto)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(limiteErrorSuperiorBruto)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(limiteErrorSuperiorBruto)}</td>
                 </tr>
                 <tr>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Límite de error superior neto</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">{formatNumber(limiteErrorSuperiorNeto)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">{formatNumber(limiteErrorSuperiorNeto)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(limiteErrorSuperiorNeto)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(limiteErrorSuperiorNeto)}</td>
                 </tr>
                 
                 {/* Resultados para Elementos de Valor Alto */}
@@ -155,18 +155,18 @@ const Summary: React.FC<SummaryProps> = ({
                 </tr>
                 <tr>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Número de elementos de valor alto</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">{highValueCountResume?.toFixed(2) || '0.00'}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">{highValueCountResume?.toFixed(2) || '0.00'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{highValueCountResume?.toFixed(2) || '0.00'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{highValueCountResume?.toFixed(2) || '0.00'}</td>
                 </tr>
                 <tr>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Número de errores</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">0.00</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">0.00</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">0.00</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">0.00</td>
                 </tr>
                 <tr>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Valor de errores</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">0.00</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">0.00</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">0.00</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">0.00</td>
                 </tr>
                 
                 {/* Resultados Incluyendo Elementos de Valor Alto */}
@@ -177,33 +177,33 @@ const Summary: React.FC<SummaryProps> = ({
                 </tr>
                 <tr>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Número total de elementos examinados</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">{totalItemsExamined.toFixed(2)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">{totalItemsExamined.toFixed(2)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{totalItemsExamined.toFixed(2)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{totalItemsExamined.toFixed(2)}</td>
                 </tr>
                 <tr>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Número de errores</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">{numErrores?.toFixed(2) || '0.00'}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">{numErrores?.toFixed(2) || '0.00'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{numErrores?.toFixed(2) || '0.00'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{numErrores?.toFixed(2) || '0.00'}</td>
                 </tr>
                 <tr>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Error más probable bruto</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">{formatNumber(errorMasProbableBruto)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">{formatNumber(errorMasProbableBruto)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(errorMasProbableBruto)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(errorMasProbableBruto)}</td>
                 </tr>
                 <tr>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Error más probable neto</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">{formatNumber(errorMasProbableNeto)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">{formatNumber(errorMasProbableNeto)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(errorMasProbableNeto)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(errorMasProbableNeto)}</td>
                 </tr>
                 <tr>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Límite de error superior bruto</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">{formatNumber(limiteErrorSuperiorBruto)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">{formatNumber(limiteErrorSuperiorBruto)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(limiteErrorSuperiorBruto)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(limiteErrorSuperiorBruto)}</td>
                 </tr>
                 <tr>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Límite de error superior neto</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">{formatNumber(limiteErrorSuperiorNeto)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">{formatNumber(limiteErrorSuperiorNeto)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(limiteErrorSuperiorNeto)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(limiteErrorSuperiorNeto)}</td>
                 </tr>
             </tbody>
         );
@@ -444,102 +444,204 @@ const Summary: React.FC<SummaryProps> = ({
         );
     };
     
-    const renderStringerBoundTable = () => (
-        <tbody className="bg-white divide-y divide-gray-200">
-            <tr>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{sampleSizeLabel}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{estimatedSampleSize}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{estimatedSampleSize}</td>
-            </tr>
-            <tr>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Número de errores</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{numErrores}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{numErrores}</td>
-            </tr>
-            <tr>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Error más probable bruto</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatNumber(errorMasProbableBruto)}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatNumber(errorMasProbableBruto)}</td>
-            </tr>
-            <tr>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Error más probable neto</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatNumber(errorMasProbableNeto)}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatNumber(errorMasProbableNeto)}</td>
-            </tr>
-            <tr>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Precisión total</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatNumber(precisionTotal)}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatNumber(precisionTotal)}</td>
-            </tr>
-            <tr>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Límite de error superior bruto</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatNumber(limiteErrorSuperiorBruto)}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatNumber(limiteErrorSuperiorBruto)}</td>
-            </tr>
-            <tr>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Límite de error superior neto</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatNumber(limiteErrorSuperiorNeto)}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatNumber(limiteErrorSuperiorNeto)}</td>
-            </tr>
-            {/* New section for Results for High Value Items */}
-            <tr className="bg-gray-50">
-                <td colSpan={3} className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Resultados para elementos de valor alto
-                </td>
-            </tr>
-            <tr>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Número de elementos de valor alto</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{highValueCountResume}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{highValueCountResume}</td>
-            </tr>
-            <tr>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Número de errores</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{numErrores}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{numErrores}</td>
-            </tr>
-            <tr>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Valor de errores</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatNumber(errorMasProbableBruto)}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatNumber(errorMasProbableBruto)}</td>
-            </tr>
-            {/* New section for Results Including High Value Items */}
-            <tr className="bg-gray-50">
-                <td colSpan={3} className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Resultados incluyendo elementos de valor alto
-                </td>
-            </tr>
-            <tr>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Número total de elementos examinados</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{(estimatedSampleSize ?? 0) + (highValueCountResume ?? 0)}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{(estimatedSampleSize ?? 0) + (highValueCountResume ?? 0)}</td>
-            </tr>
-            <tr>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Número de errores</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{numErrores}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{numErrores}</td>
-            </tr>
-            <tr>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Error más probable bruto</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatNumber(errorMasProbableBruto)}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatNumber(errorMasProbableBruto)}</td>
-            </tr>
-            <tr>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Error más probable neto</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatNumber(errorMasProbableNeto)}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatNumber(errorMasProbableNeto)}</td>
-            </tr>
-            <tr>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Límite de error superior bruto</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatNumber(limiteErrorSuperiorBruto)}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatNumber(limiteErrorSuperiorBruto)}</td>
-            </tr>
-            <tr>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Límite de error superior neto</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatNumber(limiteErrorSuperiorNeto)}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatNumber(limiteErrorSuperiorNeto)}</td>
-            </tr>
-        </tbody>
-    );
+    const renderStringerBoundTable = () => {
+        const totalItemsExamined = (estimatedSampleSize ?? 0) + (highValueCountResume ?? 0);
+        
+        return (
+            <tbody className="bg-white divide-y divide-gray-200">
+                {/* ✅ CORREGIDO: "Combined Sample Size" en español */}
+                <tr>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        Tamaño de muestra combinado
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
+                        {estimatedSampleSize?.toFixed(2) || '0.00'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
+                        {estimatedSampleSize?.toFixed(2) || '0.00'}
+                    </td>
+                </tr>
+                
+                {/* ✅ MANTENER misma estructura que Cell & Classical pero con "combinado" */}
+                <tr>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        Número de errores
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
+                        {numErrores?.toFixed(2) || '0.00'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
+                        {numErrores?.toFixed(2) || '0.00'}
+                    </td>
+                </tr>
+                
+                <tr>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        Error más probable bruto
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
+                        {formatNumber(errorMasProbableBruto)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
+                        {formatNumber(errorMasProbableBruto)}
+                    </td>
+                </tr>
+                
+                <tr>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        Error más probable neto
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
+                        {formatNumber(errorMasProbableNeto)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
+                        {formatNumber(errorMasProbableNeto)}
+                    </td>
+                </tr>
+                
+                <tr>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        Precisión total
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
+                        {formatNumber(precisionTotal)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
+                        {formatNumber(precisionTotal)}
+                    </td>
+                </tr>
+                
+                <tr>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        Límite de error superior bruto
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
+                        {formatNumber(limiteErrorSuperiorBruto)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
+                        {formatNumber(limiteErrorSuperiorBruto)}
+                    </td>
+                </tr>
+                
+                <tr>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        Límite de error superior neto
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
+                        {formatNumber(limiteErrorSuperiorNeto)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
+                        {formatNumber(limiteErrorSuperiorNeto)}
+                    </td>
+                </tr>
+                
+                {/* ✅ Resultados para Elementos de Valor Alto */}
+                <tr className="bg-gray-50">
+                    <td colSpan={3} className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                        Resultados para Elementos de Valor Alto
+                    </td>
+                </tr>
+                <tr>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        Número de elementos de valor alto
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
+                        {highValueCountResume?.toFixed(2) || '0.00'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
+                        {highValueCountResume?.toFixed(2) || '0.00'}
+                    </td>
+                </tr>
+                <tr>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        Número de errores
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">0.00</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">0.00</td>
+                </tr>
+                <tr>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        Valor de errores
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">0.00</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">0.00</td>
+                </tr>
+                
+                {/* ✅ Resultados Incluyendo Elementos de Valor Alto */}
+                <tr className="bg-gray-50">
+                    <td colSpan={3} className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                        Resultados Incluyendo Elementos de Valor Alto
+                    </td>
+                </tr>
+                <tr>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        Número total de elementos examinados
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
+                        {totalItemsExamined.toFixed(2)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
+                        {totalItemsExamined.toFixed(2)}
+                    </td>
+                </tr>
+                <tr>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        Número de errores
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
+                        {numErrores?.toFixed(2) || '0.00'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
+                        {numErrores?.toFixed(2) || '0.00'}
+                    </td>
+                </tr>
+                <tr>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        Error más probable bruto
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
+                        {formatNumber(errorMasProbableBruto)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
+                        {formatNumber(errorMasProbableBruto)}
+                    </td>
+                </tr>
+                <tr>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        Error más probable neto
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
+                        {formatNumber(errorMasProbableNeto)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
+                        {formatNumber(errorMasProbableNeto)}
+                    </td>
+                </tr>
+                <tr>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        Límite de error superior bruto
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
+                        {formatNumber(limiteErrorSuperiorBruto)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
+                        {formatNumber(limiteErrorSuperiorBruto)}
+                    </td>
+                </tr>
+                <tr>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        Límite de error superior neto
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
+                        {formatNumber(limiteErrorSuperiorNeto)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
+                        {formatNumber(limiteErrorSuperiorNeto)}
+                    </td>
+                </tr>
+            </tbody>
+        );
+    };
 
     return (
         <div>

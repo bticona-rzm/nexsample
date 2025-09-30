@@ -1,4 +1,4 @@
-// app/api/mum/evaluation/cell-classical/route.ts
+// app/api/mum/summary/route.ts
 import { NextResponse } from 'next/server';
 
 // Interfaces para tipado fuerte

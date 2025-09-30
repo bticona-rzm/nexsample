@@ -106,6 +106,11 @@ const Evaluation: React.FC<EvaluationProps> = (props) => {
                             confidenceLevel={props.confidenceLevel}
                             estimatedPopulationValue={props.estimatedPopulationValue}
                             estimatedSampleSize={props.estimatedSampleSize}
+                            sampleInterval={props.sampleInterval} // Debes tener este valor de la planificación
+                            tolerableError={props.tolerableError} // Debes tener este valor de la planificación  
+                            highValueLimit={props.highValueLimit} // Generalmente es igual a sampleInterval
+                            precisionValue={props.precisionValue}
+                            setPrecisionValue={props.setPrecisionValue}
                         />
                     )}
                 </>

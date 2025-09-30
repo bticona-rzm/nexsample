@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { readExcelFile } from '@/lib/apiClient';
 
 interface StringerBoundFormProps {
     // onOk espera un argumento 'stringer-bound'
@@ -6,14 +7,20 @@ interface StringerBoundFormProps {
     confidenceLevel: number;
     estimatedPopulationValue: number;
     estimatedSampleSize: number;
+    sampleInterval: number;        // ✅ NUEVO
+    tolerableError: number;        // ✅ NUEVO  
+    highValueLimit: number;        // ✅ NUEVO
+    precisionValue: number;        // ✅ NUEVO
+    setPrecisionValue: (value: number) => void; // ✅ NUEVO
 }
 
-const StringerBoundForm: React.FC<StringerBoundFormProps> = ({ onOk, confidenceLevel, estimatedPopulationValue, estimatedSampleSize }) => {
+const StringerBoundForm: React.FC<StringerBoundFormProps> = ({ onOk, confidenceLevel, estimatedPopulationValue, estimatedSampleSize, sampleInterval, tolerableError, highValueLimit, precisionValue, setPrecisionValue }) => {
     const [initialFile, setInitialFile] = useState<File | null>(null);
     const [files, setFiles] = useState<File[]>([]);
     const [selectedFileName, setSelectedFileName] = useState<string>('');
     const [highValueFile, setHighValueFile] = useState<File | null>(null);
     const [resultName, setResultName] = useState("Monetary Unit Sampling - Stringer Bound Evaluation");
+    const [isLoading, setIsLoading] = useState(false);
     
     // CAMPOS DE COLUMNA PARA EL ARCHIVO PRINCIPAL
     const [bookValueField, setBookValueField] = useState('');
@@ -97,21 +104,66 @@ const StringerBoundForm: React.FC<StringerBoundFormProps> = ({ onOk, confidenceL
         }
     };
 
+    const handleOkClick = async () => {
+        if (!initialFile || !bookValueField || !auditedValueField) {
+            alert("Por favor, complete todos los campos requeridos");
+            return;
+        }
+
+        try {
+            // 1. LEER ARCHIVO REAL
+            const fileData = await readExcelFile(initialFile);
+            
+            // 2. PROCESAR DATOS
+            const sampleData = fileData.map((row: any) => ({
+                reference: row[referenceField]?.toString() || `item-${Math.random()}`,
+                bookValue: parseFloat(row[bookValueField]) || 0,
+                auditedValue: parseFloat(row[auditedValueField]) || 0
+            }));
+
+            // 3. ENVIAR AL BACKEND STRINGER BOUND
+            const response = await fetch('/api/mum/evaluation/stringer-bound', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    sampleData,
+                    sampleInterval,
+                    confidenceLevel,
+                    populationValue: estimatedPopulationValue,
+                    tolerableError,
+                    highValueLimit
+                }),
+            });
+
+            if (!response.ok) throw new Error('Error en evaluación Stringer Bound');
+            
+            const results = await response.json();
+            console.log("Resultados Stringer Bound:", results);
+            
+            await onOk('stringer-bound');
+
+        } catch (error: any) {
+            console.error("Error en evaluación:", error);
+            alert(`Error: ${error.message}`);
+        }
+    };
+
     const getHeadersForDropdown = () => {
         return headers; // Ahora usa el estado 'headers'
     };
 
     // Función para el cálculo de la precisión básica
     const calculateBasicPrecision = () => {
-        const ppsFactors = {
+        const reliabilityFactors = {
             80: 1.61,
+            85: 1.90,
             90: 2.31,
-            95: 2.996,
-            99: 4.605,
-        } as const;
-
-        const factor = ppsFactors[confidenceLevel as keyof typeof ppsFactors] || 2.996;
-        const result = estimatedPopulationValue * factor;
+            95: 3.00,
+            99: 4.61,
+        };
+        
+        const factor = reliabilityFactors[confidenceLevel as keyof typeof reliabilityFactors] || 3.00;
+        const result = factor * sampleInterval; // ✅ CORRECTO: factor × intervalo
         setBasicPrecision(result);
     };
 
@@ -372,11 +424,16 @@ const StringerBoundForm: React.FC<StringerBoundFormProps> = ({ onOk, confidenceL
                 {/* Columna de botones a la derecha */}
                 <div className="ml-8 flex flex-col justify-start space-y-4">
                     <button
-                        // CORRECCIÓN 1: Pasar el argumento requerido
-                        onClick={() => onOk('stringer-bound')}
-                        className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-md shadow transition-colors"
+                        // CAMBIO CLAVE: Usar la nueva función handleOkClick
+                        onClick={handleOkClick}
+                        disabled={isLoading} // Deshabilitar mientras está cargando
+                        className={`font-semibold py-2 px-6 rounded-md shadow transition-colors ${
+                            isLoading 
+                                ? 'bg-blue-400 cursor-not-allowed' 
+                                : 'bg-blue-600 hover:bg-blue-700 text-white'
+                        }`}
                     >
-                        Ok
+                        {isLoading ? 'Procesando...' : 'Ok'}
                     </button>
                     <button className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 px-6 rounded-md shadow transition-colors">
                         Cancelar
