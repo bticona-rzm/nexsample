@@ -65,7 +65,7 @@ model User {
 model HistorialMuestra {
   id              String   @id @default(cuid())
   name            String
-  date            DateTime @default(now())
+  createdAt       DateTime @default(now()) @map("created_at")
   records         Int
   range           String
   seed            Int
@@ -73,11 +73,10 @@ model HistorialMuestra {
   source          String
   hash            String
 
-  // Relación con usuario
   userId String
   user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId])
+  @@index([userId, createdAt(sort: Desc)])
   @@map("historial_muestras")
 }
 

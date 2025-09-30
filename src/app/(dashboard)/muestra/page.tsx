@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import printJS from "print-js";
 import { ChevronLeft, ChevronRight ,  FileBarChart, Download, History, Upload, Printer, Trash2} from "lucide-react";
 import { useSession } from "next-auth/react";
+import { formatDate } from "@/lib/format"; 
 
 
 type SampleParams = {
@@ -41,21 +42,21 @@ const TablaHistorial = ({ historial }: { historial: any[] }) => (
           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">HASH</th>
         </tr>
       </thead>
-      <tbody>
-        {historial.map((h, i) => (
-          <tr key={i} className="text-sm text-gray-600">
-            <td className="px-6 py-2">{h.name}</td>
-            <td className="px-6 py-2">{h.date}</td>
-            <td className="px-6 py-2">{h.user?.name || h.userId}</td>
-            <td className="px-6 py-2">{h.records}</td>
-            <td className="px-6 py-2">{h.range}</td>
-            <td className="px-6 py-2">{h.seed}</td>
-            <td className="px-6 py-2">{h.allowDuplicates}</td>
-            <td className="px-6 py-2">{h.source}</td>
-            <td className="px-6 py-2">{h.hash}</td>
-          </tr>
-        ))}
-      </tbody>
+        <tbody>
+          {historial.map((h, i) => (
+            <tr key={i} className="text-sm text-gray-600">
+              <td className="px-6 py-2">{h.name}</td>
+              <td className="px-6 py-2">{formatDate(h.createdAt)}</td>
+              <td className="px-6 py-2">{h.userDisplay}</td>
+              <td className="px-6 py-2">{h.records}</td>
+              <td className="px-6 py-2">{h.range}</td>
+              <td className="px-6 py-2">{h.seed}</td>
+              <td className="px-6 py-2">{h.allowDuplicates ? "Sí" : "No"}</td>
+              <td className="px-6 py-2">{h.source}</td>
+              <td className="px-6 py-2 font-mono text-xs">{h.hash}</td>
+            </tr>
+          ))}
+        </tbody>
     </table>
   </div>
 );
@@ -249,24 +250,31 @@ export default function MuestraPage() {
 
   // Función limpiar historial
   const clearHistorial = async () => {
+    if (!userId) {
+      alert("Necesitas iniciar sesión para limpiar tu historial.");
+      return;
+    }
+
     if (confirm("¿Seguro que quieres borrar todo el historial?")) {
       try {
-        await fetch("/api/muestra", {
+        const res = await fetch("/api/muestra", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "clearHistorial",
-            userId: "admin", // 👈 mismo que antes
-          }),
+          body: JSON.stringify({ action: "clearHistorial", userId }),
         });
 
-        setHistorial([]);
-        localStorage.removeItem("historial");
+        if (!res.ok) {
+          alert("No se pudo limpiar el historial.");
+          return;
+        }
+
+        setHistorial([]); //  limpio en UI
       } catch (e: any) {
         alert(`Error al limpiar historial: ${e.message}`);
       }
     }
   };
+
 
   // Guardar pestañas
   useEffect(() => {
@@ -363,7 +371,7 @@ export default function MuestraPage() {
           start: sampleParams.start,
           end: sampleParams.end,
           allowDuplicates: sampleParams.allowDuplicates,
-          userId: session?.user?.id,        // ⬅️ ya no "admin"
+          userId, // id real del usuario
           nombreMuestra: sampleParams.fileName,
         }),
       });
@@ -429,7 +437,6 @@ export default function MuestraPage() {
     }
   };
 
-  
   // === Exportación vía API con manejo de error ===
   const exportData = async (format: string) => {
     if (!selectedTabId) {
@@ -481,7 +488,6 @@ export default function MuestraPage() {
       return;
     }
 
-    // Validación simple de extensión
     const name = uploadedFile.name.toLowerCase();
     if (!name.endsWith(".xlsx") && !name.endsWith(".xls") && !name.endsWith(".csv")) {
       alert("Tipo de archivo no soportado. Use .xlsx, .xls o .csv");
@@ -491,7 +497,8 @@ export default function MuestraPage() {
     try {
       const formData = new FormData();
       formData.append("file", uploadedFile);
-      formData.append("useHeaders", String(useHeaders));
+      formData.append("datasetName", datasetName);
+      formData.append("useHeader", useHeaders ? "true" : "false");
 
       const res = await fetch("/api/muestra", {
         method: "POST",
@@ -504,25 +511,24 @@ export default function MuestraPage() {
         return;
       }
 
-      // 👇 ahora el backend devuelve { data, totalRows }
-      const { data, totalRows } = await res.json();
+      // 👈 alineado con backend: devuelve { rows, total, dataset }
+      const { rows, total, dataset } = await res.json();
       const newTabId = Date.now().toString();
 
       setTabs([
         ...tabs,
         {
           id: newTabId,
-          name: datasetName || uploadedFile.name,
-          rows: data,
+          name: dataset || uploadedFile.name,
+          rows,
         },
       ]);
 
-      // 👇 aquí actualizamos los parámetros de muestreo automáticamente
       setSampleParams((prev) => ({
         ...prev,
-        start: 1,          // siempre inicia en 1
-        end: totalRows,    // fin se ajusta al número de registros cargados
-        totalRows,         // lo guardamos para mostrar en UI
+        start: 1,
+        end: total,
+        totalRows: total,
       }));
 
       setActiveTab(newTabId);
@@ -534,6 +540,7 @@ export default function MuestraPage() {
   };
 
 
+
   // === Acciones UI ===
   const closeTab = (id: string) => {
     const newTabs = tabs.filter((tab) => tab.id !== id);
@@ -543,9 +550,8 @@ export default function MuestraPage() {
 
   const openHistorial = () => {
     setActiveTab("historial");
-    fetchHistorial(); // ahora carga desde backend
+    fetchHistorial(); // carga desde backend
   };
-
 
 
   // Hasta que esté hidratado, no renders (evita mismatch SSR/CSR)
@@ -605,7 +611,7 @@ export default function MuestraPage() {
                 No hay datos cargados. Usa <b>Cargar Datos</b>.
               </div>
             ) : activeTab === "historial" ? (
-              <TablaHistorial historial={historial} />
+              <TablaHistorial historial={Array.isArray(historial) ? historial : []} />
             ) : (
               <TablaGenerica rows={currentRows} />
             )}

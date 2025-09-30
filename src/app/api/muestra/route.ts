@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import * as XLSX from "xlsx";
-import { createHash } from "crypto";   // 👈 CORRECTO
+import { createHash } from "crypto";   
 import { prisma } from "@/lib/prisma";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/pages/api/auth/[...nextauth]";
 
 // ---------- Algoritmos internos ----------
 
@@ -67,27 +69,56 @@ function generateHash(data: any): string {
 }
 
 // ---------- API ----------
-
 export async function POST(req: Request) {
   try {
+    const session: any = await getServerSession(authOptions); // <- CAST a any
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const userId = session.user.id as string;
+
     const contentType = req.headers.get("content-type");
 
     // === SUBIDA DE ARCHIVOS (Excel/CSV) ===
     if (contentType?.includes("multipart/form-data")) {
-      // ... tu lógica existente para subir archivos
+      const formData = await req.formData();
+      const file = formData.get("file") as File;
+      const datasetName = formData.get("datasetName") as string;
+      const useHeader = formData.get("useHeader") === "true";
+
+      if (!file) {
+        return NextResponse.json({ error: "No se subió ningún archivo" }, { status: 400 });
+      }
+
+      // Leer archivo en buffer
+      const bytes = await file.arrayBuffer();
+      const buffer = Buffer.from(bytes);
+
+      // Procesar con XLSX
+      const workbook = XLSX.read(buffer, { type: "buffer" });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+
+      // Convertir a JSON
+      const rows = XLSX.utils.sheet_to_json(worksheet, { header: useHeader ? 0 : 1 });
+
+      return NextResponse.json({
+        rows,             // 👈 filas del Excel en JSON
+        total: rows.length, // 👈 número de filas
+        dataset: datasetName || file.name,
+      });
     }
+
 
     // === ACCIONES JSON ===
     const { action, ...options } = await req.json();
 
-    //  1) Generar muestreo y guardar en historial
     if (action === "sample") {
-      const { array, n, seed, start, end, allowDuplicates, userId, nombreMuestra } = options;
+      const { array, n, seed, start, end, allowDuplicates, nombreMuestra } = options;
 
       const sample = randomSample(array, n, seed, start, end, allowDuplicates);
       const hash = generateHash({ sample, n, seed, start, end, allowDuplicates });
 
-      // Guardar en historial
       await prisma.historialMuestra.create({
         data: {
           userId,
@@ -104,7 +135,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ sample, hash, totalRows: array.length });
     }
 
-    //  2) Exportación en distintos formatos
     if (action === "export") {
       const { rows, format, fileName } = options as {
         rows: Record<string, unknown>[];
@@ -113,43 +143,24 @@ export async function POST(req: Request) {
       };
 
       if (!rows || rows.length === 0) {
-        return NextResponse.json(
-          { error: "No hay datos para exportar" },
-          { status: 400 }
-        );
+        return NextResponse.json({ error: "No hay datos para exportar" }, { status: 400 });
       }
 
-      // JSON → devolver directamente
       if (format === "json") return NextResponse.json(rows);
 
-      // XML → generar string
       if (format === "xml") {
         const xml = toXML(rows);
-        return new Response(xml, {
-          headers: { "Content-Type": "application/xml" },
-        });
+        return new Response(xml, { headers: { "Content-Type": "application/xml" } });
       }
 
-      // TXT → generar tabla alineada
       if (format === "txt") {
         const headers = Object.keys(rows[0]);
         const colWidths = headers.map(
-          (h, i) =>
-            Math.max(
-              h.length,
-              ...rows.map((row) => String(Object.values(row)[i]).length)
-            )
+          (h, i) => Math.max(h.length, ...rows.map((row) => String(Object.values(row)[i]).length))
         );
-
         let text = "";
-
-        // encabezados
         text += headers.map((h, i) => h.padEnd(colWidths[i] + 2)).join("") + "\n";
-
-        // separador
         text += colWidths.map((w) => "-".repeat(w + 2)).join("") + "\n";
-
-        // filas
         text += rows
           .map((row) =>
             Object.values(row)
@@ -157,7 +168,6 @@ export async function POST(req: Request) {
               .join("")
           )
           .join("\n");
-
         return new Response(text, {
           headers: {
             "Content-Type": "text/plain",
@@ -166,15 +176,10 @@ export async function POST(req: Request) {
         });
       }
 
-      // Excel / CSV → generar workbook
       const worksheet = XLSX.utils.json_to_sheet(rows);
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Datos");
-
-      const arrayBuffer = XLSX.write(workbook, {
-        type: "array",
-        bookType: format as any,
-      });
+      const arrayBuffer = XLSX.write(workbook, { type: "array", bookType: format as any });
 
       return new Response(arrayBuffer, {
         headers: {
@@ -187,39 +192,39 @@ export async function POST(req: Request) {
       });
     }
 
-    // === 3) Consultar historial de un usuario (SIEMPRE devuelve array) ===
     if (action === "historial") {
-      const { userId } = options || {};
-      if (!userId) {
-        // devolvemos array vacío para no romper el frontend
-        return NextResponse.json([], { status: 200 });
-      }
-
       const historial = await prisma.historialMuestra.findMany({
         where: { userId },
-        orderBy: { date: "desc" },
+        orderBy: { createdAt: "desc" },
+        include: { user: { select: { name: true, email: true } } },
       });
 
-      return NextResponse.json(historial ?? []); // nunca null/undefined
+      const items = historial.map((h) => ({
+        id: h.id,
+        name: h.name,
+        createdAt: h.createdAt,
+        userDisplay: h.user?.name ?? h.user?.email ?? h.userId,
+        records: h.records,
+        range: h.range,
+        seed: h.seed,
+        allowDuplicates: h.allowDuplicates,
+        source: h.source,
+        hash: h.hash,
+      }));
+
+      return NextResponse.json(items);
     }
 
 
-    // === 4) Limpiar historial de un usuario ===
     if (action === "clearHistorial") {
-      const { userId } = options || {};
-      if (!userId) {
-        return NextResponse.json({ error: "Usuario no autenticado" }, { status: 401 });
-      }
-
       await prisma.historialMuestra.deleteMany({ where: { userId } });
       return NextResponse.json({ success: true });
     }
 
-
     return NextResponse.json({ error: "Acción no válida" }, { status: 400 });
   } catch (err: any) {
     return NextResponse.json(
-      { error: "Error interno del servidor", details: err.message },
+      { error: "Error interno del servidor", details: err?.message ?? String(err) },
       { status: 500 }
     );
   }
