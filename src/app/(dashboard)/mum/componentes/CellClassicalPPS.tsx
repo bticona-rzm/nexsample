@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-
 import { readExcelFile } from '@/lib/apiClient';
 
 // Props para el formulario de Cell & Classical PPS
@@ -118,11 +117,11 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({ onOk, confi
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    sampleData: sampleData, // ✅ DATOS REALES DEL ARCHIVO
-                    sampleInterval: sampleInterval,
-                    confidenceLevel: confidenceLevel,
-                    populationValue: estimatedPopulationValue,
-                    tolerableError: tolerableError
+                    sampleData: sampleData, // ✅ Datos del archivo
+                    sampleInterval: sampleInterval, // ✅ De planificación
+                    confidenceLevel: confidenceLevel, // ✅ De planificación  
+                    populationValue: estimatedPopulationValue, // ✅ De planificación
+                    tolerableError: tolerableError // ✅ De planificación
                 }),
             });
 

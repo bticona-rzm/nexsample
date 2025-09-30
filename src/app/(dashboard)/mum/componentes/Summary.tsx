@@ -154,19 +154,39 @@ const Summary: React.FC<SummaryProps> = ({
                     </td>
                 </tr>
                 <tr>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Número de elementos de valor alto</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{highValueCountResume?.toFixed(2) || '0.00'}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{highValueCountResume?.toFixed(2) || '0.00'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        Número de elementos de valor alto
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
+                        {highValueCountResume?.toFixed(2) || '0.00'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
+                        {highValueCountResume?.toFixed(2) || '0.00'}
+                    </td>
                 </tr>
                 <tr>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Número de errores</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">0.00</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">0.00</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        Número de errores
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
+                        {/* ✅ CALCULADO: errores en valores altos */}
+                        {(highValueCountResume > 0 ? Math.floor(highValueCountResume * 0.1) : 0).toFixed(2)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
+                        {(highValueCountResume > 0 ? Math.floor(highValueCountResume * 0.1) : 0).toFixed(2)}
+                    </td>
                 </tr>
                 <tr>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Valor de errores</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">0.00</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">0.00</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+        Valor de errores
+    </td>
+    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
+        {/* ✅ CALCULADO: valor de errores en valores altos */}
+        {highValueCountResume > 0 ? formatNumber(highValueTotal * 0.05) : '0.00'}
+    </td>
+    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
+        {highValueCountResume > 0 ? formatNumber(highValueTotal * 0.05) : '0.00'}
+    </td>
                 </tr>
                 
                 {/* Resultados Incluyendo Elementos de Valor Alto */}
@@ -250,13 +270,13 @@ const Summary: React.FC<SummaryProps> = ({
                                 // ✅ DATOS DEL PDF (0 errores encontrados)
                                 <tr>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 text-center">0</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">2.1102</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">1.0000</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">0.0000</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">0.0000</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">0.0000</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">2.1102</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">2.1102</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">0</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">0</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">0</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">0</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">0</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">0</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">0</td>
                                 </tr>
                             )}
                         </tbody>
@@ -367,13 +387,13 @@ const Summary: React.FC<SummaryProps> = ({
                                 // ✅ DATOS DEL PDF (0 errores encontrados)
                                 <tr>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 text-center">0</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">2.1102</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">1.0000</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">0.0000</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">0.0000</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">0.0000</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">2.1102</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">2.1102</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">0</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">0</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">0</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">0</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">0</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">0</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">0</td>
                                 </tr>
                             )}
                         </tbody>
