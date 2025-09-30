@@ -56,8 +56,29 @@ model User {
 
   accounts Account[]
   sessions Session[]
+  historial HistorialMuestra[]   // Relación al historial
 
   @@map("users")
+}
+
+///--- NUEVO MODELO DE HISTORIAL RRELACIONADO CON USUARIOS
+model HistorialMuestra {
+  id              String   @id @default(cuid())
+  name            String
+  date            DateTime @default(now())
+  records         Int
+  range           String
+  seed            Int
+  allowDuplicates Boolean
+  source          String
+  hash            String
+
+  // Relación con usuario
+  userId String
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("historial_muestras")
 }
 
 model VerificationToken {

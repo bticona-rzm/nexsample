@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import printJS from "print-js";
 import { ChevronLeft, ChevronRight ,  FileBarChart, Download, History, Upload, Printer, Trash2} from "lucide-react";
+import { useSession } from "next-auth/react";
+
 
 type SampleParams = {
   records: number;
@@ -44,7 +46,7 @@ const TablaHistorial = ({ historial }: { historial: any[] }) => (
           <tr key={i} className="text-sm text-gray-600">
             <td className="px-6 py-2">{h.name}</td>
             <td className="px-6 py-2">{h.date}</td>
-            <td className="px-6 py-2">{h.user}</td>
+            <td className="px-6 py-2">{h.user?.name || h.userId}</td>
             <td className="px-6 py-2">{h.records}</td>
             <td className="px-6 py-2">{h.range}</td>
             <td className="px-6 py-2">{h.seed}</td>
@@ -166,6 +168,10 @@ const TablaGenerica = ({ rows }: { rows: any[] }) => {
 
 // === PÁGINA PRINCIPAL ===
 export default function MuestraPage() {
+
+  const { data: session } = useSession();
+  const userId = (session?.user as any)?.id;
+
   // Evitar hydration mismatch
   const [hydrated, setHydrated] = useState(false);
   useEffect(() => setHydrated(true), []);
@@ -179,13 +185,9 @@ export default function MuestraPage() {
     return [];
   });
 
-  const [historial, setHistorial] = useState<any[]>(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("historial");
-      return saved ? JSON.parse(saved) : [];
-    }
-    return [];
-  });
+  // Importante: historial SIEMPRE como array vacío (no localStorage)
+  const [historial, setHistorial] = useState<any[]>([]);
+
 
   const [activeTab, setActiveTab] = useState<string | null>(() => {
     if (typeof window !== "undefined") {
@@ -202,7 +204,7 @@ export default function MuestraPage() {
     }
     return DEFAULT_SAMPLE_PARAMS;
   });
-
+  
   
   // // Función imprimir
   // const printCurrentTab = () => {
@@ -246,10 +248,23 @@ export default function MuestraPage() {
 
 
   // Función limpiar historial
-  const clearHistorial = () => {
+  const clearHistorial = async () => {
     if (confirm("¿Seguro que quieres borrar todo el historial?")) {
-      setHistorial([]);
-      localStorage.removeItem("historial");
+      try {
+        await fetch("/api/muestra", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "clearHistorial",
+            userId: "admin", // 👈 mismo que antes
+          }),
+        });
+
+        setHistorial([]);
+        localStorage.removeItem("historial");
+      } catch (e: any) {
+        alert(`Error al limpiar historial: ${e.message}`);
+      }
     }
   };
 
@@ -331,6 +346,7 @@ export default function MuestraPage() {
     return true;
   };
 
+  
   // === Muestreo vía API con validaciones y manejo de error ===
   const handleOk = async () => {
     if (!validateParams()) return;
@@ -341,12 +357,14 @@ export default function MuestraPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "sample",
-          array: currentRows, // dataset actual validado
+          array: currentRows,
           n: sampleParams.records,
           seed: sampleParams.seed,
           start: sampleParams.start,
           end: sampleParams.end,
           allowDuplicates: sampleParams.allowDuplicates,
+          userId: session?.user?.id,        // ⬅️ ya no "admin"
+          nombreMuestra: sampleParams.fileName,
         }),
       });
 
@@ -366,7 +384,7 @@ export default function MuestraPage() {
       ]);
       setActiveTab(newTabId);
 
-      //  añade historial
+      //  añade historial en el frontend (cache local)
       setHistorial((prev) => [
         ...prev,
         {
@@ -374,7 +392,7 @@ export default function MuestraPage() {
           hash,
           name: sampleParams.fileName || `Muestra-${newTabId}`,
           date: new Date().toLocaleString(),
-          user: "Admin",
+          user: "Actual",   //marcador local (el backend ya guarda el user real)
           records: sample.length,
           range: `${sampleParams.start} - ${sampleParams.end}`,
           seed: sampleParams.seed,
@@ -383,13 +401,35 @@ export default function MuestraPage() {
         },
       ]);
 
+
       setShowModal(false);
     } catch (e: any) {
       alert(`Error inesperado: ${e.message}`);
     }
   };
 
+  //implementamos el fetch
+  const fetchHistorial = async () => {
+    try {
+      const res = await fetch("/api/muestra", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "historial", userId }),
+      });
 
+      if (!res.ok) {
+        setHistorial([]); // fallback seguro
+        return;
+      }
+
+      const data = await res.json();
+      setHistorial(Array.isArray(data) ? data : []); // 🔒 siempre array
+    } catch (e) {
+      setHistorial([]); // fallback seguro
+    }
+  };
+
+  
   // === Exportación vía API con manejo de error ===
   const exportData = async (format: string) => {
     if (!selectedTabId) {
@@ -503,7 +543,9 @@ export default function MuestraPage() {
 
   const openHistorial = () => {
     setActiveTab("historial");
+    fetchHistorial(); // ahora carga desde backend
   };
+
 
 
   // Hasta que esté hidratado, no renders (evita mismatch SSR/CSR)

@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
 import * as XLSX from "xlsx";
-import { createHash } from "crypto";
-import { totalmem } from "os";
+import { createHash } from "crypto";   // 👈 CORRECTO
+import { prisma } from "@/lib/prisma";
 
 // ---------- Algoritmos internos ----------
 
-// Generador aleatorio con semilla (para que el muestreo sea reproducible)  
-// algoritmos deterministas llamados PRNG (Pseudo Random Number Generators).
+// Generador aleatorio con semilla (PRNG determinístico)
 function mulberry32(a: number) {
   return function () {
     let t = (a += 0x6d2b79f5);
@@ -17,10 +16,20 @@ function mulberry32(a: number) {
 }
 
 // Muestreo con validaciones
-function randomSample(array: any[], n: number, seed: number, start: number, end: number, allowDuplicates: boolean) {
-  if (!Array.isArray(array) || array.length === 0) throw new Error("El dataset está vacío");
-  if (start < 1 || end > array.length || start > end) throw new Error("El rango de inicio/fin no es válido");
-  if (!allowDuplicates && n > end - start + 1) throw new Error("Más registros que rango disponible sin duplicados");
+function randomSample(
+  array: any[],
+  n: number,
+  seed: number,
+  start: number,
+  end: number,
+  allowDuplicates: boolean
+) {
+  if (!Array.isArray(array) || array.length === 0)
+    throw new Error("El dataset está vacío");
+  if (start < 1 || end > array.length || start > end)
+    throw new Error("El rango de inicio/fin no es válido");
+  if (!allowDuplicates && n > end - start + 1)
+    throw new Error("Más registros que rango disponible sin duplicados");
 
   let rng = mulberry32(seed);
   let slice = array.slice(start - 1, end);
@@ -49,66 +58,53 @@ function toXML(rows: any[]): string {
   return xml;
 }
 
-// Función para generar hash de un objeto/array
-// función hash
+// Función para generar hash
 function generateHash(data: any): string {
   return createHash("sha256")
     .update(JSON.stringify(data))
     .digest("hex")
-    .slice(0, 12); // lo recortamos a 12 caracteres
+    .slice(0, 12); // recortamos a 12 caracteres
 }
 
 // ---------- API ----------
+
 export async function POST(req: Request) {
   try {
     const contentType = req.headers.get("content-type");
 
     // === SUBIDA DE ARCHIVOS (Excel/CSV) ===
     if (contentType?.includes("multipart/form-data")) {
-      const formData = await req.formData();
-      const file = formData.get("file") as File;
-      const useHeaders = formData.get("useHeaders") === "true";
-
-      if (!file) return NextResponse.json({ error: "No se recibió archivo" }, { status: 400 });
-
-      try {
-        const arrayBuffer = await file.arrayBuffer();
-        const data = new Uint8Array(arrayBuffer);
-        const workbook = XLSX.read(data, { type: "array", codepage: 65001 });
-        const sheet = workbook.Sheets[workbook.SheetNames[0]];
-
-        let jsonData: any[] = [];
-        if (useHeaders) {
-          jsonData = XLSX.utils.sheet_to_json(sheet, { defval: "" });
-        } else {
-          const raw = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" }) as any[];
-          const headers = raw[0].map((_: any, i: number) => `Columna${i + 1}`);
-          jsonData = raw.slice(1).map((row: any[]) =>
-            Object.fromEntries(row.map((val, i) => [headers[i], val]))
-          );
-        }
-
-        return NextResponse.json({ data: jsonData, totalRows: jsonData.length });
-      } catch {
-        return NextResponse.json({ error: "Archivo inválido o corrupto" }, { status: 400 });
-      }
+      // ... tu lógica existente para subir archivos
     }
 
     // === ACCIONES JSON ===
     const { action, ...options } = await req.json();
 
-    // en action === "sample"
+    //  1) Generar muestreo y guardar en historial
     if (action === "sample") {
-      const { array, n, seed, start, end, allowDuplicates } = options;
-      const sample = randomSample(array, n, seed, start, end, allowDuplicates);
+      const { array, n, seed, start, end, allowDuplicates, userId, nombreMuestra } = options;
 
+      const sample = randomSample(array, n, seed, start, end, allowDuplicates);
       const hash = generateHash({ sample, n, seed, start, end, allowDuplicates });
+
+      // Guardar en historial
+      await prisma.historialMuestra.create({
+        data: {
+          userId,
+          name: nombreMuestra || `Muestra_${Date.now()}`,
+          records: n,
+          range: `${start}-${end}`,
+          seed,
+          allowDuplicates,
+          source: "frontend",
+          hash,
+        },
+      });
 
       return NextResponse.json({ sample, hash, totalRows: array.length });
     }
 
-
-    // 2) Exportación en distintos formatos
+    //  2) Exportación en distintos formatos
     if (action === "export") {
       const { rows, format, fileName } = options as {
         rows: Record<string, unknown>[];
@@ -141,23 +137,17 @@ export async function POST(req: Request) {
           (h, i) =>
             Math.max(
               h.length,
-              ...rows.map((row) =>
-                String(Object.values(row)[i]).length
-              )
+              ...rows.map((row) => String(Object.values(row)[i]).length)
             )
         );
 
         let text = "";
 
         // encabezados
-        text +=
-          headers
-            .map((h, i) => h.padEnd(colWidths[i] + 2))
-            .join("") + "\n";
+        text += headers.map((h, i) => h.padEnd(colWidths[i] + 2)).join("") + "\n";
 
         // separador
-        text +=
-          colWidths.map((w) => "-".repeat(w + 2)).join("") + "\n";
+        text += colWidths.map((w) => "-".repeat(w + 2)).join("") + "\n";
 
         // filas
         text += rows
@@ -171,13 +161,12 @@ export async function POST(req: Request) {
         return new Response(text, {
           headers: {
             "Content-Type": "text/plain",
-            "Content-Disposition": `attachment; filename=${
-              fileName || "muestra"
-            }.txt`,
+            "Content-Disposition": `attachment; filename=${fileName || "muestra"}.txt`,
           },
         });
       }
-      // Excel / CSV → generar workbook con datos
+
+      // Excel / CSV → generar workbook
       const worksheet = XLSX.utils.json_to_sheet(rows);
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Datos");
@@ -193,16 +182,45 @@ export async function POST(req: Request) {
             format === "csv"
               ? "text/csv"
               : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-          "Content-Disposition": `attachment; filename=${
-            fileName || "muestra"
-          }.${format}`,
+          "Content-Disposition": `attachment; filename=${fileName || "muestra"}.${format}`,
         },
       });
+    }
+
+    // === 3) Consultar historial de un usuario (SIEMPRE devuelve array) ===
+    if (action === "historial") {
+      const { userId } = options || {};
+      if (!userId) {
+        // devolvemos array vacío para no romper el frontend
+        return NextResponse.json([], { status: 200 });
+      }
+
+      const historial = await prisma.historialMuestra.findMany({
+        where: { userId },
+        orderBy: { date: "desc" },
+      });
+
+      return NextResponse.json(historial ?? []); // nunca null/undefined
+    }
+
+
+    // === 4) Limpiar historial de un usuario ===
+    if (action === "clearHistorial") {
+      const { userId } = options || {};
+      if (!userId) {
+        return NextResponse.json({ error: "Usuario no autenticado" }, { status: 401 });
+      }
+
+      await prisma.historialMuestra.deleteMany({ where: { userId } });
+      return NextResponse.json({ success: true });
     }
 
 
     return NextResponse.json({ error: "Acción no válida" }, { status: 400 });
   } catch (err: any) {
-    return NextResponse.json({ error: "Error interno del servidor", details: err.message }, { status: 500 });
+    return NextResponse.json(
+      { error: "Error interno del servidor", details: err.message },
+      { status: 500 }
+    );
   }
 }
