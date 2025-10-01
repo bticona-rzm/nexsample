@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import {formatNumber} from '../../../../lib/apiClient';
 
 // Define la interfaz de las props que el componente espera recibir
 interface PlanificationProps {
@@ -102,10 +103,13 @@ const Planification: React.FC<PlanificationProps> = ({
 
     const [hasEstimated, setHasEstimated] = useState(false);
 
+    // Inicializar errorType como "importe" por defecto
+    useEffect(() => {
+        setErrorType("importe");
+        setSelectedPopulationType("positive");
+    }, []);
+
     const handleEstimate = async () => {
-        // Si NO se está usando el valor de campo, la población es el número de registros.
-        // Si la población calculada por el cliente es 0 y el usuario no está usando el campo,
-        // es probable que el excelData.length sea 0, lo cual es inválido.
         if (!useFieldValue && excelData.length === 0) {
             alert("La población es cero. No se puede realizar la estimación.");
             return;
@@ -118,26 +122,26 @@ const Planification: React.FC<PlanificationProps> = ({
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    estimatedPopulationValue: estimatedPopulationValue,
+                    excelData: excelData,
+                    useFieldValue: useFieldValue,
+                    selectedField: selectedField,
+                    selectedPopulationType: selectedPopulationType,
                     confidenceLevel: confidenceLevel,
                     errorType: errorType,
                     tolerableError: tolerableError,
                     expectedError: expectedError,
-                    // ¡AÑADIR ESTOS DOS CAMPOS!
-                    excelData: excelData, // Se envía para calcular el N total si no se usa valor de campo.
-                    useFieldValue: useFieldValue,
+                    estimatedPopulationValue: estimatedPopulationValue, // Enviar el valor ya calculado
                 }),
             });
 
             const data = await response.json();
 
             if (!response.ok) {
-                // Manejar errores del servidor
                 alert(`Error de Planificación: ${data.error || 'Algo salió mal.'}`);
                 return;
             }
 
-            // 1. Actualizar Estados con los resultados del API
+            // Actualizar estados con los resultados
             setEstimatedSampleSize(data.estimatedSampleSize);
             setSampleInterval(data.sampleInterval);
             setTolerableContamination(data.tolerableContamination);
@@ -228,10 +232,10 @@ const Planification: React.FC<PlanificationProps> = ({
                                     value="negative"
                                     checked={selectedPopulationType === "negative"}
                                     onChange={() => setSelectedPopulationType("negative")}
-                                    disabled={!useFieldValue}
-                                    className="h-4 w-4 text-blue-600"
+                                    disabled={true} // BLOQUEADO
+                                    className="h-4 w-4 text-gray-400 cursor-not-allowed"
                                 />
-                                <span className="ml-2 text-sm text-gray-700">Valores negativos</span>
+                                <span className="ml-2 text-sm text-gray-400">Valores negativos</span>
                             </label>
                             <label className="inline-flex items-center">
                                 <input
@@ -239,10 +243,10 @@ const Planification: React.FC<PlanificationProps> = ({
                                     value="absolute"
                                     checked={selectedPopulationType === "absolute"}
                                     onChange={() => setSelectedPopulationType("absolute")}
-                                    disabled={!useFieldValue}
-                                    className="h-4 w-4 text-blue-600"
+                                    disabled={true} // BLOQUEADO
+                                    className="h-4 w-4 text-gray-400 cursor-not-allowed"
                                 />
-                                <span className="ml-2 text-sm text-gray-700">Valores absolutos</span>
+                                <span className="ml-2 text-sm text-gray-400">Valores absolutos</span>
                             </label>
                         </div>
                         <div className="mt-4 flex items-center">
@@ -251,7 +255,7 @@ const Planification: React.FC<PlanificationProps> = ({
                             </label>
                             <input
                                 type="text"
-                                value={estimatedPopulationValue.toLocaleString()}
+                                value={formatNumber(estimatedPopulationValue, 0)}
                                 disabled={useFieldValue}
                                 onChange={(e) => setEstimatedPopulationValue(Number(e.target.value))}
                                 className={`ml-2 block w-48 rounded-md border-gray-300 shadow-sm text-right ${useFieldValue ? 'bg-gray-200 cursor-not-allowed' : ''}`}
@@ -267,11 +271,17 @@ const Planification: React.FC<PlanificationProps> = ({
                             <input
                                 type="number"
                                 value={confidenceLevel}
-                                onChange={(e) => setConfidenceLevel(Number(e.target.value))}
-                                min="1"
-                                max="100"
+                                onChange={(e) => {
+                                    const value = Number(e.target.value);
+                                    if (value >= 75 && value <= 99) {
+                                        setConfidenceLevel(value);
+                                    }
+                                }}
+                                min="75"
+                                max="99"
                                 className="block w-24 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm text-center"
                             />
+                            <span className="text-sm text-gray-500">(75-99%)</span>
                         </div>
                         <div className="flex space-x-4 mb-4">
                             <label className="inline-flex items-center">
@@ -329,18 +339,19 @@ const Planification: React.FC<PlanificationProps> = ({
                                 checked={modifyPrecision}
                                 onChange={(e) => setModifyPrecision(e.target.checked)}
                                 className="h-4 w-4 text-blue-600 rounded"
+                                disabled={true} // BLOQUEADO - nunca se modifica
                             />
-                            <label className="text-sm font-medium text-gray-700">
+                            <label className="text-sm font-medium text-gray-400">
                                 Modificar valor de precisión básica (100%):
                             </label>
                             <input
                                 type="text"
                                 value={precisionValue}
-                                disabled={!modifyPrecision}
+                                disabled={true} // BLOQUEADO
                                 onChange={(e) => setPrecisionValue(Number(e.target.value))}
-                                className={`block w-24 rounded-md border-gray-300 shadow-sm text-center ${!modifyPrecision && 'bg-gray-200 cursor-not-allowed'}`}
+                                className="block w-24 rounded-md border-gray-300 shadow-sm text-center bg-gray-200 cursor-not-allowed"
                             />
-                            <span className="text-gray-700">%</span>
+                            <span className="text-gray-400">%</span>
                         </div>
                     </div>
                     <div className="bg-white p-6 rounded-lg shadow-md space-y-4">
@@ -348,15 +359,15 @@ const Planification: React.FC<PlanificationProps> = ({
                         <div className="grid grid-cols-2 gap-4">
                             <div className="flex justify-between items-center">
                                 <span className="text-sm font-medium text-gray-700">Tamaño de la muestra aprox.:</span>
-                                <span className="text-sm text-gray-900 font-bold">{estimatedSampleSize}</span>
+                                <span className="text-sm text-gray-900 font-bold">{formatNumber(estimatedSampleSize, 0)}</span>
                             </div>
                             <div className="flex justify-between items-center">
                                 <span className="text-sm font-medium text-gray-700">Intervalo muestral:</span>
-                                <span className="text-sm text-gray-900 font-bold">{sampleInterval.toFixed(2)}</span>
+                                <span className="text-sm text-gray-900 font-bold">{formatNumber(sampleInterval, 2)}</span>
                             </div>
                             <div className="flex justify-between items-center">
                                 <span className="text-sm font-medium text-gray-700">Suma contaminaciones tolerables:</span>
-                                <span className="text-sm text-gray-900 font-bold">{tolerableContamination.toFixed(2)}%</span>
+                                <span className="text-sm text-gray-900 font-bold">{formatNumber(tolerableContamination, 2)}%</span>
                             </div>
                         </div>
                         <div className="mt-4 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
