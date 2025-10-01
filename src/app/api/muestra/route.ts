@@ -114,20 +114,23 @@ export async function POST(req: Request) {
     const { action, ...options } = await req.json();
 
     if (action === "sample") {
-      const { array, n, seed, start, end, allowDuplicates, nombreMuestra } = options;
+      const {
+        array, n, seed, start, end, allowDuplicates,
+        nombreMuestra, datasetLabel, sourceFile,
+      } = options;
 
       const sample = randomSample(array, n, seed, start, end, allowDuplicates);
       const hash = generateHash({ sample, n, seed, start, end, allowDuplicates });
 
       await prisma.historialMuestra.create({
         data: {
-          userId,
+          userId, // ESTE userId viene de la sesión calculado arriba
           name: nombreMuestra || `Muestra_${Date.now()}`,
           records: n,
           range: `${start}-${end}`,
           seed,
           allowDuplicates,
-          source: "frontend",
+          source: sourceFile || datasetLabel || "frontend", // archivo real si se mandó
           hash,
         },
       });

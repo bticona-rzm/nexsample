@@ -38,7 +38,7 @@ const TablaHistorial = ({ historial }: { historial: any[] }) => (
           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">RANGO</th>
           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">SEMILLA</th>
           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">DUPLICADOS</th>
-          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">FUENTE</th>
+          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">ARCHIVO FUENTE</th>
           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">HASH</th>
         </tr>
       </thead>
@@ -52,7 +52,7 @@ const TablaHistorial = ({ historial }: { historial: any[] }) => (
               <td className="px-6 py-2">{h.range}</td>
               <td className="px-6 py-2">{h.seed}</td>
               <td className="px-6 py-2">{h.allowDuplicates ? "Sí" : "No"}</td>
-              <td className="px-6 py-2">{h.source}</td>
+              <td className="px-6 py-2">{h.source || "Desconocido"}</td>
               <td className="px-6 py-2 font-mono text-xs">{h.hash}</td>
             </tr>
           ))}
@@ -359,20 +359,28 @@ export default function MuestraPage() {
   const handleOk = async () => {
     if (!validateParams()) return;
 
+    const currentTab = tabs.find((t) => t.id === activeTab);
+    if (!currentTab) {
+      alert("No hay pestaña activa con datos cargados");
+      return;
+    }
+
     try {
       const response = await fetch("/api/muestra", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "sample",
-          array: currentRows,
+          array: currentTab.rows ?? [],
           n: sampleParams.records,
           seed: sampleParams.seed,
           start: sampleParams.start,
           end: sampleParams.end,
           allowDuplicates: sampleParams.allowDuplicates,
-          userId, // id real del usuario
-          nombreMuestra: sampleParams.fileName,
+          // ya tienes el userId en sesión del lado servidor, no es necesario pasarlo
+          nombreMuestra: currentTab.name,
+          datasetLabel: currentTab.datasetLabel, // alias
+          sourceFile: currentTab.sourceFile,     // ⬅️ archivo real
         }),
       });
 
@@ -382,17 +390,23 @@ export default function MuestraPage() {
         return;
       }
 
+      // backend responde { sample, hash, totalRows }
       const { sample, hash } = await response.json();
       const newTabId = Date.now().toString();
 
-      //  añade nueva pestaña
       setTabs((prev) => [
         ...prev,
-        { id: newTabId, name: sampleParams.fileName || `Muestra-${newTabId}`, rows: sample },
+        {
+          id: newTabId,
+          name: sampleParams.fileName || `Muestra-${newTabId}`,
+          rows: sample,
+          sourceFile: currentTab.sourceFile,     // ⬅️ conservamos la fuente
+          datasetLabel: currentTab.datasetLabel, // alias
+        },
       ]);
       setActiveTab(newTabId);
 
-      //  añade historial en el frontend (cache local)
+      // (Opcional) añadir al cache local si quieres ver el historial sin reconsultar:
       setHistorial((prev) => [
         ...prev,
         {
@@ -400,15 +414,14 @@ export default function MuestraPage() {
           hash,
           name: sampleParams.fileName || `Muestra-${newTabId}`,
           date: new Date().toLocaleString(),
-          user: "Actual",   //marcador local (el backend ya guarda el user real)
+          user: "Administrador",
           records: sample.length,
           range: `${sampleParams.start} - ${sampleParams.end}`,
           seed: sampleParams.seed,
           allowDuplicates: sampleParams.allowDuplicates ? "Sí" : "No",
-          source: tabs.find((t) => t.id === activeTab)?.name || "Dataset",
+          source: currentTab.sourceFile || "Desconocido",
         },
       ]);
-
 
       setShowModal(false);
     } catch (e: any) {
@@ -497,7 +510,7 @@ export default function MuestraPage() {
     try {
       const formData = new FormData();
       formData.append("file", uploadedFile);
-      formData.append("datasetName", datasetName);
+      formData.append("datasetName", datasetName || uploadedFile.name);
       formData.append("useHeader", useHeaders ? "true" : "false");
 
       const res = await fetch("/api/muestra", {
@@ -511,16 +524,19 @@ export default function MuestraPage() {
         return;
       }
 
-      // 👈 alineado con backend: devuelve { rows, total, dataset }
+      // TU BACKEND DEVUELVE ESTO:
+      // { rows, total, dataset }
       const { rows, total, dataset } = await res.json();
-      const newTabId = Date.now().toString();
 
-      setTabs([
-        ...tabs,
+      const newTabId = Date.now().toString();
+      setTabs((prev) => [
+        ...prev,
         {
           id: newTabId,
-          name: dataset || uploadedFile.name,
-          rows,
+          name: dataset || uploadedFile.name, // pestaña visible
+          rows,                               //  filas del Excel
+          sourceFile: uploadedFile.name,      // archivo real
+          datasetLabel: datasetName || "",    // alias si el usuario lo puso
         },
       ]);
 
@@ -538,8 +554,6 @@ export default function MuestraPage() {
       alert(`Error inesperado: ${e.message}`);
     }
   };
-
-
 
   // === Acciones UI ===
   const closeTab = (id: string) => {
@@ -787,10 +801,7 @@ export default function MuestraPage() {
                   type="text"
                   value={sampleParams.fileName}
                   onChange={(e) =>
-                    setSampleParams((prev) => ({
-                      ...prev,
-                      fileName: e.target.value,
-                    }))
+                  setSampleParams((prev) => ({ ...prev, fileName: e.target.value }))
                   }
                   className="border rounded px-2 py-1 w-40"
                 />
