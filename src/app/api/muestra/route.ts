@@ -5,8 +5,14 @@ import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/pages/api/auth/[...nextauth]";
 
-// ---------- Algoritmos internos ----------
+// ---- Cache global para datasets ----
+// Esto vive en memoria del servidor mientras dure el proceso (ej: Railway runtime)
+if (!(globalThis as any).datasetStore) {
+  (globalThis as any).datasetStore = {};
+}
+const datasetStore: Record<string, any[]> = (globalThis as any).datasetStore;
 
+// ---------- Algoritmos internos ----------
 // Generador aleatorio con semilla (PRNG determinístico)
 function mulberry32(a: number) {
   return function () {
@@ -71,7 +77,7 @@ function generateHash(data: any): string {
 // ---------- API ----------
 export async function POST(req: Request) {
   try {
-    const session: any = await getServerSession(authOptions); // <- CAST a any
+    const session: any = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -79,7 +85,8 @@ export async function POST(req: Request) {
 
     const contentType = req.headers.get("content-type");
 
-    // === SUBIDA DE ARCHIVOS (Excel/CSV) ===
+
+    // Aquí usas datasetStore directamente (no lo redeclares)
     if (contentType?.includes("multipart/form-data")) {
       const formData = await req.formData();
       const file = formData.get("file") as File;
@@ -90,63 +97,66 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "No se subió ningún archivo" }, { status: 400 });
       }
 
-      // Leer archivo en buffer
       const bytes = await file.arrayBuffer();
       const buffer = Buffer.from(bytes);
-
-      // Procesar con XLSX
       const workbook = XLSX.read(buffer, { type: "buffer" });
       const sheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[sheetName];
-
-      // Convertir a JSON
       const rows = XLSX.utils.sheet_to_json(worksheet, { header: useHeader ? 0 : 1 });
+      const datasetId = `ds_${Date.now()}`;
+      datasetStore[datasetId] = rows; //  Guardado en memoria
 
       return NextResponse.json({
-        rows,             // 👈 filas del Excel en JSON
-        total: rows.length, // 👈 número de filas
+        datasetId,
+        rows: rows.slice(0, 50), // mandamos preview (ej: 50 filas)
+        total: rows.length,
         dataset: datasetName || file.name,
       });
     }
-
 
     // === ACCIONES JSON ===
     const { action, ...options } = await req.json();
 
     if (action === "sample") {
       const {
-        array, n, seed, start, end, allowDuplicates,
+        datasetId, n, seed, start, end, allowDuplicates,
         nombreMuestra, datasetLabel, sourceFile,
       } = options;
 
-      const sample = randomSample(array, n, seed, start, end, allowDuplicates);
+      const dataset = datasetStore[datasetId];
+      if (!dataset) {
+        return NextResponse.json({ error: "Dataset no encontrado o expirado" }, { status: 404 });
+      }
+
+      const sample = randomSample(dataset, n, seed, start, end, allowDuplicates);
       const hash = generateHash({ sample, n, seed, start, end, allowDuplicates });
 
       await prisma.historialMuestra.create({
         data: {
-          userId, // ESTE userId viene de la sesión calculado arriba
+          userId,
           name: nombreMuestra || `Muestra_${Date.now()}`,
           records: n,
           range: `${start}-${end}`,
           seed,
           allowDuplicates,
-          source: sourceFile || datasetLabel || "frontend", // archivo real si se mandó
+          source: sourceFile || datasetLabel || "frontend",
           hash,
         },
       });
 
-      return NextResponse.json({ sample, hash, totalRows: array.length });
+      return NextResponse.json({ sample, hash, totalRows: dataset.length });
     }
 
     if (action === "export") {
-      const { rows, format, fileName } = options as {
-        rows: Record<string, unknown>[];
+      const { datasetId, format, fileName } = options as {
+        datasetId: string;
         format: string;
         fileName?: string;
       };
 
+      const rows = datasetStore[datasetId];
       if (!rows || rows.length === 0) {
-        return NextResponse.json({ error: "No hay datos para exportar" }, { status: 400 });
+        return NextResponse.json({ error: "Dataset no encontrado o vacío" }, { status: 400 });
       }
 
       if (format === "json") return NextResponse.json(rows);
@@ -193,7 +203,7 @@ export async function POST(req: Request) {
           "Content-Disposition": `attachment; filename=${fileName || "muestra"}.${format}`,
         },
       });
-    }
+    } 
 
     if (action === "historial") {
       const historial = await prisma.historialMuestra.findMany({

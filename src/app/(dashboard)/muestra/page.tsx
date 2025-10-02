@@ -1,11 +1,9 @@
 "use client";
-
 import { useState, useEffect } from "react";
 import printJS from "print-js";
 import { ChevronLeft, ChevronRight ,  FileBarChart, Download, History, Upload, Printer, Trash2} from "lucide-react";
 import { useSession } from "next-auth/react";
 import { formatDate } from "@/lib/format"; 
-
 
 type SampleParams = {
   records: number;
@@ -61,7 +59,7 @@ const TablaHistorial = ({ historial }: { historial: any[] }) => (
   </div>
 );
 
-//=== tabla generica con paginacion
+//=== generica con paginacion
 const TablaGenerica = ({ rows }: { rows: any[] }) => {
   const [paginaActual, setPaginaActual] = useState(1);
   const filasPorPagina = 10;
@@ -247,7 +245,6 @@ export default function MuestraPage() {
   URL.revokeObjectURL(url);
   };
 
-
   // Función limpiar historial
   const clearHistorial = async () => {
     if (!userId) {
@@ -275,10 +272,17 @@ export default function MuestraPage() {
     }
   };
 
-
   // Guardar pestañas
+  // Guardar pestañas (solo metadata ligera, no las filas pesadas)
   useEffect(() => {
-    localStorage.setItem("tabs", JSON.stringify(tabs));
+    const lightTabs = tabs.map(t => ({
+      id: t.id,
+      name: t.name,
+      sourceFile: t.sourceFile,
+      datasetLabel: t.datasetLabel,
+      datasetId: t.datasetId,   // 🔑 guardamos solo la referencia al dataset
+    }));
+    localStorage.setItem("tabs", JSON.stringify(lightTabs));
   }, [tabs]);
 
   // Guardar historial
@@ -291,9 +295,8 @@ export default function MuestraPage() {
         end: rows.length,
         totalRows: rows.length,
       }));
-    }
+    } 
   }, [activeTab, tabs]);
-
 
   // Guardar pestaña activa
   useEffect(() => {
@@ -305,7 +308,6 @@ export default function MuestraPage() {
     localStorage.setItem("sampleParams", JSON.stringify(sampleParams));
   }, [sampleParams]);
 
-  
   // UI: modales y estados auxiliares
   const [showModal, setShowModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
@@ -316,13 +318,11 @@ export default function MuestraPage() {
   // Estado nuevo para exportación
   const [selectedTabId, setSelectedTabId] = useState<string>("");
 
-
   // Dataset de pestaña activa (ya lo tienes)
   const currentRows =
     activeTab === "historial"
       ? []
       : tabs.find((t) => t.id === activeTab)?.rows || [];
-
 
   // Valida reglas en el cliente con el tamaño real del dataset
   const validateParams = () => {
@@ -353,7 +353,6 @@ export default function MuestraPage() {
     }
     return true;
   };
-
   
   // === Muestreo vía API con validaciones y manejo de error ===
   const handleOk = async () => {
@@ -365,22 +364,26 @@ export default function MuestraPage() {
       return;
     }
 
+    if (!currentTab.datasetId) {
+      alert("Este dataset no tiene identificador válido.");
+      return;
+    }
+
     try {
       const response = await fetch("/api/muestra", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "sample",
-          array: currentTab.rows ?? [],
+          datasetId: currentTab.datasetId,   // 🔑 solo enviamos el ID
           n: sampleParams.records,
           seed: sampleParams.seed,
           start: sampleParams.start,
           end: sampleParams.end,
           allowDuplicates: sampleParams.allowDuplicates,
-          // ya tienes el userId en sesión del lado servidor, no es necesario pasarlo
-          nombreMuestra: currentTab.name,
-          datasetLabel: currentTab.datasetLabel, // alias
-          sourceFile: currentTab.sourceFile,     // ⬅️ archivo real
+          nombreMuestra: sampleParams.fileName || currentTab.name,
+          datasetLabel: currentTab.datasetLabel,
+          sourceFile: currentTab.sourceFile,
         }),
       });
 
@@ -400,13 +403,13 @@ export default function MuestraPage() {
           id: newTabId,
           name: sampleParams.fileName || `Muestra-${newTabId}`,
           rows: sample,
-          sourceFile: currentTab.sourceFile,     // ⬅️ conservamos la fuente
-          datasetLabel: currentTab.datasetLabel, // alias
+          datasetId: currentTab.datasetId,   // 🔑 seguimos guardando el id
+          sourceFile: currentTab.sourceFile,
+          datasetLabel: currentTab.datasetLabel,
         },
       ]);
       setActiveTab(newTabId);
 
-      // (Opcional) añadir al cache local si quieres ver el historial sin reconsultar:
       setHistorial((prev) => [
         ...prev,
         {
@@ -428,6 +431,7 @@ export default function MuestraPage() {
       alert(`Error inesperado: ${e.message}`);
     }
   };
+
 
   //implementamos el fetch
   const fetchHistorial = async () => {
@@ -457,9 +461,14 @@ export default function MuestraPage() {
       return;
     }
 
-    const rows = tabs.find((t) => t.id === selectedTabId)?.rows || [];
-    if (!rows.length) {
-      alert("La pestaña seleccionada no tiene datos.");
+    const tab = tabs.find((t) => t.id === selectedTabId);
+    if (!tab) {
+      alert("La pestaña seleccionada no existe.");
+      return;
+    }
+
+    if (!tab.datasetId) {
+      alert("Este dataset no tiene un identificador válido.");
       return;
     }
 
@@ -469,9 +478,9 @@ export default function MuestraPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "export",
-          rows,
+          datasetId: tab.datasetId,   // solo mandamos el id
           format,
-          fileName: sampleParams.fileName,
+          fileName: sampleParams.fileName || tab.name,
         }),
       });
 
@@ -485,14 +494,13 @@ export default function MuestraPage() {
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `${sampleParams.fileName || "muestra"}.${format}`;
+      link.download = `${sampleParams.fileName || tab.name}.${format}`;
       link.click();
       URL.revokeObjectURL(url);
     } catch (e: any) {
       alert(`Error inesperado: ${e.message}`);
     }
   };
-
 
   // === Subida de archivo Excel/CSV vía API con manejo de error ===
   const handleFileUpload = async () => {
@@ -501,11 +509,17 @@ export default function MuestraPage() {
       return;
     }
 
-    const name = uploadedFile.name.toLowerCase();
-    if (!name.endsWith(".xlsx") && !name.endsWith(".xls") && !name.endsWith(".csv")) {
-      alert("Tipo de archivo no soportado. Use .xlsx, .xls o .csv");
-      return;
-    }
+  const name = uploadedFile.name.toLowerCase();
+  if (
+    !name.endsWith(".xlsx") &&
+    !name.endsWith(".xls") &&
+    !name.endsWith(".csv") &&
+    !name.endsWith(".txt")       // ahora también soporta .txt
+  ) {
+    alert("Tipo de archivo no soportado. Use .xlsx, .xls, .csv o .txt");
+    return;
+  }
+
 
     try {
       const formData = new FormData();
@@ -524,19 +538,19 @@ export default function MuestraPage() {
         return;
       }
 
-      // TU BACKEND DEVUELVE ESTO:
-      // { rows, total, dataset }
-      const { rows, total, dataset } = await res.json();
+      // Backend devuelve { rows, total, dataset, datasetId }
+      const { rows, total, dataset, datasetId } = await res.json();
 
       const newTabId = Date.now().toString();
       setTabs((prev) => [
         ...prev,
         {
           id: newTabId,
-          name: dataset || uploadedFile.name, // pestaña visible
-          rows,                               //  filas del Excel
-          sourceFile: uploadedFile.name,      // archivo real
-          datasetLabel: datasetName || "",    // alias si el usuario lo puso
+          name: dataset || uploadedFile.name,
+          rows: rows || [],          // 🔑 aseguramos que siempre sea array
+          datasetId,                 // 🔑 guardamos el ID para muestreo/export
+          sourceFile: uploadedFile.name,
+          datasetLabel: datasetName || "",
         },
       ]);
 
@@ -566,7 +580,6 @@ export default function MuestraPage() {
     setActiveTab("historial");
     fetchHistorial(); // carga desde backend
   };
-
 
   // Hasta que esté hidratado, no renders (evita mismatch SSR/CSR)
   if (!hydrated) {
@@ -634,6 +647,20 @@ export default function MuestraPage() {
 
         {/* SIDEBAR */}
         <div className="w-60 bg-gray-50 p-6 space-y-4 self-start">
+          
+          {/* Cargar Datos */}
+          <button
+            onClick={() => {
+              // al abrir modal, reiniciar datasetName vacío
+              setDatasetName("");
+              setShowUploadModal(true);
+            }}
+            className="w-full flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded shadow transition-colors"
+          >
+            <Upload size={18} />
+            Cargar Datos
+          </button>
+
           {/* Muestreo */}
           <button
             onClick={() => {
@@ -644,19 +671,19 @@ export default function MuestraPage() {
               }));
               setShowModal(true);
             }}
-            className="w-full flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded shadow transition-colors"
+            className="w-full flex items-center gap-2 bg-gray-400 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded shadow transition-colors"
           >
             <FileBarChart size={18} />
             Muestreo
           </button>
 
-          {/* Exportar */}
+          {/* Exportar Muestreo*/}
           <button
             onClick={() => setShowExportModal(true)}
             className="w-full flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded shadow transition-colors"
           >
             <Download size={18} />
-            Exportar
+            Exportar DataSet
           </button>
 
           {/* Historial */}
@@ -668,27 +695,13 @@ export default function MuestraPage() {
             Historial
           </button>
 
-          {/* Cargar Datos */}
-          <button
-            onClick={() => {
-              // al abrir modal, reiniciar datasetName vacío
-              setDatasetName("");
-              setShowUploadModal(true);
-            }}
-            className="w-full flex items-center gap-2 bg-gray-400 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded shadow transition-colors"
-          >
-            <Upload size={18} />
-            Cargar Datos
-          </button>
-
-
-          {/* Imprimir Muestra */}
+          {/* Imprimir Historial */}
           <button
             onClick={exportPdf}
             className="w-full flex items-center gap-2 bg-purple-600 hover:bg-purple-900 text-white font-semibold py-2 px-4 rounded shadow transition-colors"
           >
             <Printer size={18} />
-            Imprimir Muestra
+            Imprimir Historial
           </button>
 
           {/* Limpiar Historial */}
