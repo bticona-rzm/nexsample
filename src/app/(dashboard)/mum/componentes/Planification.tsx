@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import {formatNumber} from '../../../../lib/apiClient';
+import {formatErrorValue, handleErrorChange, formatNumber} from '../../../../lib/apiClient';
 
 // Define la interfaz de las props que el componente espera recibir
 interface PlanificationProps {
@@ -257,7 +257,7 @@ const Planification: React.FC<PlanificationProps> = ({
                                 type="text"
                                 value={formatNumber(estimatedPopulationValue, 0)}
                                 disabled={useFieldValue}
-                                onChange={(e) => setEstimatedPopulationValue(Number(e.target.value))}
+                                onChange={(e) => handleErrorChange(e.target.value, setEstimatedPopulationValue, false)}
                                 className={`ml-2 block w-48 rounded-md border-gray-300 shadow-sm text-right ${useFieldValue ? 'bg-gray-200 cursor-not-allowed' : ''}`}
                             />
                         </div>
@@ -273,7 +273,7 @@ const Planification: React.FC<PlanificationProps> = ({
                                 value={confidenceLevel}
                                 onChange={(e) => {
                                     const value = Number(e.target.value);
-                                    if (value >= 75 && value <= 99) {
+                                    if (value >= 1 && value <= 99) {
                                         setConfidenceLevel(value);
                                     }
                                 }}
@@ -283,7 +283,7 @@ const Planification: React.FC<PlanificationProps> = ({
                             />
                             <span className="text-sm text-gray-500">(75-99%)</span>
                         </div>
-                        <div className="flex space-x-4 mb-4">
+                                                <div className="flex space-x-4 mb-4">
                             <label className="inline-flex items-center">
                                 <input
                                     type="radio"
@@ -310,13 +310,11 @@ const Planification: React.FC<PlanificationProps> = ({
                                 Error tolerable:
                             </label>
                             <input
-                                type="number"
-                                min="0" 
-                                value={tolerableError}
-                                onChange={(e) => setTolerableError(Number(e.target.value))}
-                                className="block w-24 rounded-md border-gray-300 shadow-sm sm:text-sm text-center"
+                                type="text"
+                                value={formatErrorValue(tolerableError, errorType === "percentage")}
+                                onChange={(e) => handleErrorChange(e.target.value, setTolerableError, errorType === "percentage")}
+                                className="block w-32 rounded-md border-gray-300 shadow-sm sm:text-sm text-right"
                             />
-                            {/* El span del % solo se muestra si el errorType es 'percentage' */}
                             {errorType === "percentage" && <span className="text-gray-700">%</span>}
                         </div>
                         <div className="flex items-center space-x-4 mb-4">
@@ -324,13 +322,11 @@ const Planification: React.FC<PlanificationProps> = ({
                                 Error esperado:
                             </label>
                             <input
-                                type="number"
-                                min="0" 
-                                value={expectedError}
-                                onChange={(e) => setExpectedError(Number(e.target.value))}
-                                className="block w-24 rounded-md border-gray-300 shadow-sm sm:text-sm text-center"
+                                type="text"
+                                value={formatErrorValue(expectedError, errorType === "percentage")}
+                                onChange={(e) => handleErrorChange(e.target.value, setExpectedError, errorType === "percentage")}
+                                className="block w-32 rounded-md border-gray-300 shadow-sm sm:text-sm text-right"
                             />
-                            {/* El span del % solo se muestra si el errorType es 'percentage' */}
                             {errorType === "percentage" && <span className="text-gray-700">%</span>}
                         </div>
                         <div className="flex items-center space-x-4">

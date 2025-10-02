@@ -1,15 +1,6 @@
 // app/api/mum/planification/route.ts
 import { NextResponse } from 'next/server';
-
-// Factores de Confianza para MUM (Monetary Unit Sampling)
-const confidenceFactors: {
-    [confidenceLevel: number]: number[]
-} = {
-    75: [1.39, 2.70, 3.93, 5.11],
-    90: [2.31, 3.89, 5.33, 6.69],
-    95: [3.00, 4.75, 6.30, 7.76],
-    99: [4.61, 6.64, 8.41, 10.05],
-};
+import { getConfidenceFactor } from '@/utils/tables';
 
 export async function POST(req: Request) {
     try {
@@ -32,7 +23,7 @@ export async function POST(req: Request) {
             if (useFieldValue && selectedField && excelData) {
                 const sum = excelData.reduce((acc: number, row: any) => {
                     const value = parseFloat(row[selectedField]);
-                    if (!isNaN(value) && value > 0) { // Solo valores positivos
+                    if (!isNaN(value) && value > 0) {
                         return acc + value;
                     }
                     return acc;
@@ -63,53 +54,26 @@ export async function POST(req: Request) {
             }, { status: 400 });
         }
 
-        // 4. Obtener factor de confianza
-        const currentConfidenceFactors = confidenceFactors[confidenceLevel];
-        if (!currentConfidenceFactors) {
-            return NextResponse.json({ 
-                error: "Nivel de confianza no válido. Use 75, 90, 95 o 99." 
-            }, { status: 400 });
-        }
+        // 4. Obtener factor de confianza - SIMPLIFICADO
+        const confidenceFactor = getConfidenceFactor(confidenceLevel);
 
-        // 5. Calcular número de errores esperados - FÓRMULA CORREGIDA
-        // En MUM, esto se basa en la relación entre error esperado y tolerable
+        // 5. Calcular número de errores esperados (simplificado)
         const errorRatio = expectedErrorMonetary / tolerableErrorMonetary;
-        
-        // Método más preciso para determinar expectedErrorsCount
         let expectedErrorsCount = 0;
-        if (errorRatio > 0.33 && errorRatio <= 0.66) {
-            expectedErrorsCount = 1;
-        } else if (errorRatio > 0.66) {
-            expectedErrorsCount = 2;
-        }
-        // Si errorRatio <= 0.33, se mantiene en 0
+        
+        if (errorRatio > 0.33) expectedErrorsCount = 1;
+        if (errorRatio > 0.66) expectedErrorsCount = 2;
 
-        expectedErrorsCount = Math.min(expectedErrorsCount, 3);
-        const confidenceFactor = currentConfidenceFactors[expectedErrorsCount];
-
-        // 6. CÁLCULOS CORREGIDOS - FÓRMULA ESTÁNDAR MUM
-
-        // a) Tamaño de muestra - FÓRMULA PRECISA
+        // 6. CÁLCULOS SIMPLIFICADOS
         const initialSampleSize = Math.ceil(
-            (populationValue * confidenceFactor) / tolerableErrorMonetary
+            (populationValue * confidenceFactor) / (tolerableErrorMonetary - expectedErrorMonetary)
         );
 
-        // b) Ajustar por error esperado (incrementar muestra si hay error esperado)
-        const adjustedSampleSize = expectedErrorsCount > 0 
-            ? Math.ceil(initialSampleSize * (1 + (expectedErrorsCount * 0.1)))
-            : initialSampleSize;
-
-        // c) Asegurar que no exceda la población
-        const finalSampleSize = Math.min(adjustedSampleSize, populationValue);
-
-        // d) Intervalo muestral - FÓRMULA PRECISA
+        const finalSampleSize = Math.min(initialSampleSize, populationValue);
         const sampleInterval = populationValue / finalSampleSize;
 
-        // e) Suma de contaminaciones tolerables - CÁLCULO CORRECTO
-        // Esto representa el porcentaje máximo de error que podemos tolerar en la muestra
         const tolerableContaminationPercent = ((tolerableErrorMonetary - expectedErrorMonetary) / tolerableErrorMonetary) * 100;
 
-        // f) Conclusión
         const conclusion = `La población podrá aceptarse a un nivel de confianza del ${confidenceLevel}% cuando no se observan más de ${expectedErrorsCount} error(es) en una muestra de tamaño ${finalSampleSize}.`;
 
         return NextResponse.json({

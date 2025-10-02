@@ -384,9 +384,31 @@ export const readExcelFile = (file: File): Promise<any[]> => {
 };
 
 // Función para formatear números con separadores de miles y decimales
+// Agrega estas funciones en tu componente
 export const formatNumber = (value: number, decimals: number = 2): string => {
     return new Intl.NumberFormat('en-US', {
         minimumFractionDigits: decimals,
         maximumFractionDigits: decimals,
     }).format(value);
+};
+
+const parseFormattedNumber = (value: string): number => {
+    return parseFloat(value.replace(/,/g, ''));
+};
+
+// Función específica para errores que dependen del tipo
+export const formatErrorValue = (value: number, isPercentage: boolean): string => {
+    if (isPercentage) {
+        return formatNumber(value, 2); // Para porcentaje: 90.00
+    } else {
+        return formatNumber(value, 0); // Para importe: 1,000,000
+    }
+};
+
+// Función para manejar el cambio en los inputs de error
+export const handleErrorChange = (value: string, setter: (value: number) => void, isPercentage: boolean) => {
+    const parsed = parseFormattedNumber(value);
+    if (!isNaN(parsed)) {
+        setter(parsed);
+    }
 };
