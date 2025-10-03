@@ -7,12 +7,12 @@ import Visualizer from "../atributos/componentes/Visualizer";
 import Planification from "./componentes/Planification";
 import Extraction from "./componentes/Extraction";
 import Evaluation from "./componentes/Evaluation";
+import { LogProvider } from '../../../contexts/LogContext'; // Importa el LogProvider
 
 export default function MumPage() {
     const [excelData, setExcelData] = useState<ExcelRow[]>([]);
     const [headers, setHeaders] = useState<string[]>([]);
     const [activeTab, setActiveTab] = useState("visualizar");
-
     const [isExcelLoaded, setIsExcelLoaded] = useState(false);
     const [isPlanificacionDone, setIsPlanificacionDone] = useState(false);
     const [isExtraccionDone, setIsExtraccionDone] = useState(false);
@@ -22,11 +22,9 @@ export default function MumPage() {
     const [selectedField, setSelectedField] = useState<string | null>(null);
     const [selectedPopulationType, setSelectedPopulationType] = useState<
         "positive" | "negative" | "absolute"
-    >("absolute");
+    >("positive"); // Cambiado a "positive" como solicitaste
     const [confidenceLevel, setConfidenceLevel] = useState(90);
-    const [errorType, setErrorType] = useState<"importe" | "percentage">(
-        "percentage"
-    );
+    const [errorType, setErrorType] = useState<"importe" | "percentage">("importe"); // Cambiado a "importe" como solicitaste
     const [tolerableError, setTolerableError] = useState(0);
     const [expectedError, setExpectedError] = useState(0);
     const [modifyPrecision, setModifyPrecision] = useState(false);
@@ -42,16 +40,15 @@ export default function MumPage() {
     
     const fileInputRef = useRef<HTMLInputElement>(null);
     
-    // --- Nuevos estados para el módulo de Extracción ---
+    // --- Estados para el módulo de Extracción ---
     const [extractionType, setExtractionType] = useState<"intervaloFijo" | "seleccionCelda">("intervaloFijo");
-    const [highValueManagement, setHighValueManagement] = useState<"agregados" | "separado">("agregados");
+    const [highValueManagement, setHighValueManagement] = useState<"agregados" | "separado">("separado"); // Cambiado a "separado" como solicitaste
     const [highValueFilename, setHighValueFilename] = useState("Valores Altos");
     const [highValueCount, setHighValueCount] = useState(0);
     const [highValueLimit, setHighValueLimit] = useState(0);
-    const [modifyHighValueCount, setModifyHighValueCount] = useState(false);
     const [sampleField, setSampleField] = useState<string | null>(null);
     const [randomStartPoint, setRandomStartPoint] = useState(0);
-    const [selectedTableType, setSelectedTableType] = useState<"positive" | "negative" | "absolute">("absolute");
+    const [selectedTableType, setSelectedTableType] = useState<"positive" | "negative" | "absolute">("positive"); // Cambiado a "positive" como solicitaste
     const [positiveTotal, setPositiveTotal] = useState(0);
     const [positiveRecords, setPositiveRecords] = useState(0);
     const [negativeTotal, setNegativeTotal] = useState(0);
@@ -59,12 +56,11 @@ export default function MumPage() {
     const [absoluteTotal, setAbsoluteTotal] = useState(0);
     const [absoluteRecords, setAbsoluteRecords] = useState(0);
     const [extractionFilename, setExtractionFilename] = useState("MUM Muestra");
-    const [selectedFieldFromPlanificacion, setSelectedFieldFromPlanificacion] = useState<string | null>(null);
     const [excelFilename, setExcelFilename] = useState<string>('');
     const [populationRecords, setPopulationRecords] = useState<number>(0);
     const [modifyHighValueLimit, setModifyHighValueLimit] = useState<boolean>(false);
 
-    // --- Nuevos estados para el módulo de Resumen (valores de demostración) ---
+    // --- Estados para el módulo de Resumen ---
     const [numErrores, setNumErrores] = useState(2);
     const [errorMasProbableBruto, setErrorMasProbableBruto] = useState(0.85);
     const [errorMasProbableNeto, setErrorMasProbableNeto] = useState(0.75);
@@ -76,10 +72,8 @@ export default function MumPage() {
     const [populationExcludingHigh, setPopulationExcludingHigh] = useState(975000);
     const [populationIncludingHigh, setPopulationIncludingHigh] = useState(1000000);
 
-    // --- Manejador de carga de archivo ---
-    const handleFileUpload = async (
-        event: React.ChangeEvent<HTMLInputElement>
-    ) => {
+    // Manejador de carga de archivo SIN logs por ahora
+    const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (!file) {
             setIsExcelLoaded(false);
@@ -89,7 +83,6 @@ export default function MumPage() {
         }
 
         try {
-            // Llama a la función del apiClient para procesar el archivo
             const { headers, data } = await fetchData(file);
             setHeaders(headers);
             setExcelData(data);
@@ -97,29 +90,18 @@ export default function MumPage() {
             setActiveTab("visualizar");
             setIsPlanificacionDone(false);
             setIsExtraccionDone(false);
+            setExcelFilename(file.name);
+            setPopulationRecords(data.length);
         } catch (error) {
             console.error("Error al cargar el archivo:", error);
-            alert(
-                "Hubo un problema al cargar el archivo. Asegúrate de que es un archivo Excel válido."
-            );
+            alert("Hubo un problema al cargar el archivo. Asegúrate de que es un archivo Excel válido.");
             setIsExcelLoaded(false);
         }
     };
 
-    // --- Manejadores de las funciones de la API para MUM ---
+    // --- Manejadores de las funciones de la API para MUM CON LOGS ---
     const handlePlanification = async () => {
 
-         // 1. Calcula los valores que faltan o usa los existentes:
-        const alphaConfidenceLevel = (100 - confidenceLevel) / 100;
-        const populationSize = populationRecords || excelData.length; // Usa los records o el largo del array
-        
-        // Asumiremos que expectedDeviation y tolerableDeviation son simplemente los valores de error.
-        // Esto podría variar según la definición exacta de PlanificationParams.
-        const expectedDeviation = expectedError;
-        const tolerableDeviation = tolerableError;
-
-        // Asumiremos un tipo de control por defecto si no tienes un estado para esto.
-        const controlType = "noControl"; 
         try {
             const body = {
                 excelData,
@@ -132,16 +114,15 @@ export default function MumPage() {
                 expectedError,
                 modifyPrecision,
                 precisionValue,
-                
-                // 👇 PARÁMETROS FALTANTES AÑADIDOS
-                populationSize, 
-                expectedDeviation,
-                tolerableDeviation,
-                alphaConfidenceLevel,
-                controlType,
-                // 👆 FIN PARÁMETROS FALTANTES AÑADIDOS
+                populationSize: populationRecords || excelData.length,
+                expectedDeviation: expectedError,
+                tolerableDeviation: tolerableError,
+                alphaConfidenceLevel: (100 - confidenceLevel) / 100,
+                controlType: "noControl",
             };
+            
             const result = await mumApi.planification(body);
+            
             setEstimatedPopulationValue(result.estimatedPopulationValue);
             setEstimatedSampleSize(result.estimatedSampleSize);
             setSampleInterval(result.sampleInterval);
@@ -150,13 +131,18 @@ export default function MumPage() {
             setMinSampleSize(result.minSampleSize);
             setIsPlanificacionDone(true);
             setActiveTab("extraccion");
+
+            
+
         } catch (error) {
             console.error("Error en la planificación:", error);
             alert("Hubo un problema con la planificación. Revisa los datos de entrada.");
         }
     };
 
+
     const handleExtraction = async () => {
+
         try {
             const body = {
                 excelData,
@@ -177,6 +163,7 @@ export default function MumPage() {
             link.remove();
             setIsExtraccionDone(true);
             setActiveTab("evaluacion");
+
         } catch (error) {
             console.error("Error en la extracción:", error);
             alert("Hubo un problema con la extracción de la muestra.");
@@ -184,6 +171,7 @@ export default function MumPage() {
     };
 
     const handleEvaluation = async () => {
+
         try {
             const body = {
                 confidenceLevel,
@@ -194,7 +182,7 @@ export default function MumPage() {
                 numErrores,
             };
             const result = await mumApi.summary(body);
-            // Actualiza los estados con los resultados del resumen
+            
             setErrorMasProbableBruto(result.errorMasProbableBruto);
             setErrorMasProbableNeto(result.errorMasProbableNeto);
             setPrecisionTotal(result.precisionTotal);
@@ -204,6 +192,7 @@ export default function MumPage() {
             setHighValueTotal(result.highValueTotal);
             setPopulationExcludingHigh(result.populationExcludingHigh);
             setPopulationIncludingHigh(result.populationIncludingHigh);
+
             alert("Resumen de resultados procesado correctamente.");
         } catch (error) {
             console.error("Error en el evaluacion:", error);
@@ -258,7 +247,9 @@ export default function MumPage() {
                     {tabs.map((tab) => (
                         <button
                             key={tab.id}
-                            onClick={() => setActiveTab(tab.id)}
+                            onClick={() => {
+                                setActiveTab(tab.id);
+                            }}
                             disabled={tab.disabled}
                             className={`py-2 px-4 text-sm font-medium rounded-t-lg ${
                                 activeTab === tab.id
@@ -313,6 +304,7 @@ export default function MumPage() {
                             excelData={excelData}
                             setIsPlanificacionDone={setIsPlanificacionDone}
                             setActiveTab={setActiveTab}
+                            handlePlanification={handlePlanification} // Pasa la función con logs
                         />
                     )}
                     {activeTab === "extraccion" && (
@@ -363,6 +355,7 @@ export default function MumPage() {
                             excelFilename={excelFilename}
                             estimatedPopulationValue={estimatedPopulationValue}
                             populationRecords={populationRecords}
+                            handleExtraction={handleExtraction}
                         />
                     )}
                     {activeTab === "evaluacion" && (

@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {formatErrorValue, handleErrorChange, formatNumber} from '../../../../lib/apiClient';
+// En Planification.tsx - solo las partes modificadas
+import { useLog } from '@/contexts/LogContext';
 
 // Define la interfaz de las props que el componente espera recibir
 interface PlanificationProps {
@@ -38,6 +40,7 @@ interface PlanificationProps {
     excelData: any[];
     setIsPlanificacionDone: (value: boolean) => void;
     setActiveTab: (tabId: string) => void;
+    handlePlanification: () => void
 }
 
 const Planification: React.FC<PlanificationProps> = ({
@@ -76,7 +79,10 @@ const Planification: React.FC<PlanificationProps> = ({
     excelData,
     setIsPlanificacionDone,
     setActiveTab,
+    handlePlanification,
 }) => {
+
+    const { addLog } = useLog();
 
     const calculatePopulationValue = () => {
         if (useFieldValue && selectedField && excelData.length > 0) {
@@ -109,59 +115,21 @@ const Planification: React.FC<PlanificationProps> = ({
         setSelectedPopulationType("positive");
     }, []);
 
-    const handleEstimate = async () => {
-        if (!useFieldValue && excelData.length === 0) {
-            alert("La población es cero. No se puede realizar la estimación.");
-            return;
-        }
-
-        try {
-            const response = await fetch('/api/mum/planification', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    excelData: excelData,
-                    useFieldValue: useFieldValue,
-                    selectedField: selectedField,
-                    selectedPopulationType: selectedPopulationType,
-                    confidenceLevel: confidenceLevel,
-                    errorType: errorType,
-                    tolerableError: tolerableError,
-                    expectedError: expectedError,
-                    estimatedPopulationValue: estimatedPopulationValue, // Enviar el valor ya calculado
-                }),
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                alert(`Error de Planificación: ${data.error || 'Algo salió mal.'}`);
-                return;
-            }
-
-            // Actualizar estados con los resultados
-            setEstimatedSampleSize(data.estimatedSampleSize);
-            setSampleInterval(data.sampleInterval);
-            setTolerableContamination(data.tolerableContamination);
-            setMinSampleSize(data.minSampleSize);
-            setConclusion(data.conclusion);
-            
-            setHasEstimated(true);
-
-        } catch (error) {
-            console.error("Error al estimar la planificación:", error);
-            alert("Error de conexión con el servidor. No se pudo realizar la estimación.");
-        }
-    };
-
     const handleAccept = () => {
         if (!hasEstimated) {
             alert("Primero debe realizar la estimación para poder aceptar la planificación.");
+            addLog(
+            'Planificación no Aceptada',
+            `Usuario intenta aceptar sin estimar`,
+            'planification'
+        );
             return;
         }
-
+        addLog(
+            'Planificación aceptada por usuario',
+            `Usuario procede a extracción con:\nTamaño muestra: ${estimatedSampleSize}\nIntervalo: ${sampleInterval.toFixed(2)}`,
+            'planification'
+        );
         setIsPlanificacionDone(true);
         setActiveTab("extraccion");
         alert("Planificación aceptada. Ahora puedes ir a Extracción.");
@@ -169,6 +137,13 @@ const Planification: React.FC<PlanificationProps> = ({
 
     const handlePrint = () => {
         window.print();
+    };
+
+    const handleEstimate = async () => {
+        // ... tu código existente ...
+        
+        // En lugar de llamar a la API directamente, usa la función del padre que tiene logs
+        await handlePlanification();
     };
 
     useEffect(() => {

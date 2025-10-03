@@ -1,5 +1,8 @@
-import React, { useEffect, Dispatch, SetStateAction } from 'react';
-import { saveAs } from 'file-saver'; // Se mantiene para manejar la descarga en el cliente.
+// En Extraction.tsx - agrega la importación de useState
+import React, { useEffect, useState } from 'react'; // Agregar useState aquí
+import { saveAs } from 'file-saver';
+import { useLog } from '@/contexts/LogContext';
+import { HistoryPanel } from '@/components/mum/HistoryPanel';
 
 // Define the shape of a single row in your Excel data
 interface ExcelRow {
@@ -12,46 +15,47 @@ interface ExtractionProps {
     excelData: ExcelRow[];
     headers: string[];
     extractionType: "intervaloFijo" | "seleccionCelda";
-    setExtractionType: Dispatch<SetStateAction<"intervaloFijo" | "seleccionCelda">>;
+    setExtractionType: React.Dispatch<React.SetStateAction<"intervaloFijo" | "seleccionCelda">>;
     highValueManagement: "agregados" | "separado";
-    setHighValueManagement: Dispatch<SetStateAction<"agregados" | "separado">>;
+    setHighValueManagement: React.Dispatch<React.SetStateAction<"agregados" | "separado">>;
     highValueFilename: string;
-    setHighValueFilename: Dispatch<SetStateAction<string>>;
+    setHighValueFilename: React.Dispatch<React.SetStateAction<string>>;
     sampleInterval: number;
     sampleField: string | null;
-    setSampleField: Dispatch<SetStateAction<string | null>>;
+    setSampleField: React.Dispatch<React.SetStateAction<string | null>>;
     randomStartPoint: number;
-    setRandomStartPoint: Dispatch<SetStateAction<number>>;
+    setRandomStartPoint: React.Dispatch<React.SetStateAction<number>>;
     modifyHighValueLimit: boolean;
-    setModifyHighValueLimit: Dispatch<SetStateAction<boolean>>;
+    setModifyHighValueLimit: React.Dispatch<React.SetStateAction<boolean>>;
     highValueCount: number;
-    setHighValueCount: Dispatch<SetStateAction<number>>;
+    setHighValueCount: React.Dispatch<React.SetStateAction<number>>;
     highValueLimit: number;
-    setHighValueLimit: Dispatch<SetStateAction<number>>;
+    setHighValueLimit: React.Dispatch<React.SetStateAction<number>>;
     selectedTableType: "positive" | "negative" | "absolute";
-    setSelectedTableType: Dispatch<SetStateAction<"positive" | "negative" | "absolute">>;
+    setSelectedTableType: React.Dispatch<React.SetStateAction<"positive" | "negative" | "absolute">>;
     positiveTotal: number;
-    setPositiveTotal: Dispatch<SetStateAction<number>>;
+    setPositiveTotal: React.Dispatch<React.SetStateAction<number>>;
     positiveRecords: number;
-    setPositiveRecords: Dispatch<SetStateAction<number>>;
+    setPositiveRecords: React.Dispatch<React.SetStateAction<number>>;
     negativeTotal: number;
-    setNegativeTotal: Dispatch<SetStateAction<number>>;
+    setNegativeTotal: React.Dispatch<React.SetStateAction<number>>;
     negativeRecords: number;
-    setNegativeRecords: Dispatch<SetStateAction<number>>;
+    setNegativeRecords: React.Dispatch<React.SetStateAction<number>>;
     absoluteTotal: number;
-    setAbsoluteTotal: Dispatch<SetStateAction<number>>;
+    setAbsoluteTotal: React.Dispatch<React.SetStateAction<number>>;
     absoluteRecords: number;
-    setAbsoluteRecords: Dispatch<SetStateAction<number>>;
+    setAbsoluteRecords: React.Dispatch<React.SetStateAction<number>>;
     estimatedSampleSize: number;
     extractionFilename: string;
-    setExtractionFilename: Dispatch<SetStateAction<string>>;
-    setIsExtraccionDone: Dispatch<SetStateAction<boolean>>;
-    setActiveTab: Dispatch<SetStateAction<string>>;
-    selectedField: string | null;  // Este es el valor heredado
+    setExtractionFilename: React.Dispatch<React.SetStateAction<string>>;
+    setIsExtraccionDone: React.Dispatch<React.SetStateAction<boolean>>;
+    setActiveTab: React.Dispatch<React.SetStateAction<string>>;
+    selectedField: string | null;
     setSelectedField: (value: string | null) => void;
     excelFilename: string;
     estimatedPopulationValue: number;
     populationRecords: number;
+    handleExtraction: () => void; // Nueva prop
 }
 
 const Extraction: React.FC<ExtractionProps> = ({
@@ -99,7 +103,10 @@ const Extraction: React.FC<ExtractionProps> = ({
     excelFilename,
     estimatedPopulationValue,
     populationRecords,
+    handleExtraction, // Nueva prop
 }) => {
+    const [showHistory, setShowHistory] = useState(false); // Ahora useState está importado
+    const { addLog } = useLog();
 
     const calculateTableValues = () => {
         if (!sampleField || !excelData || excelData.length === 0) {
@@ -145,8 +152,12 @@ const Extraction: React.FC<ExtractionProps> = ({
     // Efecto para inicializar con el campo heredado
     useEffect(() => {
         if (selectedField && isPlanificacionDone && !sampleField) {
-            // Solo inicializar si no hay un sampleField seleccionado aún
             setSampleField(selectedField);
+            addLog(
+                'Campo heredado de planificación aplicado',
+                `Campo seleccionado automáticamente: ${selectedField}`,
+                'extraction'
+            );
         }
     }, [selectedField, isPlanificacionDone, sampleField]);
 
@@ -168,12 +179,17 @@ const Extraction: React.FC<ExtractionProps> = ({
                 return !isNaN(value) && Math.abs(value) >= sampleInterval;
             });
             setHighValueCount(highValueRecords.length);
+
+            addLog(
+                'Cálculos de extracción actualizados',
+                `Campo: ${sampleField}\nPunto inicio aleatorio: ${newRandomStartPoint}\nValores altos: ${highValueRecords.length}`,
+                'extraction'
+            );
         }
     }, [sampleField, excelData, sampleInterval, modifyHighValueLimit]);
 
     // Efecto adicional para cuando cambian los datos o el intervalo
     useEffect(() => {
-        setSelectedTableType("positive");
         if (sampleField && excelData.length > 0) {
             calculateTableValues();
         }
@@ -181,55 +197,22 @@ const Extraction: React.FC<ExtractionProps> = ({
 
     const handleExtraccion = async () => {
         if (!sampleField) {
+            addLog(
+                'Error en extracción - campo no seleccionado',
+                'El campo numérico para la muestra no ha sido seleccionado',
+                'extraction'
+            );
             alert("Por favor, selecciona un campo numérico para la muestra.");
             return;
         }
-        
-        // 1. Enviar datos a la API (Lógica de Negocio se ejecuta en el servidor)
-        try {
-            const response = await fetch('/api/mum/extraction', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    excelData, estimatedSampleSize, sampleInterval, highValueLimit: sampleInterval, 
-                    highValueManagement, sampleField, randomStartPoint, 
-                    estimatedPopulationValue, extractionType, 
-                    extractionFilename: extractionFilename || "muestra_extraida",
-                    highValueFilename: highValueFilename || "valores_altos",
-                }),
-            });
 
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || `Error HTTP: ${response.status}`);
-            }
+        addLog(
+            'Usuario inició extracción MUM',
+            `Campo: ${sampleField}\nIntervalo: ${sampleInterval}\nPunto inicio: ${randomStartPoint}`,
+            'extraction'
+        );
 
-            const result = await response.json();
-            
-            // 2. Descargar el archivo principal de muestra
-            const sampleBlob = new Blob([Buffer.from(result.sampleFileBase64, 'base64')], { 
-                type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
-            });
-            saveAs(sampleBlob, `${result.extractionFilename}.xlsx`);
-            
-            let successMessage = `Extracción completada. Archivo "${result.extractionFilename}.xlsx" generado.`;
-
-            // 3. Descargar el archivo de valores altos (si aplica)
-            if (result.highValueFileBase64) {
-                const highValueBlob = new Blob([Buffer.from(result.highValueFileBase64, 'base64')], { 
-                    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
-                });
-                saveAs(highValueBlob, `${result.highValueFilename}.xlsx`);
-                successMessage += ` Archivo de valores altos "${result.highValueFilename}.xlsx" generado.`;
-            }
-
-            setIsExtraccionDone(true);
-            alert(successMessage);
-            
-        } catch (error) {
-            console.error("Error al realizar la extracción:", error);
-            alert(`Error en la extracción: ${error instanceof Error ? error.message : "Error desconocido."}`);
-        }
+        await handleExtraction();
     };
 
     // ✅ CORRECCIÓN: Mejorar el texto informativo sobre valores altos
@@ -255,7 +238,6 @@ const Extraction: React.FC<ExtractionProps> = ({
 
     const renderExtraccion = () => {
         if (!isPlanificacionDone) {
-            // CORRECCIÓN: Este es el fragmento que causaba el error "Expression expected."
             return (
                 <div className="p-4 text-center text-gray-500">
                     Debe completar la Planificación para poder acceder a la Extracción.
@@ -307,7 +289,7 @@ const Extraction: React.FC<ExtractionProps> = ({
                                 <input
                                     type="radio"
                                     value="separado"
-                                    checked={highValueManagement === 'separado'} // Esto estará preseleccionado
+                                    checked={highValueManagement === 'separado'}
                                     onChange={() => setHighValueManagement('separado')}
                                     className="h-4 w-4 text-blue-600"
                                 />
@@ -338,9 +320,14 @@ const Extraction: React.FC<ExtractionProps> = ({
                                     Campo numérico para la muestra:
                                 </label>
                                 <select
-                                    value={sampleField || selectedField || ""} // Prioridad: sampleField, luego selectedField
+                                    value={sampleField || selectedField || ""}
                                     onChange={(e) => {
                                         setSampleField(e.target.value);
+                                        addLog(
+                                            'Campo de muestra cambiado',
+                                            `Nuevo campo seleccionado: ${e.target.value}`,
+                                            'extraction'
+                                        );
                                     }}
                                     className="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm"
                                 >
@@ -428,7 +415,7 @@ const Extraction: React.FC<ExtractionProps> = ({
                                         <input
                                             type="radio"
                                             value="positive"
-                                            checked={selectedTableType === 'positive'} // Preseleccionado
+                                            checked={selectedTableType === 'positive'}
                                             onChange={() => setSelectedTableType('positive')}
                                             className="h-4 w-4 text-blue-600"
                                         />
@@ -448,7 +435,7 @@ const Extraction: React.FC<ExtractionProps> = ({
                                             value="negative"
                                             checked={selectedTableType === 'negative'}
                                             onChange={() => setSelectedTableType('negative')}
-                                            disabled={true} // Bloqueado
+                                            disabled={true}
                                             className="h-4 w-4 text-gray-400 cursor-not-allowed"
                                         />
                                         <span className="ml-2 text-sm text-gray-400">Valores negativos</span>
@@ -467,7 +454,7 @@ const Extraction: React.FC<ExtractionProps> = ({
                                             value="absolute"
                                             checked={selectedTableType === 'absolute'}
                                             onChange={() => setSelectedTableType('absolute')}
-                                            disabled={true} // Bloqueado
+                                            disabled={true}
                                             className="h-4 w-4 text-gray-400 cursor-not-allowed"
                                         />
                                         <span className="ml-2 text-sm text-gray-400">Valores absolutos</span>
@@ -506,20 +493,29 @@ const Extraction: React.FC<ExtractionProps> = ({
                     >
                         Aceptar
                     </button>
-                    {/*
+                    
+                    {/* NUEVO BOTÓN DE HISTORIAL */}
                     <button
-                        onClick={() => alert('Abrir ventana de selección de campos...')}
-                        className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded shadow"
+                        onClick={() => {
+                            setShowHistory(true);
+                            addLog(
+                                'Usuario visualizó historial',
+                                'Historial de auditoría abierto desde módulo de extracción',
+                                'extraction'
+                            );
+                        }}
+                        className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded shadow"
                     >
-                        Campos
+                        Ver Historial
                     </button>
-                    */}
+
                     <button
                         onClick={() => setActiveTab('planificacion')}
                         className="bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded shadow"
                     >
                         Cancelar
                     </button>
+                    
                     <button
                         onClick={() => alert("Función de Ayuda: En este módulo, se definen los parámetros para la extracción de la muestra estadística, incluyendo la gestión de valores altos.")}
                         className="bg-gray-400 hover:bg-gray-500 text-white font-semibold py-2 px-4 rounded-full shadow"
@@ -527,6 +523,14 @@ const Extraction: React.FC<ExtractionProps> = ({
                         ? Ayuda
                     </button>
                 </div>
+
+                {/* Panel de Historial */}
+                {showHistory && (
+                    <HistoryPanel 
+                        isOpen={showHistory} 
+                        onClose={() => setShowHistory(false)} 
+                    />
+                )}
             </div>
         );
     };
