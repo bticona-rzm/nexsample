@@ -9,7 +9,7 @@ import Extraction from "./componentes/Extraction";
 import Evaluation from "./componentes/Evaluation";
 import { LogProvider } from '../../../contexts/LogContext'; // Importa el LogProvider
 
-export default function MumPage() {
+function MumPageContent() {
     const [excelData, setExcelData] = useState<ExcelRow[]>([]);
     const [headers, setHeaders] = useState<string[]>([]);
     const [activeTab, setActiveTab] = useState("visualizar");
@@ -130,9 +130,7 @@ export default function MumPage() {
             setConclusion(result.conclusion);
             setMinSampleSize(result.minSampleSize);
             setIsPlanificacionDone(true);
-            setActiveTab("extraccion");
-
-            
+            setActiveTab("extraccion");            
 
         } catch (error) {
             console.error("Error en la planificación:", error);
@@ -142,7 +140,6 @@ export default function MumPage() {
 
 
     const handleExtraction = async () => {
-
         try {
             const body = {
                 excelData,
@@ -171,7 +168,6 @@ export default function MumPage() {
     };
 
     const handleEvaluation = async () => {
-
         try {
             const body = {
                 confidenceLevel,
@@ -199,7 +195,6 @@ export default function MumPage() {
             alert("Hubo un problema al generar la evaluacion.");
         }
     };
-
 
     const tabs = [
         { id: "visualizar", name: "Visualizar Datos" },
@@ -247,9 +242,7 @@ export default function MumPage() {
                     {tabs.map((tab) => (
                         <button
                             key={tab.id}
-                            onClick={() => {
-                                setActiveTab(tab.id);
-                            }}
+                            onClick={() => setActiveTab(tab.id)}
                             disabled={tab.disabled}
                             className={`py-2 px-4 text-sm font-medium rounded-t-lg ${
                                 activeTab === tab.id
@@ -304,7 +297,7 @@ export default function MumPage() {
                             excelData={excelData}
                             setIsPlanificacionDone={setIsPlanificacionDone}
                             setActiveTab={setActiveTab}
-                            handlePlanification={handlePlanification} // Pasa la función con logs
+                            handlePlanification={handlePlanification}
                         />
                     )}
                     {activeTab === "extraccion" && (
@@ -322,10 +315,8 @@ export default function MumPage() {
                             highValueCount={highValueCount}
                             setHighValueCount={setHighValueCount}
                             setHighValueLimit={setHighValueLimit}
-                            // 👇 Aquí está la corrección:
                             modifyHighValueLimit={modifyHighValueLimit}
                             setModifyHighValueLimit={setModifyHighValueLimit}
-                            // 👆 Fin de la corrección
                             sampleField={sampleField}
                             setSampleField={setSampleField}
                             randomStartPoint={randomStartPoint}
@@ -378,7 +369,6 @@ export default function MumPage() {
                             highValueTotal={highValueTotal}
                             populationExcludingHigh={populationExcludingHigh}
                             populationIncludingHigh={populationIncludingHigh}
-                            // Pasa el manejador de la API como prop
                             handleEvaluation={handleEvaluation}
                             setActiveTab={setActiveTab}
                             headers={headers} 
@@ -388,5 +378,14 @@ export default function MumPage() {
                 </div>
             </div>
         </main>
+    );
+}
+
+// Exportación por defecto CON LogProvider
+export default function MumPage() {
+    return (
+        <LogProvider>
+            <MumPageContent />
+        </LogProvider>
     );
 }

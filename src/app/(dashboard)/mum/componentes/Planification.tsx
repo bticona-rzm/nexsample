@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {formatErrorValue, handleErrorChange, formatNumber} from '../../../../lib/apiClient';
 // En Planification.tsx - solo las partes modificadas
-import { useLog } from '@/contexts/LogContext';
+import { useLog } from '../../../../contexts/LogContext';
 
 // Define la interfaz de las props que el componente espera recibir
 interface PlanificationProps {
@@ -118,18 +118,15 @@ const Planification: React.FC<PlanificationProps> = ({
     const handleAccept = () => {
         if (!hasEstimated) {
             alert("Primero debe realizar la estimación para poder aceptar la planificación.");
-            addLog(
-            'Planificación no Aceptada',
-            `Usuario intenta aceptar sin estimar`,
-            'planification'
-        );
             return;
         }
+
         addLog(
             'Planificación aceptada por usuario',
-            `Usuario procede a extracción con:\nTamaño muestra: ${estimatedSampleSize}\nIntervalo: ${sampleInterval.toFixed(2)}`,
+            `Tamaño muestra: ${estimatedSampleSize}\nIntervalo: ${sampleInterval.toFixed(2)}`,
             'planification'
         );
+
         setIsPlanificacionDone(true);
         setActiveTab("extraccion");
         alert("Planificación aceptada. Ahora puedes ir a Extracción.");
@@ -140,9 +137,17 @@ const Planification: React.FC<PlanificationProps> = ({
     };
 
     const handleEstimate = async () => {
-        // ... tu código existente ...
-        
-        // En lugar de llamar a la API directamente, usa la función del padre que tiene logs
+        if (!useFieldValue && excelData.length === 0) {
+            alert("La población es cero. No se puede realizar la estimación.");
+            return;
+        }
+
+        addLog(
+            'Usuario inició estimación de planificación',
+            `Nivel confianza: ${confidenceLevel}%\nError tolerable: ${tolerableError}\nError esperado: ${expectedError}`,
+            'planification'
+        );
+
         await handlePlanification();
     };
 

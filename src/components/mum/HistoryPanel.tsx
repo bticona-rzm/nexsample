@@ -1,4 +1,4 @@
-// components/HistoryPanel.tsx
+// components/mum/HistoryPanel.tsx
 import React, { useState } from 'react'; // Agregar useState aquí
 import { useLog } from '@/contexts/LogContext';
 
