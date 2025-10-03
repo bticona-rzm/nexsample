@@ -6,14 +6,12 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/pages/api/auth/[...nextauth]";
 
 // ---- Cache global para datasets ----
-// Esto vive en memoria del servidor mientras dure el proceso (ej: Railway runtime)
 if (!(globalThis as any).datasetStore) {
   (globalThis as any).datasetStore = {};
 }
 const datasetStore: Record<string, any[]> = (globalThis as any).datasetStore;
 
 // ---------- Algoritmos internos ----------
-// Generador aleatorio con semilla (PRNG determinístico)
 function mulberry32(a: number) {
   return function () {
     let t = (a += 0x6d2b79f5);
@@ -23,7 +21,6 @@ function mulberry32(a: number) {
   };
 }
 
-// Muestreo con validaciones
 function randomSample(
   array: any[],
   n: number,
@@ -52,7 +49,6 @@ function randomSample(
   return result;
 }
 
-// Exportar XML simple
 function toXML(rows: any[]): string {
   let xml = "<rows>\n";
   rows.forEach((row) => {
@@ -66,12 +62,11 @@ function toXML(rows: any[]): string {
   return xml;
 }
 
-// Función para generar hash
 function generateHash(data: any): string {
   return createHash("sha256")
     .update(JSON.stringify(data))
     .digest("hex")
-    .slice(0, 12); // recortamos a 12 caracteres
+    .slice(0, 12);
 }
 
 // ---------- API ----------
@@ -85,8 +80,6 @@ export async function POST(req: Request) {
 
     const contentType = req.headers.get("content-type");
 
-
-    // Aquí usas datasetStore directamente (no lo redeclares)
     if (contentType?.includes("multipart/form-data")) {
       const formData = await req.formData();
       const file = formData.get("file") as File;
@@ -96,6 +89,16 @@ export async function POST(req: Request) {
       if (!file) {
         return NextResponse.json({ error: "No se subió ningún archivo" }, { status: 400 });
       }
+      // ⚠️ Validación de tamaño: máximo 100 MB
+      const maxSize = 100 * 1024 * 1024; // 100 MB en bytes
+      if (file.size > maxSize) {
+        return NextResponse.json(
+          {
+            error: `El archivo excede el límite permitido (100 MB). Tamaño recibido: ${(file.size / (1024 * 1024)).toFixed(2)} MB`
+          },
+          { status: 413 } // 413 Payload Too Large
+        );
+      }
 
       const bytes = await file.arrayBuffer();
       const buffer = Buffer.from(bytes);
@@ -104,11 +107,11 @@ export async function POST(req: Request) {
       const worksheet = workbook.Sheets[sheetName];
       const rows = XLSX.utils.sheet_to_json(worksheet, { header: useHeader ? 0 : 1 });
       const datasetId = `ds_${Date.now()}`;
-      datasetStore[datasetId] = rows; //  Guardado en memoria
+      datasetStore[datasetId] = rows;
 
       return NextResponse.json({
         datasetId,
-        rows: rows.slice(0, 50), // mandamos preview (ej: 50 filas)
+        rows: rows.slice(0, 50), // preview de 50 filas
         total: rows.length,
         dataset: datasetName || file.name,
       });
@@ -228,7 +231,6 @@ export async function POST(req: Request) {
       return NextResponse.json(items);
     }
 
-
     if (action === "clearHistorial") {
       await prisma.historialMuestra.deleteMany({ where: { userId } });
       return NextResponse.json({ success: true });
@@ -242,3 +244,11 @@ export async function POST(req: Request) {
     );
   }
 }
+
+// ---------- CONFIGURACIÓN ESPECÍFICA PARA ESTE ROUTE ----------
+export const config = {
+  api: {
+    bodyParser: false,
+    sizeLimit: "100mb", // límite para DataEstandar
+  },
+};  

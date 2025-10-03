@@ -3,7 +3,9 @@ import { useState, useEffect } from "react";
 import printJS from "print-js";
 import { ChevronLeft, ChevronRight ,  FileBarChart, Download, History, Upload, Printer, Trash2} from "lucide-react";
 import { useSession } from "next-auth/react";
-import { formatDate } from "@/lib/format"; 
+import { formatDate } from "@/lib/format";
+import MasivaComponent from "@/components/muestras/MasivaComponent";
+import FileUploadProgress from "@/components/muestras/FileUploadProgress";
 
 type SampleParams = {
   records: number;
@@ -21,7 +23,7 @@ const DEFAULT_SAMPLE_PARAMS: SampleParams = {
   end: 100,
   allowDuplicates: false,
   fileName: "",
-  };
+};
 
 // === COMPONENTES DE TABLAS ===
 const TablaHistorial = ({ historial }: { historial: any[] }) => (
@@ -164,7 +166,6 @@ const TablaGenerica = ({ rows }: { rows: any[] }) => {
   );
 };
 
-
 // === PÁGINA PRINCIPAL ===
 export default function MuestraPage() {
 
@@ -174,7 +175,6 @@ export default function MuestraPage() {
   // Evitar hydration mismatch
   const [hydrated, setHydrated] = useState(false);
   useEffect(() => setHydrated(true), []);
-
   // Estado persistente: pestañas, historial, pestaña activa
   const [tabs, setTabs] = useState<any[]>(() => {
     if (typeof window !== "undefined") {
@@ -183,17 +183,19 @@ export default function MuestraPage() {
     }
     return [];
   });
-
   // Importante: historial SIEMPRE como array vacío (no localStorage)
   const [historial, setHistorial] = useState<any[]>([]);
-
-
+  // Activar las pestañas de las tablas
   const [activeTab, setActiveTab] = useState<string | null>(() => {
     if (typeof window !== "undefined") {
       return localStorage.getItem("activeTab") || null;
     }
     return null;
   });
+  
+  // 👇 nuevo estado: subtabs estilo parametrización
+  const [subTab, setSubTab] = useState<"estandar" | "masivo">("estandar");
+
 
     // Estado: parámetros del muestreo (persistentes)
   const [sampleParams, setSampleParams] = useState<SampleParams>(() => {
@@ -307,6 +309,8 @@ export default function MuestraPage() {
   useEffect(() => {
     localStorage.setItem("sampleParams", JSON.stringify(sampleParams));
   }, [sampleParams]);
+
+
 
   // UI: modales y estados auxiliares
   const [showModal, setShowModal] = useState(false);
@@ -432,7 +436,6 @@ export default function MuestraPage() {
     }
   };
 
-
   //implementamos el fetch
   const fetchHistorial = async () => {
     try {
@@ -502,72 +505,118 @@ export default function MuestraPage() {
     }
   };
 
-  // === Subida de archivo Excel/CSV vía API con manejo de error ===
+
+  // Estados adicionales en tu componente
+  const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
+
+  // === Subida de archivo Excel/CSV/TXT con loader y progreso ===
   const handleFileUpload = async () => {
     if (!uploadedFile) {
       alert("Seleccione un archivo");
       return;
     }
 
-  const name = uploadedFile.name.toLowerCase();
-  if (
-    !name.endsWith(".xlsx") &&
-    !name.endsWith(".xls") &&
-    !name.endsWith(".csv") &&
-    !name.endsWith(".txt")       // ahora también soporta .txt
-  ) {
-    alert("Tipo de archivo no soportado. Use .xlsx, .xls, .csv o .txt");
-    return;
-  }
+    // ⚠️ Validación tamaño (solo para DataEstandar)
+    const maxSize = 100 * 1024 * 1024; // 100 MB
+    if (uploadedFile.size > maxSize) {
+      alert(
+        `El archivo excede el límite permitido en DataEstandar (100 MB).\n` +
+        `Tamaño recibido: ${(uploadedFile.size / (1024 * 1024)).toFixed(2)} MB`
+      );
+      return;
+    }
 
+    // ⚠️ Validación extensión
+    const name = uploadedFile.name.toLowerCase();
+    if (
+      !name.endsWith(".xlsx") &&
+      !name.endsWith(".xls") &&
+      !name.endsWith(".csv") &&
+      !name.endsWith(".txt") &&
+      !name.endsWith(".json") &&
+      !name.endsWith(".xml")
+    ) {
+      alert("Tipo de archivo no soportado. Use .xlsx, .xls, .csv, .txt, .json o .xml");
+      return;
+    }
 
     try {
+      setUploading(true);
+      setProgress(0);
+
       const formData = new FormData();
       formData.append("file", uploadedFile);
       formData.append("datasetName", datasetName || uploadedFile.name);
       formData.append("useHeader", useHeaders ? "true" : "false");
+      
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", "/api/muestra");
 
-      const res = await fetch("/api/muestra", {
-        method: "POST",
-        body: formData,
-      });
+      // Progreso
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+          const percent = Math.round((event.loaded / event.total) * 100);
+          setProgress(percent);
+        }
+      };
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        alert(`Error al procesar el archivo: ${err.error || res.statusText}`);
-        return;
-      }
+      xhr.onload = async () => {
+        setUploading(false);
+        setProgress(0); // reset
 
-      // Backend devuelve { rows, total, dataset, datasetId }
-      const { rows, total, dataset, datasetId } = await res.json();
+        if (xhr.status >= 200 && xhr.status < 300) {
+          const { rows, total, dataset, datasetId } = JSON.parse(xhr.responseText);
 
-      const newTabId = Date.now().toString();
-      setTabs((prev) => [
-        ...prev,
-        {
-          id: newTabId,
-          name: dataset || uploadedFile.name,
-          rows: rows || [],          // 🔑 aseguramos que siempre sea array
-          datasetId,                 // 🔑 guardamos el ID para muestreo/export
-          sourceFile: uploadedFile.name,
-          datasetLabel: datasetName || "",
-        },
-      ]);
+          const newTabId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
-      setSampleParams((prev) => ({
-        ...prev,
-        start: 1,
-        end: total,
-        totalRows: total,
-      }));
+          setTabs((prev) => {
+            // 🔑 evitar duplicados por datasetId
+            if (prev.some((t) => t.datasetId === datasetId)) return prev;
+            return [
+              ...prev,
+              {
+                id: newTabId,
+                name: dataset || uploadedFile.name,
+                rows: rows || [],
+                datasetId,
+                sourceFile: uploadedFile.name,
+                datasetLabel: datasetName || "",
+              },
+            ];
+          });
 
-      setActiveTab(newTabId);
-      setShowUploadModal(false);
-      setUploadedFile(null);
+          setSampleParams((prev) => ({
+            ...prev,
+            start: 1,
+            end: total,
+            totalRows: total,
+          }));
+
+          setActiveTab(newTabId);
+          setShowUploadModal(false);
+          setUploadedFile(null);
+        } else if (xhr.status === 413) {
+          alert("⚠️ El archivo es demasiado grande. Usa la pestaña DataMasivo.");
+        } else {
+          alert(`Error al procesar archivo: ${xhr.statusText}`);
+        }
+      };
+
+      xhr.onerror = () => {
+        setUploading(false);
+        setProgress(0);
+        alert("Error de conexión al subir archivo");
+      };
+
+      xhr.send(formData);
     } catch (e: any) {
+      setUploading(false);
+      setProgress(0);
       alert(`Error inesperado: ${e.message}`);
     }
   };
+
 
   // === Acciones UI ===
   const closeTab = (id: string) => {
@@ -592,397 +641,435 @@ export default function MuestraPage() {
       <h1 className="text-2xl font-bold px-4 py-3 text-gray-800">
         Módulo de Muestra
       </h1>
-      <div className="flex flex-1">
-        {/* Contenedor Tabs + Contenido */}
-        <div className="flex-1 p-4 overflow-x-auto overflow-y-auto">
-          {/* Barra de pestañas */}
-          <div className="flex space-x-2 mb-0 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300">
-            {tabs.map((tab) => (
-              <div
-                key={tab.id}
-                className={`flex items-center px-4 py-1 rounded-t-lg cursor-pointer select-none ${
-                  activeTab === tab.id
-                  ? "bg-gradient-to-r from-[#003055] to-[#005080] text-white shadow-md"
-                  : "bg-gray-400 text-gray-100 hover:bg-[#005080]"
-                }`}
-              >
-                {/* Renombrar pestaña con doble click */}
-                <span
-                  onClick={() => setActiveTab(tab.id)}
-                  onDoubleClick={() => {
-                    const newName = prompt("Nuevo nombre para la pestaña:", tab.name);
-                    if (newName) {
-                      setTabs(
-                        tabs.map((t) => (t.id === tab.id ? { ...t, name: newName } : t))
-                      );
-                    }
-                  }}
-                  className="truncate max-w-[100px]"
-                >
-                  {tab.name}
-                </span>
-                <button
-                  onClick={() => closeTab(tab.id)}
-                  className="ml-2 text-xs font-bold hover:text-red-500"
-                >
-                  ✕
-                </button>
-              </div>
-            ))}
-          </div>
-
-          {/* Contenido de pestañas */}
-          <div className="overflow-x-auto">
-            {!activeTab ? (
-              <div className="p-6 text-gray-500 text-center">
-                No hay datos cargados. Usa <b>Cargar Datos</b>.
-              </div>
-            ) : activeTab === "historial" ? (
-              <TablaHistorial historial={Array.isArray(historial) ? historial : []} />
-            ) : (
-              <TablaGenerica rows={currentRows} />
-            )}
-          </div>
-        </div>
-
-        {/* SIDEBAR */}
-        <div className="w-60 bg-gray-50 p-6 space-y-4 self-start">
-          
-          {/* Cargar Datos */}
-          <button
-            onClick={() => {
-              // al abrir modal, reiniciar datasetName vacío
-              setDatasetName("");
-              setShowUploadModal(true);
-            }}
-            className="w-full flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded shadow transition-colors"
-          >
-            <Upload size={18} />
-            Cargar Datos
-          </button>
-
-          {/* Muestreo */}
-          <button
-            onClick={() => {
-              // al abrir modal, reiniciar fileName vacío
-              setSampleParams((prev) => ({
-                ...prev,
-                fileName: "",
-              }));
-              setShowModal(true);
-            }}
-            className="w-full flex items-center gap-2 bg-gray-400 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded shadow transition-colors"
-          >
-            <FileBarChart size={18} />
-            Muestreo
-          </button>
-
-          {/* Exportar Muestreo*/}
-          <button
-            onClick={() => setShowExportModal(true)}
-            className="w-full flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded shadow transition-colors"
-          >
-            <Download size={18} />
-            Exportar DataSet
-          </button>
-
-          {/* Historial */}
-          <button
-            onClick={openHistorial}
-            className="w-full flex items-center gap-2 bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-2 px-4 rounded shadow transition-colors"
-          >
-            <History size={18} />
-            Historial
-          </button>
-
-          {/* Imprimir Historial */}
-          <button
-            onClick={exportPdf}
-            className="w-full flex items-center gap-2 bg-purple-600 hover:bg-purple-900 text-white font-semibold py-2 px-4 rounded shadow transition-colors"
-          >
-            <Printer size={18} />
-            Imprimir Historial
-          </button>
-
-          {/* Limpiar Historial */}
-          <button
-            onClick={clearHistorial}
-            className="w-full flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded shadow transition-colors"
-          >
-            <Trash2 size={18} />
-            Limpiar Historial
-          </button>
-        </div>
+      {/* === Barra de SubTabs al estilo parametrización === */}
+      {/* Barra de SubTabs */}
+      <div className="border-b border-gray-200">
+          <nav className="flex space-x-6" aria-label="Tabs">
+            <button
+              onClick={() => setSubTab("estandar")}
+              className={`px-3 py-2 text-sm font-medium ${
+                subTab === "estandar"
+                  ? "border-b-2 border-blue-600 text-blue-600"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              Data Estandar
+            </button>
+            <button
+              onClick={() => setSubTab("masivo")}
+              className={`px-3 py-2 text-sm font-medium ${
+                subTab === "masivo"
+                  ? "border-b-2 border-red-600 text-red-600"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              Data Masivo
+            </button>
+          </nav>
       </div>
 
-      {/* MODAL: Muestreo */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/30">
-          <div className="bg-white p-6 rounded-lg shadow-lg w-96 space-y-4 z-50">
-            <h2 className="text-lg font-bold mb-2">Opciones de Muestra:</h2>
-            <div className="space-y-3">
-              {/* Número de registros */}
-              <label className="flex justify-between">
-                Número de Registros:
-                <input
-                  type="number"
-                  min="1"
-                  value={sampleParams.records ?? ""}
-                  onChange={(e) =>
-                    setSampleParams((prev) => ({
-                      ...prev,
-                      records: e.target.value === "" ? 0 : parseInt(e.target.value, 10),
-                    }))
-                  }
-                  className="border rounded px-2 py-1 w-20 text-center"
-                />
-              </label>
-
-              {/* Semilla */}
-              <label className="flex justify-between">
-                Semilla Número Aleatorio:
-                <input
-                  type="number"
-                  min="1"
-                  value={sampleParams.seed ?? ""}
-                  onChange={(e) =>
-                    setSampleParams((prev) => ({
-                      ...prev,
-                      seed: e.target.value === "" ? 0 : parseInt(e.target.value, 10),
-                    }))
-                  }
-                  className="border rounded px-2 py-1 w-20 text-center"
-                />
-              </label>
-
-              {/* Inicio */}
-              <label className="flex justify-between">
-                Inicio:
-                <input
-                  type="number"
-                  min="1"
-                  value={sampleParams.start ?? ""}
-                  onChange={(e) => {
-                    const v = e.target.value === "" ? 0 : parseInt(e.target.value, 10);
-                    setSampleParams((prev) => ({
-                      ...prev,
-                      start: Math.max(1, v), // nunca menor que 1
-                    }));
-                  }}
-                  className="border rounded px-2 py-1 w-20 text-center"
-                />
-              </label>
-
-              {/* Fin */}
-              <label className="flex justify-between">
-                Fin:
-                <input
-                  type="number"
-                  min="1"
-                  value={sampleParams.end ?? ""}
-                  onChange={(e) => {
-                    const v = e.target.value === "" ? 0 : parseInt(e.target.value, 10);
-                    const maxLen = currentRows.length || Number.MAX_SAFE_INTEGER;
-                    setSampleParams((prev) => ({
-                      ...prev,
-                      end: Math.min(Math.max(1, v), maxLen), // clamp entre 1 y dataset.length
-                    }));
-                  }}
-                  className="border rounded px-2 py-1 w-20 text-center"
-                />
-              </label>
-
-              {/* Checkbox duplicados */}
-              <label className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  checked={sampleParams.allowDuplicates}
-                  onChange={(e) =>
-                    setSampleParams((prev) => ({
-                      ...prev,
-                      allowDuplicates: e.target.checked,
-                    }))
-                  }
-                />
-                <span>Seleccionar Duplicados</span>
-              </label>
-
-              {/* Nombre del archivo */}
-              <label className="flex justify-between">
-                Nombre del Archivo:
-                <input
-                  type="text"
-                  value={sampleParams.fileName}
-                  onChange={(e) =>
-                  setSampleParams((prev) => ({ ...prev, fileName: e.target.value }))
-                  }
-                  className="border rounded px-2 py-1 w-40"
-                />
-              </label>
-            </div>
-
-            <div className="flex justify-end space-x-1 mt-2">
-              <button
-                onClick={handleOk}
-                className="bg-sky-600 text-white px-4 py-2 rounded"
-              >
-                Aceptar
-              </button>
-              <button
-                onClick={() => setShowModal(false)}
-                className="bg-gray-400 text-white px-4 py-2 rounded"
-              >
-                Cancelar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: Cargar Datos */}
-      {showUploadModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/30">
-          <div className="bg-white p-6 rounded-lg shadow-lg w-[32rem] space-y-4">
-            <h2 className="text-lg font-bold mb-2">Cargar Datos</h2>
-            <div className="space-y-3">
-              
-              {/* Selección de archivo con botón y nombre */}
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-gray-700">Archivo:</span>
-                <div className="flex items-center space-x-3 w-full ml-4">
-                  {/* Input oculto */}
-                  <input
-                    id="fileInput"
-                    type="file"
-                    accept=".xlsx,.xls,.csv"
-                    className="hidden"
-                    onChange={(e) => setUploadedFile(e.target.files?.[0] || null)}
-                  />
-                  {/* Botón para abrir selector */}
-                  <button
-                    type="button"
-                    onClick={() => document.getElementById("fileInput")?.click()}
-                    className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded shadow text-sm"
-                  >
-                    Seleccionar Archivo
-                  </button>
-                  {/* Nombre del archivo */}
-                  <span className="flex-grow text-gray-900 text-sm text-right pl-3 truncate">
-                    {uploadedFile ? uploadedFile.name : "Ningún archivo seleccionado"}
-                  </span>
-                </div>
-              </div>
-
-              {/* Nombre del dataset */}
-              <label className="flex justify-between items-center">
-                <span className="text-sm font-medium text-gray-700">Nombre del Dataset:</span>
-                <input
-                  type="text"
-                  value={datasetName}
-                  onChange={(e) => setDatasetName(e.target.value)}
-                  placeholder="Ej: Ventas2024"
-                  className="border rounded px-2 py-1 w-48"
-                />
-              </label>
-
-              {/* Checkbox cabecera */}
-              <label className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  checked={useHeaders}
-                  onChange={(e) => setUseHeaders(e.target.checked)}
-                />
-                <span className="text-sm">Usar primera fila como cabecera</span>
-              </label>
-            </div>
-
-            {/* Botones de acción */}
-            <div className="flex justify-end space-x-2 mt-4">
-              <button
-                onClick={handleFileUpload}
-                className="bg-blue-600 text-white px-4 py-2 rounded"
-              >
-                Aceptar
-              </button>
-              <button
-                onClick={() => setShowUploadModal(false)}
-                className="bg-gray-400 text-white px-4 py-2 rounded"
-              >
-                Cancelar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: Exportación */}
-      {showExportModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/40">
-          <div className="bg-white p-6 rounded shadow-lg w-80 space-y-4">
-            <h2 className="text-lg font-bold mb-2">Exportar Datos</h2>
-            <p className="text-sm text-gray-600">Selecciona el formato:</p>
-              <div className="flex flex-col space-y-2">
-                <button
-                  onClick={() => exportData("xlsx")}
-                  className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-                >
-                  Excel (.xlsx)
-                </button>
-                <button
-                  onClick={() => exportData("csv")}
-                  className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-                >
-                  CSV (.csv)
-                </button>
-                <button
-                  onClick={() => exportData("json")}
-                  className="bg-violet-600 text-white px-4 py-2 rounded hover:bg-violet-700"
-                >
-                  JSON (.json)
-                </button>
-                <button
-                  onClick={() => exportData("xml")}
-                  className="bg-yellow-400 text-white px-4 py-2 rounded hover:bg-yellow-500"
-                >
-                  XML (.xml)
-                </button>
-                <button
-                  onClick={() => exportData("txt")}
-                  className="bg-orange-400 text-white px-4 py-2 rounded hover:bg-orange-500"
-                >
-                  TXT (.txt)
-                </button>
-              </div>
-              {/* Selector de pestaña */}
-              <label className="flex flex-col text-sm font-medium text-gray-700">
-                Selecciona la pestaña de muestreo:
-                <select
-                  value={selectedTabId}
-                  onChange={(e) => setSelectedTabId(e.target.value)}
-                  className="mt-1 border rounded px-2 py-1"
-                >
-                  <option value="">--Seleccionar pestaña--</option>
-                  {tabs.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name}
-                    </option>
+        {/* === Contenido dinámico según el subTab === */}
+        {/* === Layout principal con contenido + sidebar === */}
+        <div className="flex flex-1">
+          {/* Contenido según subTab */}
+          <div className="flex-1 p-4 overflow-x-auto overflow-y-auto">
+            {subTab === "estandar" ? (
+              <>
+                {/* Barra de pestañas dinámicas */}
+                <div className="flex space-x-2 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300">
+                  {tabs.map((tab) => (
+                    <div
+                      key={tab.id}
+                      className={`flex items-center px-4 py-1 rounded-t-lg cursor-pointer select-none ${
+                        activeTab === tab.id
+                          ? "bg-gradient-to-r from-[#003055] to-[#005080] text-white shadow-md"
+                          : "bg-gray-400 text-gray-100 hover:bg-[#005080]"
+                      }`}
+                      onClick={() => setActiveTab(tab.id)}
+                    >
+                      <span className="truncate max-w-[100px]">{tab.name}</span>
+                      <button
+                        onClick={() => closeTab(tab.id)}
+                        className="ml-2 text-xs font-bold hover:text-red-500"
+                      >
+                        ✕
+                      </button>
+                    </div>
                   ))}
-                </select>
-              </label>
-            <p className="text-xs text-gray-500">
-              Solo se exportarán los datos de la pestaña seleccionada.
-            </p>
-            <div className="flex justify-end mt-3">
+                </div>
+
+                {/* Contenido del tab seleccionado */}
+                {tabs.length === 0 || !activeTab ? (
+                  <div className="p-6 text-gray-500 text-center">
+                    No hay datos cargados. Usa <b>Cargar Datos</b>.
+                  </div>
+                ) : activeTab === "historial" ? (
+                  <TablaHistorial historial={Array.isArray(historial) ? historial : []} />
+                ) : (
+                  <TablaGenerica rows={currentRows} />
+                )}
+              </>
+            ) : (
+              <MasivaComponent />
+            )}
+          </div>
+
+          {/* SIDEBAR */}
+          <div className="w-60 bg-gray-50 p-6 space-y-4 self-start">              
+              {/* Cargar Datos */}
               <button
-                onClick={() => setShowExportModal(false)}
-                className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+                onClick={() => {
+                  setDatasetName("");
+                  setUploadedFile(null);
+                  setShowUploadModal(true);
+                }}
+                className="w-full flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded shadow transition-colors"
               >
-                Cerrar
+                <Upload size={18} />
+                Cargar Datos
               </button>
-            </div>
+
+              {/* Muestreo */}
+              <button
+                onClick={() => {
+                  // al abrir modal, reiniciar fileName vacío
+                  setSampleParams((prev) => ({
+                    ...prev,
+                    fileName: "",
+                  }));
+                  setShowModal(true);
+                }}
+                className="w-full flex items-center gap-2 bg-gray-400 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded shadow transition-colors"
+              >
+                <FileBarChart size={18} />
+                Muestreo
+              </button>
+
+              {/* Exportar Muestreo*/}
+              <button
+                onClick={() => setShowExportModal(true)}
+                className="w-full flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded shadow transition-colors"
+              >
+                <Download size={18} />
+                Exportar DataSet
+              </button>
+
+              {/* Historial */}
+              <button
+                onClick={openHistorial}
+                className="w-full flex items-center gap-2 bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-2 px-4 rounded shadow transition-colors"
+              >
+                <History size={18} />
+                Historial
+              </button>
+
+              {/* Imprimir Historial */}
+              <button
+                onClick={exportPdf}
+                className="w-full flex items-center gap-2 bg-purple-600 hover:bg-purple-900 text-white font-semibold py-2 px-4 rounded shadow transition-colors"
+              >
+                <Printer size={18} />
+                Imprimir Historial
+              </button>
+
+              {/* Limpiar Historial */}
+              <button
+                onClick={clearHistorial}
+                className="w-full flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded shadow transition-colors"
+              >
+                <Trash2 size={18} />
+                Limpiar Historial
+              </button>
           </div>
         </div>
-      )}
-    </div>
+
+        {/* MODAL: Muestreo */}
+        {showModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/30">
+            <div className="bg-white p-6 rounded-lg shadow-lg w-96 space-y-4 z-50">
+              <h2 className="text-lg font-bold mb-2">Opciones de Muestra:</h2>
+              <div className="space-y-3">
+                {/* Número de registros */}
+                <label className="flex justify-between">
+                  Número de Registros:
+                  <input
+                    type="number"
+                    min="1"
+                    value={sampleParams.records ?? ""}
+                    onChange={(e) =>
+                      setSampleParams((prev) => ({
+                        ...prev,
+                        records: e.target.value === "" ? 0 : parseInt(e.target.value, 10),
+                      }))
+                    }
+                    className="border rounded px-2 py-1 w-20 text-center"
+                  />
+                </label>
+
+                {/* Semilla */}
+                <label className="flex justify-between">
+                  Semilla Número Aleatorio:
+                  <input
+                    type="number"
+                    min="1"
+                    value={sampleParams.seed ?? ""}
+                    onChange={(e) =>
+                      setSampleParams((prev) => ({
+                        ...prev,
+                        seed: e.target.value === "" ? 0 : parseInt(e.target.value, 10),
+                      }))
+                    }
+                    className="border rounded px-2 py-1 w-20 text-center"
+                  />
+                </label>
+
+                {/* Inicio */}
+                <label className="flex justify-between">
+                  Inicio:
+                  <input
+                    type="number"
+                    min="1"
+                    value={sampleParams.start ?? ""}
+                    onChange={(e) => {
+                      const v = e.target.value === "" ? 0 : parseInt(e.target.value, 10);
+                      setSampleParams((prev) => ({
+                        ...prev,
+                        start: Math.max(1, v), // nunca menor que 1
+                      }));
+                    }}
+                    className="border rounded px-2 py-1 w-20 text-center"
+                  />
+                </label>
+
+                {/* Fin */}
+                <label className="flex justify-between">
+                  Fin:
+                  <input
+                    type="number"
+                    min="1"
+                    value={sampleParams.end ?? ""}
+                    onChange={(e) => {
+                      const v = e.target.value === "" ? 0 : parseInt(e.target.value, 10);
+                      const maxLen = currentRows.length || Number.MAX_SAFE_INTEGER;
+                      setSampleParams((prev) => ({
+                        ...prev,
+                        end: Math.min(Math.max(1, v), maxLen), // clamp entre 1 y dataset.length
+                      }));
+                    }}
+                    className="border rounded px-2 py-1 w-20 text-center"
+                  />
+                </label>
+
+                {/* Checkbox duplicados */}
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={sampleParams.allowDuplicates}
+                    onChange={(e) =>
+                      setSampleParams((prev) => ({
+                        ...prev,
+                        allowDuplicates: e.target.checked,
+                      }))
+                    }
+                  />
+                  <span>Seleccionar Duplicados</span>
+                </label>
+
+                {/* Nombre del archivo */}
+                <label className="flex justify-between">
+                  Nombre del Archivo:
+                  <input
+                    type="text"
+                    value={sampleParams.fileName}
+                    onChange={(e) =>
+                    setSampleParams((prev) => ({ ...prev, fileName: e.target.value }))
+                    }
+                    className="border rounded px-2 py-1 w-40"
+                  />
+                </label>
+              </div>
+
+              <div className="flex justify-end space-x-1 mt-2">
+                <button
+                  onClick={handleOk}
+                  className="bg-sky-600 text-white px-4 py-2 rounded"
+                >
+                  Aceptar
+                </button>
+                <button
+                  onClick={() => setShowModal(false)}
+                  className="bg-gray-400 text-white px-4 py-2 rounded"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL: Cargar Datos */}
+        {showUploadModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/30">
+            <div className="bg-white p-6 rounded-lg shadow-lg w-[32rem] space-y-4">
+              <h2 className="text-lg font-bold mb-2">Cargar Datos</h2>
+              <div className="space-y-3">
+
+                {/* Selección de archivo */}
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-700">Archivo:</span>
+                  <div className="flex items-center space-x-3 w-full ml-4">
+                    {/* Input oculto */}
+                    <input
+                      id="fileInput"
+                      type="file"
+                      accept=".xlsx,.xls,.csv,.txt,.json,.xml"
+                      className="hidden"
+                      onChange={(e) => setUploadedFile(e.target.files?.[0] || null)}
+                    />
+                    {/* Botón abrir selector */}
+                    <button
+                      type="button"
+                      onClick={() => document.getElementById("fileInput")?.click()}
+                      className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded shadow text-sm"
+                    >
+                      Seleccionar Archivo
+                    </button>
+                    {/* Nombre del archivo */}
+                    <span className="flex-grow text-gray-900 text-sm text-right pl-3 truncate">
+                      {uploadedFile ? uploadedFile.name : "Ningún archivo seleccionado"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Nombre dataset */}
+                <label className="flex justify-between items-center">
+                  <span className="text-sm font-medium text-gray-700">Nombre del Dataset:</span>
+                  <input
+                    type="text"
+                    value={datasetName}
+                    onChange={(e) => setDatasetName(e.target.value)}
+                    placeholder="Ej: Ventas2024"
+                    className="border rounded px-2 py-1 w-48"
+                  />
+                </label>
+
+                {/* Checkbox cabecera */}
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={useHeaders}
+                    onChange={(e) => setUseHeaders(e.target.checked)}
+                  />
+                  <span className="text-sm">Usar primera fila como cabecera</span>
+                </label>
+
+                {/* Loader de progreso */}
+                {uploading && (
+                  <div className="w-full mt-4">
+                    <div className="text-sm text-gray-600 mb-1">Subiendo archivo... {progress}%</div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div
+                        className="bg-blue-600 h-2 rounded-full transition-all"
+                        style={{ width: `${progress}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Botones */}
+              <div className="flex justify-end space-x-2 mt-4">
+                <button
+                  onClick={handleFileUpload}
+                  disabled={uploading}
+                  className={`px-4 py-2 rounded text-white ${
+                    uploading
+                      ? "bg-gray-400 cursor-not-allowed"
+                      : "bg-blue-600 hover:bg-blue-700"
+                  }`}
+                >
+                  {uploading ? "Cargando..." : "Aceptar"}
+                </button>
+                <button
+                  onClick={() => setShowUploadModal(false)}
+                  disabled={uploading}
+                  className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-gray-500"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL: Exportación */}
+        {showExportModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/40">
+            <div className="bg-white p-6 rounded shadow-lg w-80 space-y-4">
+              <h2 className="text-lg font-bold mb-2">Exportar Datos</h2>
+              <p className="text-sm text-gray-600">Selecciona el formato:</p>
+                <div className="flex flex-col space-y-2">
+                  <button
+                    onClick={() => exportData("xlsx")}
+                    className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+                  >
+                    Excel (.xlsx)
+                  </button>
+                  <button
+                    onClick={() => exportData("csv")}
+                    className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+                  >
+                    CSV (.csv)
+                  </button>
+                  <button
+                    onClick={() => exportData("json")}
+                    className="bg-violet-600 text-white px-4 py-2 rounded hover:bg-violet-700"
+                  >
+                    JSON (.json)
+                  </button>
+                  <button
+                    onClick={() => exportData("xml")}
+                    className="bg-yellow-400 text-white px-4 py-2 rounded hover:bg-yellow-500"
+                  >
+                    XML (.xml)
+                  </button>
+                  <button
+                    onClick={() => exportData("txt")}
+                    className="bg-orange-400 text-white px-4 py-2 rounded hover:bg-orange-500"
+                  >
+                    TXT (.txt)
+                  </button> 
+                </div>
+                {/* Selector de pestaña */}
+                <label className="flex flex-col text-sm font-medium text-gray-700">
+                  Selecciona la pestaña de muestreo:
+                  <select
+                    value={selectedTabId}
+                    onChange={(e) => setSelectedTabId(e.target.value)}
+                    className="mt-1 border rounded px-2 py-1"
+                  >
+                    <option value="">--Seleccionar pestaña--</option>
+                    {tabs.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              <p className="text-xs text-gray-500">
+                Solo se exportarán los datos de la pestaña seleccionada.
+              </p>
+              <div className="flex justify-end mt-3">
+                <button
+                  onClick={() => setShowExportModal(false)}
+                  className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+  </div>
   );
 }
