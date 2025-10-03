@@ -358,7 +358,8 @@ export default function MumPage() {
                             setActiveTab={setActiveTab}
                             extractionType={extractionType}
                             setExtractionType={setExtractionType}
-                            selectedFieldFromPlanificacion={selectedFieldFromPlanificacion}
+                            selectedField={selectedField}
+                            setSelectedField={setSelectedField}
                             excelFilename={excelFilename}
                             estimatedPopulationValue={estimatedPopulationValue}
                             populationRecords={populationRecords}

@@ -390,12 +390,14 @@ const Planification: React.FC<PlanificationProps> = ({
                     >
                         Aceptar
                     </button>
+                    { /* 
                     <button
                         onClick={handlePrint}
                         className="bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded shadow"
                     >
                         Imprimir
                     </button>
+                    */ }
                     <button
                         onClick={() => setActiveTab("visualizar")}
                         className="bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded shadow"

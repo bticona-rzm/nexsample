@@ -47,7 +47,8 @@ interface ExtractionProps {
     setExtractionFilename: Dispatch<SetStateAction<string>>;
     setIsExtraccionDone: Dispatch<SetStateAction<boolean>>;
     setActiveTab: Dispatch<SetStateAction<string>>;
-    selectedFieldFromPlanificacion: string | null;
+    selectedField: string | null;  // Este es el valor heredado
+    setSelectedField: (value: string | null) => void;
     excelFilename: string;
     estimatedPopulationValue: number;
     populationRecords: number;
@@ -93,7 +94,8 @@ const Extraction: React.FC<ExtractionProps> = ({
     setExtractionFilename,
     setIsExtraccionDone,
     setActiveTab,
-    selectedFieldFromPlanificacion,
+    selectedField,
+    setSelectedField,
     excelFilename,
     estimatedPopulationValue,
     populationRecords,
@@ -140,28 +142,41 @@ const Extraction: React.FC<ExtractionProps> = ({
         setAbsoluteRecords(absoluteCount);
     };
 
+    // Efecto para inicializar con el campo heredado
+    useEffect(() => {
+        if (selectedField && isPlanificacionDone && !sampleField) {
+            // Solo inicializar si no hay un sampleField seleccionado aún
+            setSampleField(selectedField);
+        }
+    }, [selectedField, isPlanificacionDone, sampleField]);
+
+    // Efecto para cálculos cuando cambia sampleField
     useEffect(() => {
         if (sampleField && excelData.length > 0) {
             const newRandomStartPoint = Math.floor(Math.random() * sampleInterval) + 1;
             setRandomStartPoint(newRandomStartPoint);
 
-            // ✅ CORRECCIÓN: Usar sampleInterval como límite para valores altos
             const newHighValueLimit = sampleInterval;
             if (!modifyHighValueLimit) {
                 setHighValueLimit(newHighValueLimit);
             }
 
-            // ✅ CORRECCIÓN: Identificar valores altos correctamente
+            calculateTableValues();
+
             const highValueRecords = excelData.filter(row => {
                 const value = parseFloat(row[sampleField]);
-                return !isNaN(value) && Math.abs(value) >= sampleInterval; // ← CORREGIDO
+                return !isNaN(value) && Math.abs(value) >= sampleInterval;
             });
             setHighValueCount(highValueRecords.length);
         }
-    }, [sampleField, excelData, sampleInterval, modifyHighValueLimit, highValueLimit, setRandomStartPoint, setHighValueLimit, setHighValueCount]);
+    }, [sampleField, excelData, sampleInterval, modifyHighValueLimit]);
 
+    // Efecto adicional para cuando cambian los datos o el intervalo
     useEffect(() => {
-        calculateTableValues();
+        setSelectedTableType("positive");
+        if (sampleField && excelData.length > 0) {
+            calculateTableValues();
+        }
     }, [sampleField, excelData]);
 
     const handleExtraccion = async () => {
@@ -292,7 +307,7 @@ const Extraction: React.FC<ExtractionProps> = ({
                                 <input
                                     type="radio"
                                     value="separado"
-                                    checked={highValueManagement === 'separado'}
+                                    checked={highValueManagement === 'separado'} // Esto estará preseleccionado
                                     onChange={() => setHighValueManagement('separado')}
                                     className="h-4 w-4 text-blue-600"
                                 />
@@ -323,6 +338,7 @@ const Extraction: React.FC<ExtractionProps> = ({
                                     Campo numérico para la muestra:
                                 </label>
                                 <select
+                                    value={sampleField || selectedField || ""} // Prioridad: sampleField, luego selectedField
                                     onChange={(e) => {
                                         setSampleField(e.target.value);
                                     }}
@@ -335,6 +351,11 @@ const Extraction: React.FC<ExtractionProps> = ({
                                         </option>
                                     ))}
                                 </select>
+                                {selectedField && !sampleField && (
+                                    <p className="mt-1 text-xs text-blue-600">
+                                        Campo heredado de Planificación: <strong>{selectedField}</strong>
+                                    </p>
+                                )}
                             </div>
                             <div className="flex-1">
                                 <label className="block text-sm font-medium text-gray-700">
@@ -407,7 +428,7 @@ const Extraction: React.FC<ExtractionProps> = ({
                                         <input
                                             type="radio"
                                             value="positive"
-                                            checked={selectedTableType === 'positive'}
+                                            checked={selectedTableType === 'positive'} // Preseleccionado
                                             onChange={() => setSelectedTableType('positive')}
                                             className="h-4 w-4 text-blue-600"
                                         />
@@ -427,9 +448,10 @@ const Extraction: React.FC<ExtractionProps> = ({
                                             value="negative"
                                             checked={selectedTableType === 'negative'}
                                             onChange={() => setSelectedTableType('negative')}
-                                            className="h-4 w-4 text-blue-600"
+                                            disabled={true} // Bloqueado
+                                            className="h-4 w-4 text-gray-400 cursor-not-allowed"
                                         />
-                                        <span className="ml-2 text-sm text-gray-900">Valores negativos</span>
+                                        <span className="ml-2 text-sm text-gray-400">Valores negativos</span>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                         {`(${Math.abs(negativeTotal).toLocaleString()})`}
@@ -445,9 +467,10 @@ const Extraction: React.FC<ExtractionProps> = ({
                                             value="absolute"
                                             checked={selectedTableType === 'absolute'}
                                             onChange={() => setSelectedTableType('absolute')}
-                                            className="h-4 w-4 text-blue-600"
+                                            disabled={true} // Bloqueado
+                                            className="h-4 w-4 text-gray-400 cursor-not-allowed"
                                         />
-                                        <span className="ml-2 text-sm text-gray-900">Valores absolutos</span>
+                                        <span className="ml-2 text-sm text-gray-400">Valores absolutos</span>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                         {absoluteTotal.toLocaleString()}
