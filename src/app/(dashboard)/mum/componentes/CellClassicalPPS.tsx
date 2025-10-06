@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { readExcelFile } from '@/lib/apiClient';
 
+import {handleErrorChange, formatNumber, formatErrorValue} from '../../../../lib/apiClient';
+
 // Props para el formulario de Cell & Classical PPS
 interface CellClassicalPPSFormProps {
     onOk: (method: 'cell-classical') => Promise<void>; 
@@ -258,7 +260,7 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({ onOk, confi
                                     type="number" 
                                     min="1" 
                                     max="100" 
-                                    value={confidenceLevel || ''}
+                                    value={formatNumber(confidenceLevel, 2)}
                                     disabled={true} // Se hereda, no se puede cambiar
                                     className="block w-30 rounded-md border-gray-300 shadow-sm sm:text-sm text-center bg-gray-200 cursor-not-allowed"
                                 />
@@ -280,7 +282,7 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({ onOk, confi
                                     type="number" 
                                     min="1" 
                                     // Lo mismo aquí: asegurar un string ('') en lugar de null/undefined
-                                    value={sampleSize !== null && sampleSize !== undefined ? sampleSize.toFixed(2) : ''}
+                                    value={sampleSize !== null && sampleSize !== undefined ? formatNumber(sampleSize,0) : ''}
                                     disabled={true} 
                                     className="block w-30 rounded-md border-gray-300 shadow-sm sm:text-sm text-center bg-gray-200 cursor-not-allowed" 
                                 />
@@ -297,7 +299,7 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({ onOk, confi
                                     type="number"
                                     min="0"
                                     max="100"
-                                    value={precisionValue}
+                                    value={formatNumber(precisionValue)}
                                     onChange={(e) => setPrecisionValue(Number(e.target.value))}
                                     disabled={!changePrecision}
                                     className={`block w-30 rounded-md border-gray-300 shadow-sm sm:text-sm text-center ${!changePrecision ? 'bg-gray-200 cursor-not-allowed' : ''}`}
