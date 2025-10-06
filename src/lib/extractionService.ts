@@ -198,34 +198,64 @@ export const executeExtraction = (params: {
     const sampleFileBase64 = createBase64Excel(finalSample, "Muestra");
     let highValueFileBase64: string | null = null;
 
-    if (highValueManagement === 'separado' && highValues.length > 0) {
-        console.log('✅ GENERANDO ARCHIVO DE VALORES ALTOS con', highValues.length, 'registros');
-        
-        const processedHighValues = highValues.map((row, index) => {
-            const rawValue = row[sampleField];
-            const value = parseFloat(rawValue);
-            const absoluteValue = Math.abs(value);
+    // ✅ CORRECCIÓN: SIEMPRE generar archivo de valores altos cuando se solicita "separado"
+    if (highValueManagement === 'separado') {
+        if (highValues.length > 0) {
+            console.log('✅ GENERANDO ARCHIVO DE VALORES ALTOS con', highValues.length, 'registros');
             
-            return {
-                ...row,
-                MUM_REC: index + 1,
-                AUDIT_AMT: value,
-                MUM_TOTAL: absoluteValue,
-                MUM_HIT: 1.0,
-                MUM_REC_HIT: 1.0,
-                MUM_EXCESS: Math.max(0, absoluteValue - sampleInterval),
-                REFERENCE: row.NUM_FACT?.toString() || row.REFERENCE || 'N/A'
+            const processedHighValues = highValues.map((row, index) => {
+                const rawValue = row[sampleField];
+                const value = parseFloat(rawValue);
+                const absoluteValue = Math.abs(value);
+                
+                return {
+                    ...row,
+                    MUM_REC: index + 1,
+                    AUDIT_AMT: value,
+                    MUM_TOTAL: absoluteValue,
+                    MUM_HIT: 1.0,
+                    MUM_REC_HIT: 1.0,
+                    MUM_EXCESS: Math.max(0, absoluteValue - sampleInterval),
+                    REFERENCE: row.NUM_FACT?.toString() || row.REFERENCE || 'N/A'
+                };
+            });
+            
+            highValueFileBase64 = createBase64Excel(processedHighValues, "Valores Altos");
+            console.log('✅ ARCHIVO DE VALORES ALTOS GENERADO (con datos)');
+        } else {
+            console.log('✅ GENERANDO ARCHIVO DE VALORES ALTOS VACÍO (sin datos)');
+            
+            // ✅ CREAR ARCHIVO VACÍO CON ESTRUCTURA CORRECTA
+            // Tomar la estructura de columnas del primer registro para mantener consistencia
+            const emptyHighValueRow: ExcelRow = {};
+            
+            if (excelData.length > 0) {
+                // Copiar todas las columnas del primer registro pero sin datos
+                Object.keys(excelData[0]).forEach(key => {
+                    emptyHighValueRow[key] = ""; // Valores vacíos
+                });
+            }
+            
+            // ✅ AGREGAR COLUMNAS DE AUDITORÍA VACÍAS
+            const emptyHighValuesWithAuditColumns = {
+                ...emptyHighValueRow,
+                MUM_REC: "",
+                AUDIT_AMT: "",
+                MUM_TOTAL: "",
+                MUM_HIT: "",
+                MUM_REC_HIT: "",
+                MUM_EXCESS: "",
+                REFERENCE: ""
             };
-        });
-        
-        highValueFileBase64 = createBase64Excel(processedHighValues, "Valores Altos");
-        console.log('✅ ARCHIVO DE VALORES ALTOS GENERADO');
+            
+            // ✅ CREAR ARRAY VACÍO PERO CON LA ESTRUCTURA CORRECTA
+            const emptyHighValues = [emptyHighValuesWithAuditColumns];
+            
+            highValueFileBase64 = createBase64Excel(emptyHighValues, "Valores Altos");
+            console.log('✅ ARCHIVO DE VALORES ALTOS VACÍO GENERADO');
+        }
     } else {
-        console.log('❌ NO se generó archivo de valores altos. Razón:', {
-            highValueManagement,
-            highValuesCount: highValues.length,
-            condition: highValueManagement === 'separado' && highValues.length > 0
-        });
+        console.log('❌ NO se generó archivo de valores altos. Modo:', highValueManagement);
     }
 
     return { 
