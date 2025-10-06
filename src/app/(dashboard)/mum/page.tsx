@@ -121,6 +121,13 @@ function MumPageContent() {
             };
             
             const result = await mumApi.planification(body);
+
+            // DEBUG: Verificar resultados de planificación
+            console.log('=== DEBUG PLANIFICACIÓN ===');
+            console.log('Población estimada:', result.estimatedPopulationValue);
+            console.log('Tamaño muestra:', result.estimatedSampleSize);
+            console.log('Intervalo muestral:', result.sampleInterval);
+            console.log('==========================');
             
             setEstimatedPopulationValue(result.estimatedPopulationValue);
             setEstimatedSampleSize(result.estimatedSampleSize);
@@ -142,29 +149,139 @@ function MumPageContent() {
 
     const handleExtraction = async () => {
         try {
+            // ✅ VERIFICAR DATOS CRÍTICOS ANTES DE ENVIAR
+            console.log('=== DEBUG EXTRACCIÓN FRONTEND ===');
+            console.log('Sample field:', sampleField);
+            console.log('Sample interval:', sampleInterval);
+            console.log('High value management:', highValueManagement);
+            console.log('Extraction filename:', extractionFilename);
+            console.log('High value filename:', highValueFilename);
+            console.log('Estimated sample size:', estimatedSampleSize);
+            console.log('Random start point:', randomStartPoint);
+            console.log('High value limit:', highValueLimit);
+            console.log('================================');
+
+            // ✅ VALIDAR CAMPOS REQUERIDOS
+            if (!sampleField) {
+                alert("Debe seleccionar un campo numérico para la muestra");
+                return;
+            }
+
+            if (!extractionFilename.trim()) {
+                alert("Debe ingresar un nombre para el archivo de muestra");
+                return;
+            }
+
+            if (highValueManagement === "separado" && !highValueFilename.trim()) {
+                alert("Debe ingresar un nombre para el archivo de valores altos");
+                return;
+            }
+
             const body = {
                 excelData,
                 estimatedSampleSize,
                 sampleInterval,
-                highValueLimit,
+                highValueLimit: highValueLimit || sampleInterval, // ✅ Asegurar valor por defecto
                 highValueManagement,
                 sampleField,
                 randomStartPoint,
+                estimatedPopulationValue,
+                extractionType,
+                extractionFilename: extractionFilename.endsWith('.xlsx') 
+                    ? extractionFilename 
+                    : `${extractionFilename}.xlsx`,
+                highValueFilename: highValueFilename.endsWith('.xlsx')
+                    ? highValueFilename
+                    : `${highValueFilename}.xlsx`,
             };
+
+            console.log('Enviando datos al backend:', {
+                ...body,
+                excelData: `[${excelData.length} registros]`, // No loguear datos completos
+                highValueLimit: body.highValueLimit,
+                extractionFilename: body.extractionFilename,
+                highValueFilename: body.highValueFilename
+            });
+
             const result = await mumApi.extraction(body);
-            const url = window.URL.createObjectURL(new Blob([result]));
+            
+            console.log('Respuesta del backend:', {
+                sampleFileBase64: result.sampleFileBase64 ? `[BASE64: ${result.sampleFileBase64.length} chars]` : 'NULL',
+                highValueFileBase64: result.highValueFileBase64 ? `[BASE64: ${result.highValueFileBase64.length} chars]` : 'NULL',
+                sampleFilename: result.sampleFilename,
+                highValueFilename: result.highValueFilename
+            });
+
+            // ✅ CORRECCIÓN: DECODIFICACIÓN BASE64 MEJORADA
+            if (!result.sampleFileBase64) {
+                throw new Error("No se recibió archivo de muestra del servidor");
+            }
+
+            // Decodificar archivo de muestra
+            const sampleBinary = atob(result.sampleFileBase64);
+            const sampleBytes = new Uint8Array(sampleBinary.length);
+            for (let i = 0; i < sampleBinary.length; i++) {
+                sampleBytes[i] = sampleBinary.charCodeAt(i);
+            }
+            
+            const sampleBlob = new Blob([sampleBytes], { 
+                type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+            });
+            
+            // ✅ USAR NOMBRE DEL BACKEND SI ESTÁ DISPONIBLE
+            const sampleDownloadName = result.sampleFilename || body.extractionFilename;
+            const sampleUrl = window.URL.createObjectURL(sampleBlob);
+            
             const link = document.createElement('a');
-            link.href = url;
-            link.setAttribute('download', 'muestra_mum.xlsx');
+            link.href = sampleUrl;
+            link.setAttribute('download', sampleDownloadName);
             document.body.appendChild(link);
             link.click();
             link.remove();
+            window.URL.revokeObjectURL(sampleUrl);
+
+            console.log('✅ Archivo de muestra descargado:', sampleDownloadName);
+
+            // ✅ CORRECCIÓN: MANEJO MEJORADO DE ARCHIVO DE VALORES ALTOS
+            if (highValueManagement === "separado" && result.highValueFileBase64) {
+                console.log('📦 Generando archivo de valores altos...');
+                
+                const highValueBinary = atob(result.highValueFileBase64);
+                const highValueBytes = new Uint8Array(highValueBinary.length);
+                for (let i = 0; i < highValueBinary.length; i++) {
+                    highValueBytes[i] = highValueBinary.charCodeAt(i);
+                }
+                
+                const highValueBlob = new Blob([highValueBytes], { 
+                    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+                });
+                
+                // ✅ USAR NOMBRE DEL BACKEND SI ESTÁ DISPONIBLE
+                const highValueDownloadName = result.highValueFilename || body.highValueFilename;
+                const highValueUrl = window.URL.createObjectURL(highValueBlob);
+                
+                const highValueLink = document.createElement('a');
+                highValueLink.href = highValueUrl;
+                highValueLink.setAttribute('download', highValueDownloadName);
+                document.body.appendChild(highValueLink);
+                highValueLink.click();
+                highValueLink.remove();
+                window.URL.revokeObjectURL(highValueUrl);
+                
+                console.log('✅ Archivo de valores altos descargado:', highValueDownloadName);
+            } else if (highValueManagement === "separado" && !result.highValueFileBase64) {
+                console.log('⚠️  No se generó archivo de valores altos (posiblemente no hay valores altos)');
+            }
+
+            // ✅ ACTUALIZAR ESTADO Y NAVEGAR
             setIsExtraccionDone(true);
             setActiveTab("evaluacion");
+            
+            alert("✅ Extracción completada correctamente");
 
         } catch (error) {
-            console.error("Error en la extracción:", error);
-            alert("Hubo un problema con la extracción de la muestra.");
+            console.error("❌ Error en la extracción:", error);
+            alert(`Hubo un problema con la extracción de la muestra: ${error}`);
         }
     };
 

@@ -22,15 +22,18 @@ export async function POST(req: Request) {
     try {
         const payload: ExtractionPayload = await req.json();
 
-        // 1. Llamar a la Lógica de Negocio
+        console.log('=== API EXTRACTION DEBUG ===');
+        console.log('Extraction filename:', payload.extractionFilename);
+        console.log('High value filename:', payload.highValueFilename);
+        console.log('============================');
+
         const { sampleFileBase64, highValueFileBase64 } = executeExtraction(payload);
 
-        // 2. Devolver la respuesta HTTP (Controlador)
         return NextResponse.json({
             sampleFileBase64,
             highValueFileBase64,
-            extractionFilename: payload.extractionFilename,
-            highValueFilename: payload.highValueFilename,
+            extractionFilename: payload.extractionFilename, // Asegurar que se devuelve
+            highValueFilename: payload.highValueFilename, // Asegurar que se devuelve
         });
 
     } catch (error: any) {

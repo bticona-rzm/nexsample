@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react'; // Agregar useState aquí
 import { saveAs } from 'file-saver';
 import { useLog } from '@/contexts/LogContext';
 import { HistoryPanel } from '@/components/mum/HistoryPanel';
+import {handleErrorChange, formatNumber, formatErrorValue} from '../../../../lib/apiClient';
 
 // Define the shape of a single row in your Excel data
 interface ExcelRow {
@@ -164,13 +165,22 @@ const Extraction: React.FC<ExtractionProps> = ({
     // Efecto para cálculos cuando cambia sampleField
     useEffect(() => {
         if (sampleField && excelData.length > 0) {
-            const newRandomStartPoint = Math.floor(Math.random() * sampleInterval) + 1;
+            const newRandomStartPoint = Math.floor(Math.random() * estimatedPopulationValue) + 1;
             setRandomStartPoint(newRandomStartPoint);
 
             const newHighValueLimit = sampleInterval;
-            if (!modifyHighValueLimit) {
+             if (!modifyHighValueLimit) {
                 setHighValueLimit(newHighValueLimit);
             }
+
+            // DEBUG: Agregar logs para comparar con IDEA
+            console.log('=== DEBUG EXTRACCIÓN ===');
+            console.log('Población:', estimatedPopulationValue);
+            console.log('Tamaño muestra:', estimatedSampleSize);
+            console.log('Intervalo calculado:', sampleInterval);
+            console.log('Punto inicio aleatorio:', newRandomStartPoint);
+            console.log('Límite valor alto:', newHighValueLimit);
+            console.log('========================');
 
             calculateTableValues();
 
@@ -191,28 +201,47 @@ const Extraction: React.FC<ExtractionProps> = ({
     // Efecto adicional para cuando cambian los datos o el intervalo
     useEffect(() => {
         if (sampleField && excelData.length > 0) {
-            calculateTableValues();
-        }
-    }, [sampleField, excelData]);
+            // CORRECCIÓN: Usar el sampleInterval como semilla para generar punto de inicio reproducible
+            // Esto asegura que la misma configuración siempre genere la misma muestra
+            const seed = sampleInterval; // Usar el intervalo como semilla
+            const reproducibleRandom = generateSeededRandom(seed);
+            const newRandomStartPoint = Math.floor(reproducibleRandom() * sampleInterval) + 1;
+            
+            setRandomStartPoint(newRandomStartPoint*2);
 
-    const handleExtraccion = async () => {
-        if (!sampleField) {
+            const newHighValueLimit = sampleInterval;
+            if (!modifyHighValueLimit) {
+                setHighValueLimit(newHighValueLimit);
+            }
+
+            // DEBUG con información de la semilla
+            console.log('=== DEBUG EXTRACCIÓN CON SEMILLA ===');
+            console.log('Semilla (sampleInterval):', sampleInterval);
+            console.log('Punto inicio reproducible:', newRandomStartPoint);
+            console.log('====================================');
+
+            calculateTableValues();
+            
+            const highValueRecords = excelData.filter(row => {
+                const value = parseFloat(row[sampleField]);
+                return !isNaN(value) && Math.abs(value) >= sampleInterval;
+            });
+            setHighValueCount(highValueRecords.length);
+
             addLog(
-                'Error en extracción - campo no seleccionado',
-                'El campo numérico para la muestra no ha sido seleccionado',
+                'Cálculos de extracción con semilla',
+                `Campo: ${sampleField}\nSemilla: ${sampleInterval}\nPunto inicio: ${newRandomStartPoint}\nValores altos: ${highValueRecords.length}`,
                 'extraction'
             );
-            alert("Por favor, selecciona un campo numérico para la muestra.");
-            return;
         }
+    }, [sampleField, excelData, sampleInterval, modifyHighValueLimit]);
 
-        addLog(
-            'Usuario inició extracción MUM',
-            `Campo: ${sampleField}\nIntervalo: ${sampleInterval}\nPunto inicio: ${randomStartPoint}`,
-            'extraction'
-        );
-
-        await handleExtraction();
+    // Función para generar números aleatorios reproducibles basados en semilla
+    const generateSeededRandom = (seed: number) => {
+        return function() {
+            seed = (seed * 9301 + 49297) % 233280;
+            return seed / 233280;
+        };
     };
 
     // ✅ CORRECCIÓN: Mejorar el texto informativo sobre valores altos
@@ -224,15 +253,27 @@ const Extraction: React.FC<ExtractionProps> = ({
             return !isNaN(value) && Math.abs(value) >= sampleInterval;
         });
 
+        const highValueTotal = highValueRecords.reduce((sum, row) => {
+            const value = parseFloat(row[sampleField]);
+            return sum + Math.abs(value);
+        }, 0);
+
         return (
-            <p className="mt-4 text-sm text-gray-600">
-                Existen <strong>{highValueRecords.length}</strong> elementos con un valor igual o superior a {sampleInterval.toLocaleString()}. 
-                {highValueRecords.length > 0 && (
-                    <span className="block mt-1 text-gray-600">
-                        Los elementos con valor ≥ {sampleInterval.toLocaleString()} tendrán 100% de probabilidad de ser seleccionados.
-                    </span>
-                )}
-            </p>
+            <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <p className="text-sm text-blue-800 font-medium">
+                    📊 Resumen de valores altos:
+                </p>
+                <ul className="mt-2 text-sm text-blue-700 space-y-1">
+                    <li>• <strong>{formatNumber(highValueRecords.length, 0)}</strong> elementos con valor ≥ {formatNumber(sampleInterval, 2)}</li>
+                    <li>• Total de valores altos: {formatNumber(highValueTotal, 2)}</li>
+                    <li>• Representan el {((highValueTotal / estimatedPopulationValue) * 100).toFixed(1)}% de la población</li>
+                    {highValueRecords.length > 0 && (
+                        <li className="text-blue-600 font-medium">
+                            ✅ Estos elementos tendrán 100% de probabilidad de selección
+                        </li>
+                    )}
+                </ul>
+            </div>
         );
     };
 
@@ -349,9 +390,8 @@ const Extraction: React.FC<ExtractionProps> = ({
                                     Intervalo muestral:
                                 </label>
                                 <input
-                                    type="number"
-                                    min="0"
-                                    value={sampleInterval.toFixed(2)}
+                                    type="text"
+                                    value={formatNumber(sampleInterval, 2)}
                                     disabled
                                     className="mt-1 block w-full rounded-md border-gray-300 bg-gray-200 cursor-not-allowed shadow-sm sm:text-sm"
                                 />
@@ -363,10 +403,12 @@ const Extraction: React.FC<ExtractionProps> = ({
                                     Punto de inicio aleatorio:
                                 </label>
                                 <input
-                                    type="number"
-                                    min="1"
-                                    value={randomStartPoint.toFixed(2)}
-                                    onChange={(e) => setRandomStartPoint(Number(e.target.value))}
+                                    type="text"
+                                    value={formatNumber(randomStartPoint, 2)} // 0 decimales para enteros
+                                    onChange={(e) => {
+                                        // Usar handleErrorChange que ya sabe parsear formato español
+                                        handleErrorChange(e.target.value, setRandomStartPoint, false);
+                                    }}
                                     className="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm"
                                 />
                             </div>
@@ -381,12 +423,14 @@ const Extraction: React.FC<ExtractionProps> = ({
                                     Monto de valor alto:
                                 </label>
                                 <input
-                                    type="number"
-                                    min="0"
-                                    value={highValueLimit}
-                                    onChange={(e) => setHighValueLimit(Number(e.target.value))}
+                                    type="text"
+                                    value={formatNumber(highValueLimit, 2)}
+                                    onChange={(e) => {
+                                        // Usar handleErrorChange que ya sabe parsear formato español
+                                        handleErrorChange(e.target.value, setHighValueLimit, false);
+                                    }}
                                     disabled={!modifyHighValueLimit}
-                                    className={`ml-2 block w-24 rounded-md border-gray-300 shadow-sm text-center ${!modifyHighValueLimit && 'bg-gray-200 cursor-not-allowed'}`}
+                                    className={`ml-2 block w-48 rounded-md border-gray-300 shadow-sm sm:text-sm text-right ${!modifyHighValueLimit && 'bg-gray-200 cursor-not-allowed'}`}
                                 />
                             </div>
                         </div>
@@ -422,10 +466,10 @@ const Extraction: React.FC<ExtractionProps> = ({
                                         <span className="ml-2 text-sm text-gray-900">Valores positivos</span>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                        {positiveTotal.toLocaleString()}
+                                        {formatNumber(positiveTotal, 2)}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                        {positiveRecords}
+                                        {formatNumber(positiveRecords, 0)}
                                     </td>
                                 </tr>
                                 <tr>
@@ -441,10 +485,10 @@ const Extraction: React.FC<ExtractionProps> = ({
                                         <span className="ml-2 text-sm text-gray-400">Valores negativos</span>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                        {`(${Math.abs(negativeTotal).toLocaleString()})`}
+                                        {formatNumber(Math.abs(negativeTotal), 2)}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                        {negativeRecords}
+                                        {formatNumber(negativeRecords, 0)}
                                     </td>
                                 </tr>
                                 <tr>
@@ -460,10 +504,10 @@ const Extraction: React.FC<ExtractionProps> = ({
                                         <span className="ml-2 text-sm text-gray-400">Valores absolutos</span>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                        {absoluteTotal.toLocaleString()}
+                                        {formatNumber(absoluteTotal, 2)}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                        {absoluteRecords}
+                                        {formatNumber(absoluteRecords, 0)}
                                     </td>
                                 </tr>
                             </tbody>
@@ -488,7 +532,7 @@ const Extraction: React.FC<ExtractionProps> = ({
                 {/* Right Column: Action Buttons */}
                 <div className="w-48 flex-none flex flex-col space-y-4">
                     <button
-                        onClick={handleExtraccion}
+                        onClick={handleExtraction}
                         className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded shadow"
                     >
                         Aceptar

@@ -214,10 +214,26 @@ export const mumApi = {
         return response.json();
     },
     // ... aquí se añadirán extraction y summary ...
-    extraction: async (body: any): Promise<Blob> => {
-        // Esta función retornará un blob/archivo, por lo que su implementación es diferente.
-        // La dejaremos pendiente hasta implementar el route.ts de extraction.
-        throw new Error("MUM Extraction not implemented yet.");
+    extraction: async (body: any): Promise<any> => {
+        try {
+            const response = await fetch('/api/mum/extraction', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(body),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Error en la extracción');
+            }
+
+            return await response.json();
+        } catch (error) {
+            console.error('Error en API extraction:', error);
+            throw error;
+        }
     },
     summary: async (body: any): Promise<any> => {
         // 1. Quitar el 'throw new Error()' para que el flujo no se detenga.
@@ -385,15 +401,26 @@ export const readExcelFile = (file: File): Promise<any[]> => {
 
 // Función para formatear números con separadores de miles y decimales
 // Agrega estas funciones en tu componente
+// Formato inglés: 1,000,000.00 (centenas con coma, decimales con punto)
 export const formatNumber = (value: number, decimals: number = 2): string => {
-    return new Intl.NumberFormat('en-US', {
+    if (value === null || value === undefined || isNaN(value)) {
+        return '0.00'; // Valor por defecto si hay error
+    }
+    return new Intl.NumberFormat('en-US', {  // Cambiar a 'en-US'
         minimumFractionDigits: decimals,
         maximumFractionDigits: decimals,
     }).format(value);
 };
 
+// Parseo para formato inglés
 const parseFormattedNumber = (value: string): number => {
-    return parseFloat(value.replace(/,/g, ''));
+    if (!value) return 0;
+    
+    // Para formato inglés: quitar comas (separadores de miles) y dejar punto para decimales
+    const cleanedValue = value.replace(/,/g, '');  // Eliminar comas (1,000 → 1000)
+    
+    const parsed = parseFloat(cleanedValue);
+    return isNaN(parsed) ? 0 : parsed;
 };
 
 // Función específica para errores que dependen del tipo

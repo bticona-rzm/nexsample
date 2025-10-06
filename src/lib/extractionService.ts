@@ -14,16 +14,19 @@ interface AccumulatedItem {
     cumulativeStart: number;
     cumulativeEnd: number;
     originalValue: number;
+    originalIndex: number; // ✅ NUEVO: Para guardar el índice original
     NUM_FACT?: string | number;
     REFERENCE?: string;
-    [key: string]: any; // Para otras propiedades del row original
+    [key: string]: any;
 }
 
 interface SelectedItem {
     item: AccumulatedItem;
-    musRecno: number;
-    musTotal: number;
-    musExcess: number;
+    mumRecno: number; // ✅ CAMBIADO: musRecno → mumRecno
+    mumTotal: number; // ✅ CAMBIADO: musTotal → mumTotal
+    mumExcess: number; // ✅ CAMBIADO: musExcess → mumExcess
+    mumHit: number; // ✅ NUEVO: Hit Point Within Cell
+    mumRecHit: number; // ✅ NUEVO: Hit Point Within Record
     selectionPosition: number;
 }
 
@@ -31,6 +34,8 @@ interface SelectedItem {
 interface ExtractionResult {
     sampleFileBase64: string;
     highValueFileBase64: string | null;
+    sampleFilename: string;
+    highValueFilename: string | null;
 }
 
 // Función auxiliar para generar el buffer de Excel y convertirlo a Base64
@@ -45,6 +50,7 @@ const createBase64Excel = (data: ExcelRow[], sheetName: string = "Hoja1"): strin
 };
 
 // Función de Lógica de Negocio: Procesa los datos y realiza la extracción
+// Función de Lógica de Negocio: Procesa los datos y realiza la extracción
 export const executeExtraction = (params: {
     excelData: ExcelRow[];
     estimatedSampleSize: number;
@@ -55,6 +61,9 @@ export const executeExtraction = (params: {
     randomStartPoint: number;
     estimatedPopulationValue: number;
     extractionType: "intervaloFijo" | "seleccionCelda";
+    extractionFilename: string;
+    highValueFilename: string;
+    
 }): ExtractionResult => {
     
     const { 
@@ -62,19 +71,40 @@ export const executeExtraction = (params: {
         sampleInterval, 
         highValueManagement, 
         sampleField, 
-        randomStartPoint 
+        randomStartPoint,
+        highValueLimit // ✅ RECIBIR highValueLimit DEL FRONTEND
     } = params;
     
-    // 1. IDENTIFICACIÓN DE VALORES ALTOS
+    console.log('=== EXTRACTION SERVICE DEBUG ===');
+    console.log('Sample field:', sampleField);
+    console.log('Sample interval:', sampleInterval);
+    console.log('High value limit received:', highValueLimit);
+    console.log('High value management:', highValueManagement);
+    console.log('Total records:', excelData.length);
+    
+    // ✅ CORRECCIÓN: USAR HIGH_VALUE_LIMIT EN LUGAR DE SAMPLE_INTERVAL
+    // Y MEJORAR DETECCIÓN DE VALORES ALTOS
     let highValues = excelData.filter(row => {
-        const value = parseFloat(row[sampleField]);
-        return !isNaN(value) && Math.abs(value) >= sampleInterval;
+        const rawValue = row[sampleField];
+        const value = parseFloat(rawValue);
+        
+        console.log(`Row value: ${rawValue} -> Parsed: ${value}, HighValueLimit: ${highValueLimit}, IsHigh: ${!isNaN(value) && Math.abs(value) >= highValueLimit}`);
+        
+        return !isNaN(value) && Math.abs(value) >= highValueLimit;
     });
 
     let remainingData = excelData.filter(row => {
-        const value = parseFloat(row[sampleField]);
-        return !isNaN(value) && Math.abs(value) < sampleInterval;
+        const rawValue = row[sampleField];
+        const value = parseFloat(rawValue);
+        return !isNaN(value) && Math.abs(value) < highValueLimit; // ✅ USAR highValueLimit
     });
+
+    console.log('High values count:', highValues.length);
+    console.log('Remaining data count:', remainingData.length);
+    console.log('First few high values:', highValues.slice(0, 3).map(row => ({
+        value: row[sampleField],
+        parsed: parseFloat(row[sampleField])
+    })));
 
     // 2. ACUMULACIÓN PARA MUESTREO MUS
     let cumulativeValue = 0;
@@ -84,10 +114,13 @@ export const executeExtraction = (params: {
         ? excelData
         : remainingData;
     
+    console.log('Data for sampling count:', dataForSampling.length);
+
     // Crear acumulación manteniendo el ORDEN ORIGINAL
-    for (const row of dataForSampling) {
-        const value = parseFloat(row[sampleField]);
-        if (isNaN(value)) continue;
+    dataForSampling.forEach((row, originalIndex) => {
+        const rawValue = row[sampleField];
+        const value = parseFloat(rawValue);
+        if (isNaN(value)) return;
         
         const absoluteValue = Math.abs(value);
         const startRange = cumulativeValue;
@@ -98,15 +131,17 @@ export const executeExtraction = (params: {
             ...row,
             cumulativeStart: startRange,
             cumulativeEnd: endRange,
-            originalValue: value // Guardar valor original con signo
+            originalValue: value,
+            originalIndex: originalIndex + 1
         });
-    }
+    });
+
+    console.log('Total cumulative value for sampling:', cumulativeValue);
 
     // 3. SELECCIÓN SISTEMÁTICA
     let currentPosition = randomStartPoint;
-    const selectedItems: SelectedItem[] = []; // ✅ TIPADO EXPLÍCITO
-    let musRecno = 1;
-    let musTotalAccumulated = 0;
+    const selectedItems: SelectedItem[] = [];
+    let mumTotalAccumulated = 0;
 
     while (currentPosition <= cumulativeValue && selectedItems.length < params.estimatedSampleSize) {
         const selectedItem = accumulatedData.find(item => 
@@ -117,75 +152,86 @@ export const executeExtraction = (params: {
             const originalValue = selectedItem.originalValue;
             const absoluteValue = Math.abs(originalValue);
             
-            // ✅ CÁLCULOS CORREGIDOS según tu ejemplo
-            musTotalAccumulated += absoluteValue;
-            const musExcess = absoluteValue - sampleInterval;
+            mumTotalAccumulated += absoluteValue;
+            const mumExcess = absoluteValue - sampleInterval;
+            
+            const cellSize = selectedItem.cumulativeEnd - selectedItem.cumulativeStart;
+            const mumHit = cellSize > 0 ? 
+                (currentPosition - selectedItem.cumulativeStart) / cellSize : 0;
+            
+            const mumRecHit = mumHit;
             
             selectedItems.push({
                 item: selectedItem,
-                musRecno: musRecno++,
-                musTotal: musTotalAccumulated,
-                musExcess: musExcess > 0 ? musExcess : 0,
+                mumRecno: selectedItem.originalIndex,
+                mumTotal: Math.round(mumTotalAccumulated * 100) / 100,
+                mumExcess: mumExcess > 0 ? Math.round(mumExcess * 100) / 100 : 0,
+                mumHit: Math.round(mumHit * 100) / 100,
+                mumRecHit: Math.round(mumRecHit * 100) / 100,
                 selectionPosition: currentPosition
             });
         }
         currentPosition += sampleInterval;
     }
 
-    // 4. ✅ CORRECCIÓN: PROCESAR MUESTRA FINAL (SEGÚN TU EJEMPLO)
-    const finalSample = selectedItems.map(({ item, musRecno, musTotal, musExcess }) => {
+    console.log('Selected items count:', selectedItems.length);
+
+    // 4. PROCESAR MUESTRA FINAL
+    const finalSample = selectedItems.map(({ item, mumRecno, mumTotal, mumExcess, mumHit, mumRecHit }) => {
         const originalValue = item.originalValue;
-        const absoluteValue = Math.abs(originalValue);
         
-        // ✅ LIMPIAR COLUMNAS INTERNAS
-        const { cumulativeStart, cumulativeEnd, originalValue: _, ...cleanItem } = item;
-        
-        // ✅ EXTRAER COLUMNA TOTAL ORIGINAL SI EXISTE
-        const originalTotal = cleanItem.TOTAL;
-        delete cleanItem.TOTAL; // Removerla para reordenar
+        const { cumulativeStart, cumulativeEnd, originalValue: _, originalIndex, ...cleanItem } = item;
         
         return {
-            // ✅ COLUMNAS ORIGINALES DEL EXCEL (SIN TOTAL)
             ...cleanItem,
-            
-            // ✅ COLUMNA TOTAL ORIGINAL AL FINAL DE LAS COLUMNAS ORIGINALES
-            TOTAL: originalTotal !== undefined ? originalTotal : originalValue,
-            
-            // ✅ COLUMNAS DE AUDITORÍA (NUEVAS)
+            MUM_REC: mumRecno,
             AUDIT_AMT: originalValue,
-            MUS_RECNO: musRecno,
-            MUS_TOTAL: Math.round(musTotal * 100) / 100,
-            MUS_EXCESS: Math.round(musExcess * 100) / 100,
+            MUM_TOTAL: mumTotal,
+            MUM_HIT: mumHit,
+            MUM_REC_HIT: mumRecHit,
+            MUM_EXCESS: mumExcess,
             REFERENCE: item.NUM_FACT?.toString() || item.REFERENCE || 'N/A'
         };
     });
-
 
     // 5. GENERACIÓN DE ARCHIVOS
     const sampleFileBase64 = createBase64Excel(finalSample, "Muestra");
     let highValueFileBase64: string | null = null;
 
     if (highValueManagement === 'separado' && highValues.length > 0) {
-        // Para valores altos en archivo separado, usar misma estructura
+        console.log('✅ GENERANDO ARCHIVO DE VALORES ALTOS con', highValues.length, 'registros');
+        
         const processedHighValues = highValues.map((row, index) => {
-            const value = parseFloat(row[sampleField]);
+            const rawValue = row[sampleField];
+            const value = parseFloat(rawValue);
             const absoluteValue = Math.abs(value);
-            // ✅ MISMAS CORRECCIONES PARA VALORES ALTOS
-            const originalTotal = row.TOTAL;
-            delete row.TOTAL;
             
             return {
                 ...row,
-                TOTAL: originalTotal !== undefined ? originalTotal : value,
+                MUM_REC: index + 1,
                 AUDIT_AMT: value,
-                MUS_RECNO: index + 1,
-                MUS_TOTAL: absoluteValue, // Para valores altos, el total es su propio valor
-                MUS_EXCESS: absoluteValue - sampleInterval,
+                MUM_TOTAL: absoluteValue,
+                MUM_HIT: 1.0,
+                MUM_REC_HIT: 1.0,
+                MUM_EXCESS: Math.max(0, absoluteValue - sampleInterval),
                 REFERENCE: row.NUM_FACT?.toString() || row.REFERENCE || 'N/A'
             };
         });
+        
         highValueFileBase64 = createBase64Excel(processedHighValues, "Valores Altos");
+        console.log('✅ ARCHIVO DE VALORES ALTOS GENERADO');
+    } else {
+        console.log('❌ NO se generó archivo de valores altos. Razón:', {
+            highValueManagement,
+            highValuesCount: highValues.length,
+            condition: highValueManagement === 'separado' && highValues.length > 0
+        });
     }
 
-    return { sampleFileBase64, highValueFileBase64 };
+    return { 
+        sampleFileBase64, 
+        highValueFileBase64,
+        sampleFilename: params.extractionFilename,
+        highValueFilename: params.highValueFilename
+    };
 };
