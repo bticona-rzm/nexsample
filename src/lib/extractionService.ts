@@ -14,7 +14,7 @@ interface AccumulatedItem {
     cumulativeStart: number;
     cumulativeEnd: number;
     originalValue: number;
-    originalIndex: number; // ✅ NUEVO: Para guardar el índice original
+    originalIndex: number;
     NUM_FACT?: string | number;
     REFERENCE?: string;
     [key: string]: any;
@@ -22,11 +22,11 @@ interface AccumulatedItem {
 
 interface SelectedItem {
     item: AccumulatedItem;
-    mumRecno: number; // ✅ CAMBIADO: musRecno → mumRecno
-    mumTotal: number; // ✅ CAMBIADO: musTotal → mumTotal
-    mumExcess: number; // ✅ CAMBIADO: musExcess → mumExcess
-    mumHit: number; // ✅ NUEVO: Hit Point Within Cell
-    mumRecHit: number; // ✅ NUEVO: Hit Point Within Record
+    mumRecno: number;
+    mumTotal: number;
+    mumExcess: number;
+    mumHit: number;
+    mumRecHit: number;
     selectionPosition: number;
 }
 
@@ -50,7 +50,6 @@ const createBase64Excel = (data: ExcelRow[], sheetName: string = "Hoja1"): strin
 };
 
 // Función de Lógica de Negocio: Procesa los datos y realiza la extracción
-// Función de Lógica de Negocio: Procesa los datos y realiza la extracción
 export const executeExtraction = (params: {
     excelData: ExcelRow[];
     estimatedSampleSize: number;
@@ -63,7 +62,6 @@ export const executeExtraction = (params: {
     extractionType: "intervaloFijo" | "seleccionCelda";
     extractionFilename: string;
     highValueFilename: string;
-    
 }): ExtractionResult => {
     
     const { 
@@ -72,7 +70,9 @@ export const executeExtraction = (params: {
         highValueManagement, 
         sampleField, 
         randomStartPoint,
-        highValueLimit // ✅ RECIBIR highValueLimit DEL FRONTEND
+        highValueLimit,
+        extractionFilename,
+        highValueFilename
     } = params;
     
     console.log('=== EXTRACTION SERVICE DEBUG ===');
@@ -80,31 +80,25 @@ export const executeExtraction = (params: {
     console.log('Sample interval:', sampleInterval);
     console.log('High value limit received:', highValueLimit);
     console.log('High value management:', highValueManagement);
+    console.log('Extraction filename:', extractionFilename);
+    console.log('High value filename:', highValueFilename);
     console.log('Total records:', excelData.length);
     
-    // ✅ CORRECCIÓN: USAR HIGH_VALUE_LIMIT EN LUGAR DE SAMPLE_INTERVAL
-    // Y MEJORAR DETECCIÓN DE VALORES ALTOS
+    // Detección de valores altos
     let highValues = excelData.filter(row => {
         const rawValue = row[sampleField];
         const value = parseFloat(rawValue);
-        
-        console.log(`Row value: ${rawValue} -> Parsed: ${value}, HighValueLimit: ${highValueLimit}, IsHigh: ${!isNaN(value) && Math.abs(value) >= highValueLimit}`);
-        
         return !isNaN(value) && Math.abs(value) >= highValueLimit;
     });
 
     let remainingData = excelData.filter(row => {
         const rawValue = row[sampleField];
         const value = parseFloat(rawValue);
-        return !isNaN(value) && Math.abs(value) < highValueLimit; // ✅ USAR highValueLimit
+        return !isNaN(value) && Math.abs(value) < highValueLimit;
     });
 
     console.log('High values count:', highValues.length);
     console.log('Remaining data count:', remainingData.length);
-    console.log('First few high values:', highValues.slice(0, 3).map(row => ({
-        value: row[sampleField],
-        parsed: parseFloat(row[sampleField])
-    })));
 
     // 2. ACUMULACIÓN PARA MUESTREO MUS
     let cumulativeValue = 0;
@@ -176,14 +170,20 @@ export const executeExtraction = (params: {
 
     console.log('Selected items count:', selectedItems.length);
 
-    // 4. PROCESAR MUESTRA FINAL
+    // 4. ✅ CORRECCIÓN: PROCESAR MUESTRA FINAL CON COLUMNA TOTAL
     const finalSample = selectedItems.map(({ item, mumRecno, mumTotal, mumExcess, mumHit, mumRecHit }) => {
         const originalValue = item.originalValue;
+        const absoluteValue = Math.abs(originalValue);
         
+        // ✅ LIMPIAR COLUMNAS INTERNAS
         const { cumulativeStart, cumulativeEnd, originalValue: _, originalIndex, ...cleanItem } = item;
         
         return {
+            // ✅ COLUMNAS ORIGINALES DEL EXCEL (PRIMERO)
             ...cleanItem,
+            
+            // ✅ COLUMNAS DE AUDITORÍA (AL FINAL) - CON TOTAL AL INICIO
+            TOTAL: absoluteValue, // ✅ COLUMNA TOTAL AGREGADA AL INICIO DE AUDITORÍA
             MUM_REC: mumRecno,
             AUDIT_AMT: originalValue,
             MUM_TOTAL: mumTotal,
@@ -209,7 +209,11 @@ export const executeExtraction = (params: {
                 const absoluteValue = Math.abs(value);
                 
                 return {
+                    // ✅ COLUMNAS ORIGINALES DEL EXCEL (PRIMERO)
                     ...row,
+                    
+                    // ✅ COLUMNAS DE AUDITORÍA (AL FINAL) - CON TOTAL AL INICIO
+                    TOTAL: absoluteValue, // ✅ COLUMNA TOTAL AGREGADA AL INICIO DE AUDITORÍA
                     MUM_REC: index + 1,
                     AUDIT_AMT: value,
                     MUM_TOTAL: absoluteValue,
@@ -225,8 +229,7 @@ export const executeExtraction = (params: {
         } else {
             console.log('✅ GENERANDO ARCHIVO DE VALORES ALTOS VACÍO (sin datos)');
             
-            // ✅ CREAR ARCHIVO VACÍO CON ESTRUCTURA CORRECTA
-            // Tomar la estructura de columnas del primer registro para mantener consistencia
+            // ✅ CREAR ARCHIVO VACÍO CON ESTRUCTURA CORRECTA INCLUYENDO TOTAL
             const emptyHighValueRow: ExcelRow = {};
             
             if (excelData.length > 0) {
@@ -236,9 +239,10 @@ export const executeExtraction = (params: {
                 });
             }
             
-            // ✅ AGREGAR COLUMNAS DE AUDITORÍA VACÍAS
+            // ✅ AGREGAR COLUMNAS DE AUDITORÍA VACÍAS INCLUYENDO TOTAL
             const emptyHighValuesWithAuditColumns = {
                 ...emptyHighValueRow,
+                TOTAL: "", // ✅ COLUMNA TOTAL VACÍA
                 MUM_REC: "",
                 AUDIT_AMT: "",
                 MUM_TOTAL: "",
@@ -261,7 +265,7 @@ export const executeExtraction = (params: {
     return { 
         sampleFileBase64, 
         highValueFileBase64,
-        sampleFilename: params.extractionFilename,
-        highValueFilename: params.highValueFilename
+        sampleFilename: extractionFilename,
+        highValueFilename: highValueManagement === 'separado' ? highValueFilename : null
     };
 };
