@@ -1,4 +1,3 @@
-// app/api/mum/planification/route.ts
 import { NextResponse } from 'next/server';
 import { getConfidenceFactor } from '@/utils/tables';
 
@@ -16,15 +15,23 @@ export async function POST(req: Request) {
             estimatedPopulationValue,
         } = await req.json();
 
-        // 1. Usar el valor de población del frontend o calcularlo
+        // 1. Calcular valor de población
         let populationValue = estimatedPopulationValue;
         
         if (!populationValue || populationValue === 0) {
             if (useFieldValue && selectedField && excelData) {
                 const sum = excelData.reduce((acc: number, row: any) => {
                     const value = parseFloat(row[selectedField]);
-                    if (!isNaN(value) && value > 0) {
-                        return acc + value;
+                    if (!isNaN(value)) {
+                        if (selectedPopulationType === "positive" && value > 0) {
+                            return acc + value;
+                        }
+                        if (selectedPopulationType === "negative" && value < 0) {
+                            return acc + Math.abs(value);
+                        }
+                        if (selectedPopulationType === "absolute") {
+                            return acc + Math.abs(value);
+                        }
                     }
                     return acc;
                 }, 0);
@@ -54,27 +61,35 @@ export async function POST(req: Request) {
             }, { status: 400 });
         }
 
-        // 4. Obtener factor de confianza - SIMPLIFICADO
+        // 4. Obtener factor de confianza
         const confidenceFactor = getConfidenceFactor(confidenceLevel);
 
-        // 5. Calcular número de errores esperados (simplificado)
-        const errorRatio = expectedErrorMonetary / tolerableErrorMonetary;
-        let expectedErrorsCount = 0;
+        // 5. CÁLCULOS CORREGIDOS SEGÚN IDEA
         
-        if (errorRatio > 0.33) expectedErrorsCount = 1;
-        if (errorRatio > 0.66) expectedErrorsCount = 2;
-
-        // 6. CÁLCULOS SIMPLIFICADOS
+        // Tamaño de muestra inicial (fórmula estándar MUM)
         const initialSampleSize = Math.ceil(
-            (populationValue * confidenceFactor) / (tolerableErrorMonetary - expectedErrorMonetary)
+            (populationValue * confidenceFactor) / tolerableErrorMonetary
         );
 
-        const finalSampleSize = Math.min(initialSampleSize, populationValue);
+        // Ajuste por error esperado (fórmula de expansión)
+        const expansionFactor = tolerableErrorMonetary / (tolerableErrorMonetary - expectedErrorMonetary);
+        const adjustedSampleSize = Math.ceil(initialSampleSize * expansionFactor);
+
+        // Tamaño final (no puede ser mayor que la población)
+        const finalSampleSize = Math.min(adjustedSampleSize, populationValue);
+        
+        // Intervalo muestral
         const sampleInterval = populationValue / finalSampleSize;
 
-        const tolerableContaminationPercent = ((tolerableErrorMonetary - expectedErrorMonetary) / tolerableErrorMonetary) * 100;
+        // Suma de contaminaciones tolerables (en porcentaje)
+        // Esta es la clave: se calcula como (ErrorEsperado / ErrorTolerable) * 100
+        const tolerableContaminationPercent = (expectedErrorMonetary / tolerableErrorMonetary) * 100;
 
-        const conclusion = `La población podrá aceptarse a un nivel de confianza del ${confidenceLevel}% cuando no se observan más de ${expectedErrorsCount} error(es) en una muestra de tamaño ${finalSampleSize}.`;
+        // Número de errores esperados (para la conclusión)
+        // IDEA usa "total taintings" que es un valor decimal, no entero
+        const expectedTotalTaintings = expectedErrorMonetary / tolerableErrorMonetary;
+
+        const conclusion = `La población podrá aceptarse a un nivel de confianza del ${confidenceLevel}% cuando no se observan más de ${expectedTotalTaintings.toFixed(6)} total taintings en una muestra de tamaño ${finalSampleSize}.`;
 
         return NextResponse.json({
             estimatedPopulationValue: populationValue,
@@ -83,7 +98,7 @@ export async function POST(req: Request) {
             tolerableContamination: tolerableContaminationPercent,
             conclusion,
             confidenceFactorUsed: confidenceFactor,
-            expectedErrorsCount: expectedErrorsCount,
+            expectedTotalTaintings: expectedTotalTaintings,
             minSampleSize: finalSampleSize
         });
 

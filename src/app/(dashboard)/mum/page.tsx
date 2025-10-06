@@ -101,7 +101,6 @@ function MumPageContent() {
 
     // --- Manejadores de las funciones de la API para MUM CON LOGS ---
     const handlePlanification = async () => {
-
         try {
             const body = {
                 excelData,
@@ -129,8 +128,10 @@ function MumPageContent() {
             setTolerableContamination(result.tolerableContamination);
             setConclusion(result.conclusion);
             setMinSampleSize(result.minSampleSize);
-            setIsPlanificacionDone(true);
-            setActiveTab("extraccion");            
+            
+            // ELIMINAR estas líneas para que no navegue automáticamente
+            // setIsPlanificacionDone(true);
+            // setActiveTab("extraccion");            
 
         } catch (error) {
             console.error("Error en la planificación:", error);

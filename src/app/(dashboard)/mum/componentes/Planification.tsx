@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import {formatErrorValue, handleErrorChange, formatNumber} from '../../../../lib/apiClient';
+import {handleErrorChange, formatNumber, formatErrorValue} from '../../../../lib/apiClient';
 // En Planification.tsx - solo las partes modificadas
 import { useLog } from '../../../../contexts/LogContext';
 
@@ -83,6 +83,7 @@ const Planification: React.FC<PlanificationProps> = ({
 }) => {
 
     const { addLog } = useLog();
+    const [hasEstimated, setHasEstimated] = useState(false);
 
     const calculatePopulationValue = () => {
         if (useFieldValue && selectedField && excelData.length > 0) {
@@ -107,14 +108,6 @@ const Planification: React.FC<PlanificationProps> = ({
         }
     };
 
-    const [hasEstimated, setHasEstimated] = useState(false);
-
-    // Inicializar errorType como "importe" por defecto
-    useEffect(() => {
-        setErrorType("importe");
-        setSelectedPopulationType("positive");
-    }, []);
-
     const handleAccept = () => {
         if (!hasEstimated) {
             alert("Primero debe realizar la estimación para poder aceptar la planificación.");
@@ -127,13 +120,10 @@ const Planification: React.FC<PlanificationProps> = ({
             'planification'
         );
 
+        // Ahora SÍ llamar a las funciones que navegan
         setIsPlanificacionDone(true);
         setActiveTab("extraccion");
         alert("Planificación aceptada. Ahora puedes ir a Extracción.");
-    };
-
-    const handlePrint = () => {
-        window.print();
     };
 
     const handleEstimate = async () => {
@@ -148,7 +138,15 @@ const Planification: React.FC<PlanificationProps> = ({
             'planification'
         );
 
-        await handlePlanification();
+        try {
+            await handlePlanification();
+            setHasEstimated(true); // ← ESTA ES LA CLAVE: Solo se marca después de estimación exitosa
+            addLog('Estimación completada exitosamente', '', 'planification');
+        } catch (error) {
+            console.error('Error en estimación:', error);
+            setHasEstimated(false);
+            alert("Error al realizar la estimación. Verifique los datos.");
+        }
     };
 
     useEffect(() => {
@@ -235,7 +233,7 @@ const Planification: React.FC<PlanificationProps> = ({
                             </label>
                             <input
                                 type="text"
-                                value={formatNumber(estimatedPopulationValue, 0)}
+                                value={formatNumber(estimatedPopulationValue, 2)}
                                 disabled={useFieldValue}
                                 onChange={(e) => handleErrorChange(e.target.value, setEstimatedPopulationValue, false)}
                                 className={`ml-2 block w-48 rounded-md border-gray-300 shadow-sm text-right ${useFieldValue ? 'bg-gray-200 cursor-not-allowed' : ''}`}
@@ -250,7 +248,7 @@ const Planification: React.FC<PlanificationProps> = ({
                             </label>
                             <input
                                 type="number"
-                                value={confidenceLevel}
+                                value={formatNumber(confidenceLevel, 2)}
                                 onChange={(e) => {
                                     const value = Number(e.target.value);
                                     if (value >= 1 && value <= 99) {
@@ -365,7 +363,7 @@ const Planification: React.FC<PlanificationProps> = ({
                     </button>
                     <button
                         onClick={handleAccept}
-                        disabled={!hasEstimated} // Agrega esta línea
+                        disabled={!hasEstimated}
                         className={`bg-green-600 ${!hasEstimated ? 'bg-gray-400 cursor-not-allowed' : 'hover:bg-green-700'} text-white font-semibold py-2 px-4 rounded shadow`}
                     >
                         Aceptar
