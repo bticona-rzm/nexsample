@@ -4,8 +4,6 @@ import printJS from "print-js";
 import { ChevronLeft, ChevronRight ,  FileBarChart, Download, History, Upload, Printer, Trash2} from "lucide-react";
 import { useSession } from "next-auth/react";
 import { formatDate } from "@/lib/format";
-import MasivaComponent from "@/components/muestras/MasivaComponent";
-import FileUploadProgress from "@/components/muestras/FileUploadProgress";
 
 type SampleParams = {
   records: number;
@@ -193,11 +191,11 @@ export default function MuestraPage() {
     return null;
   });
   
-  // 👇 nuevo estado: subtabs estilo parametrización
+  // nuevo estado: subtabs estilo parametrización
   const [subTab, setSubTab] = useState<"estandar" | "masivo">("estandar");
 
 
-    // Estado: parámetros del muestreo (persistentes)
+  // Estado: parámetros del muestreo (persistentes)
   const [sampleParams, setSampleParams] = useState<SampleParams>(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("sampleParams");
@@ -205,9 +203,16 @@ export default function MuestraPage() {
     }
     return DEFAULT_SAMPLE_PARAMS;
   });
-  
-  
-  // // Función imprimir
+
+  // Para Data Masivo (cambia solo los iniciales que quieras distintos)
+  const [sampleParamsMasivo, setSampleParamsMasivo] = useState<SampleParams>({
+    ...DEFAULT_SAMPLE_PARAMS,
+    records: 0,   // aquí lo adaptas a tu lógica
+    seed: 0,      // diferente semilla inicial
+    end: 0,       // porque aún no se sabe el tamaño del dataset masivo
+  });
+
+  // Función imprimir
   // const printCurrentTab = () => {
   //   const currentRows = tabs.find((t) => t.id === activeTab)?.rows || [];
   //   if (!currentRows.length) {
@@ -247,6 +252,37 @@ export default function MuestraPage() {
   URL.revokeObjectURL(url);
   };
 
+  // === PDF MASIVO ===
+  const exportPdfMasivo = async () => {
+    const currentRows = tabs.find((t) => t.id === activeTab)?.rows || [];
+    if (!currentRows.length) {
+      alert("No hay datos masivos para imprimir.");
+      return;
+    }
+
+    const res = await fetch("/api/export/pdf", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        rows: currentRows,
+        title: `Reporte de Muestra Masiva: ${tabs.find((t) => t.id === activeTab)?.name || "Datos"}`,
+      }),
+    });
+
+    if (!res.ok) {
+      alert("Error al generar PDF masivo");
+      return;
+    }
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "muestra_masiva.pdf";
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   // Función limpiar historial
   const clearHistorial = async () => {
     if (!userId) {
@@ -270,6 +306,30 @@ export default function MuestraPage() {
         setHistorial([]); //  limpio en UI
       } catch (e: any) {
         alert(`Error al limpiar historial: ${e.message}`);
+      }
+    }
+  };
+
+  // === Limpiar historial MASIVO ===
+  const clearHistorialMasivo = async () => {
+    if (!userId) {
+      alert("Necesitas iniciar sesión para limpiar tu historial masivo.");
+      return;
+    }
+    if (confirm("¿Seguro que quieres borrar todo el historial masivo?")) {
+      try {
+        const res = await fetch("/api/masiva", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "clearHistorial", userId }),
+        });
+        if (!res.ok) {
+          alert("No se pudo limpiar el historial masivo.");
+          return;
+        }
+        setHistorial([]);
+      } catch (e: any) {
+        alert(`Error al limpiar historial masivo: ${e.message}`);
       }
     }
   };
@@ -312,7 +372,7 @@ export default function MuestraPage() {
 
 
 
-  // UI: modales y estados auxiliares
+  // UI: modales y estados auxiliares ESTANDAR
   const [showModal, setShowModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -321,6 +381,19 @@ export default function MuestraPage() {
   const [datasetName, setDatasetName] = useState("");
   // Estado nuevo para exportación
   const [selectedTabId, setSelectedTabId] = useState<string>("");
+  
+  // === Estados para Data Masivo ===
+  const [showUploadModalMasivo, setShowUploadModalMasivo] = useState(false);
+  const [showModalMasivo, setShowModalMasivo] = useState(false);
+  const [showExportModalMasivo, setShowExportModalMasivo] = useState(false);
+  const [uploadedFileMasivo, setUploadedFileMasivo] = useState<File | null>(null);
+  const [datasetNameMasivo, setDatasetNameMasivo] = useState("");
+  const [useHeadersMasivo, setUseHeadersMasivo] = useState(true);
+  const [progressMasivo, setProgressMasivo] = useState(0);
+  const [uploadingMasivo, setUploadingMasivo] = useState(false);
+  const [selectedTabIdMasivo, setSelectedTabIdMasivo] = useState("");
+
+
 
   // Dataset de pestaña activa (ya lo tienes)
   const currentRows =
@@ -436,6 +509,82 @@ export default function MuestraPage() {
     }
   };
 
+  // === Muestreo masivo vía backend ===
+  const handleOkMasivo = async () => {
+    if (!sampleParamsMasivo.records || sampleParamsMasivo.records <= 0) {
+      alert("Debe especificar cuántos registros quiere muestrear.");
+      return;
+    }
+
+    const currentTab = tabs.find((t) => t.id === activeTab);
+    if (!currentTab || !currentTab.datasetId) {
+      alert("No hay dataset masivo cargado en esta pestaña.");
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/masiva", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "sample",
+          datasetId: currentTab.datasetId,
+          n: sampleParamsMasivo.records,
+          seed: sampleParamsMasivo.seed,
+          start: sampleParamsMasivo.start,
+          end: sampleParamsMasivo.end,
+          allowDuplicates: sampleParamsMasivo.allowDuplicates,
+          nombreMuestra: sampleParamsMasivo.fileName || currentTab.name,
+          datasetLabel: currentTab.datasetLabel,
+          sourceFile: currentTab.sourceFile,
+        }),
+      });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({} as any));
+        alert(`Error: ${err.details || err.error || "No se pudo generar la muestra masiva"}`);
+        return;
+      }
+
+      const { sample, hash } = await response.json();
+      const newTabId = `masivo_${Date.now()}`;
+
+      setTabs((prev) => [
+        ...prev,
+        {
+          id: newTabId,
+          name: sampleParamsMasivo.fileName || `MuestraMasiva-${newTabId}`,
+          rows: sample,
+          datasetId: currentTab.datasetId,
+          sourceFile: currentTab.sourceFile,
+          datasetLabel: currentTab.datasetLabel,
+          isMasivo: true,
+        },
+      ]);
+      setActiveTab(newTabId);
+
+      setHistorial((prev) => [
+        ...prev,
+        {
+          id: newTabId,
+          hash,
+          name: sampleParamsMasivo.fileName || `MuestraMasiva-${newTabId}`,
+          date: new Date().toLocaleString(),
+          user: "Administrador",
+          records: sample.length,
+          range: `${sampleParamsMasivo.start} - ${sampleParamsMasivo.end}`,
+          seed: sampleParamsMasivo.seed,
+          allowDuplicates: sampleParamsMasivo.allowDuplicates ? "Sí" : "No",
+          source: currentTab.sourceFile || "Desconocido",
+        },
+      ]);
+
+      setShowModalMasivo(false);
+    } catch (e: any) {
+      alert(`Error inesperado en muestreo masivo: ${e.message}`);
+    }
+  };
+
   //implementamos el fetch
   const fetchHistorial = async () => {
     try {
@@ -458,6 +607,7 @@ export default function MuestraPage() {
   };
 
   // === Exportación vía API con manejo de error ===
+  // === Exportación Data Estándar ===
   const exportData = async (format: string) => {
     if (!selectedTabId) {
       alert("Debes seleccionar una pestaña de muestreo.");
@@ -470,18 +620,13 @@ export default function MuestraPage() {
       return;
     }
 
-    if (!tab.datasetId) {
-      alert("Este dataset no tiene un identificador válido.");
-      return;
-    }
-
     try {
       const res = await fetch("/api/muestra", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "export",
-          datasetId: tab.datasetId,   // solo mandamos el id
+          rows: tab.rows, // 👈 solo filas de la pestaña seleccionada
           format,
           fileName: sampleParams.fileName || tab.name,
         }),
@@ -506,6 +651,49 @@ export default function MuestraPage() {
   };
 
 
+  // === Exportación de dataset masivo ===
+  const exportDataMasivo = async (format: string) => {
+    if (!selectedTabIdMasivo) {
+      alert("Debes seleccionar una pestaña de muestreo masivo.");
+      return;
+    }
+
+    const tab = tabs.find((t) => t.id === selectedTabIdMasivo);
+    if (!tab || !tab.datasetId) {
+      alert("El dataset masivo seleccionado no es válido.");
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/masiva", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "export",
+          datasetId: tab.datasetId,
+          format,
+          fileName: sampleParamsMasivo.fileName || tab.name,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(`Error al exportar masivo: ${err.error || res.statusText}`);
+        return;
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${sampleParamsMasivo.fileName || tab.name}.${format}`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (e: any) {
+      alert(`Error inesperado en exportación masiva: ${e.message}`);
+    }
+  };
+
   // Estados adicionales en tu componente
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -517,7 +705,7 @@ export default function MuestraPage() {
       return;
     }
 
-    // ⚠️ Validación tamaño (solo para DataEstandar)
+    // Validación tamaño (solo para DataEstandar)
     const maxSize = 100 * 1024 * 1024; // 100 MB
     if (uploadedFile.size > maxSize) {
       alert(
@@ -617,6 +805,82 @@ export default function MuestraPage() {
     }
   };
 
+  // === Subida de archivo Masivo vía API con loader/progreso ===
+  const handleFileUploadMasivo = async () => {
+    if (!uploadedFileMasivo) {
+      alert("Seleccione un archivo masivo");
+      return;
+    }
+
+    try {
+      setUploadingMasivo(true);
+      setProgressMasivo(0);
+
+      const formData = new FormData();
+      formData.append("file", uploadedFileMasivo);
+      formData.append("datasetName", datasetNameMasivo || uploadedFileMasivo.name);
+      formData.append("useHeader", useHeadersMasivo ? "true" : "false");
+
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", "/api/masiva");
+
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+          const percent = Math.round((event.loaded / event.total) * 100);
+          setProgressMasivo(percent);
+        }
+      };
+
+      xhr.onload = async () => {
+        setUploadingMasivo(false);
+        setProgressMasivo(0);
+
+        if (xhr.status >= 200 && xhr.status < 300) {
+          const { preview, total, datasetId, fileName } = JSON.parse(xhr.responseText);
+
+          const newTabId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+          setTabs((prev) => [
+            ...prev,
+            {
+              id: newTabId,
+              name: fileName || uploadedFileMasivo.name,
+              rows: preview || [],
+              datasetId,
+              sourceFile: uploadedFileMasivo.name,
+              datasetLabel: datasetNameMasivo || "",
+              isMasivo: true,
+            },
+          ]);
+
+          setSampleParamsMasivo((prev) => ({
+            ...prev,
+            start: 1,
+            end: total,
+            totalRows: total,
+          }));
+
+          setActiveTab(newTabId);
+          setShowUploadModalMasivo(false);
+          setUploadedFileMasivo(null);
+        } else {
+          alert(`Error al procesar archivo masivo: ${xhr.statusText}`);
+        }
+      };
+
+      xhr.onerror = () => {
+        setUploadingMasivo(false);
+        setProgressMasivo(0);
+        alert("Error de conexión al subir archivo masivo");
+      };
+
+      xhr.send(formData);
+    } catch (e: any) {
+      setUploadingMasivo(false);
+      setProgressMasivo(0);
+      alert(`Error inesperado: ${e.message}`);
+    }
+  };
+
 
   // === Acciones UI ===
   const closeTab = (id: string) => {
@@ -628,6 +892,26 @@ export default function MuestraPage() {
   const openHistorial = () => {
     setActiveTab("historial");
     fetchHistorial(); // carga desde backend
+  };
+
+  // === Historial MASIVO ===
+  const openHistorialMasivo = async () => {
+    setActiveTab("historial");
+    try {
+      const res = await fetch("/api/masiva", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "historial", userId }),
+      });
+      if (!res.ok) {
+        setHistorial([]);
+        return;
+      }
+      const data = await res.json();
+      setHistorial(Array.isArray(data) ? data : []);
+    } catch {
+      setHistorial([]);
+    }
   };
 
   // Hasta que esté hidratado, no renders (evita mismatch SSR/CSR)
@@ -710,76 +994,147 @@ export default function MuestraPage() {
                 )}
               </>
             ) : (
-              <MasivaComponent />
+              <>
+                {/* === MASIVO === */}
+                <div className="flex space-x-2 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300">
+                  {tabs.map((tab) => (
+                    <div
+                      key={tab.id}
+                      className={`flex items-center px-4 py-1 rounded-t-lg cursor-pointer select-none ${
+                        activeTab === tab.id
+                          ? "bg-gradient-to-r from-[#550000] to-[#800000] text-white shadow-md"
+                          : "bg-gray-400 text-gray-100 hover:bg-[#800000]"
+                      }`}
+                      onClick={() => setActiveTab(tab.id)}
+                    >
+                      <span className="truncate max-w-[100px]">{tab.name}</span>
+                      <button
+                        onClick={() => closeTab(tab.id)}
+                        className="ml-2 text-xs font-bold hover:text-red-500"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Contenido del tab masivo */}
+                {tabs.length === 0 || !activeTab ? (
+                  <div className="p-6 text-gray-500 text-center">
+                    No hay datos cargados. Usa <b>Cargar Datos</b> (Data Masivo).
+                  </div>
+                ) : activeTab === "historial" ? (
+                  <TablaHistorial historial={Array.isArray(historial) ? historial : []} />
+                ) : (
+                  <TablaGenerica rows={currentRows} />
+                )}
+              </>
             )}
           </div>
 
           {/* SIDEBAR */}
-          <div className="w-60 bg-gray-50 p-6 space-y-4 self-start">              
-              {/* Cargar Datos */}
-              <button
-                onClick={() => {
+          <div className="w-60 bg-gray-50 p-6 space-y-4 self-start">
+            {/* Cargar Datos */}
+            <button
+              onClick={() => {
+                if (subTab === "estandar") {
                   setDatasetName("");
                   setUploadedFile(null);
-                  setShowUploadModal(true);
-                }}
-                className="w-full flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded shadow transition-colors"
-              >
-                <Upload size={18} />
-                Cargar Datos
-              </button>
+                  setShowUploadModal(true); // modal estándar
+                } else {
+                  setDatasetNameMasivo("");
+                  setUploadedFileMasivo(null);
+                  setShowUploadModalMasivo(true);
+                }
+              }}
+              className="w-full flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded shadow transition-colors"
+            >
+              <Upload size={18} />
+              Cargar Datos
+            </button>
 
-              {/* Muestreo */}
-              <button
-                onClick={() => {
-                  // al abrir modal, reiniciar fileName vacío
+            {/* Muestreo */}
+            <button
+              onClick={() => {
+                if (subTab === "estandar") {
                   setSampleParams((prev) => ({
                     ...prev,
                     fileName: "",
                   }));
-                  setShowModal(true);
-                }}
-                className="w-full flex items-center gap-2 bg-gray-400 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded shadow transition-colors"
-              >
-                <FileBarChart size={18} />
-                Muestreo
-              </button>
+                  setShowModal(true); // modal estándar
+                } else {
+                  setSampleParamsMasivo((prev) => ({
+                    ...prev,
+                    fileName: "",
+                  }));
+                  setShowModalMasivo(true); // modal masivo
+                }
+              }}
+              className="w-full flex items-center gap-2 bg-gray-400 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded shadow transition-colors"
+            >
+              <FileBarChart size={18} />
+              Muestreo
+            </button>
 
-              {/* Exportar Muestreo*/}
-              <button
-                onClick={() => setShowExportModal(true)}
-                className="w-full flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded shadow transition-colors"
-              >
-                <Download size={18} />
-                Exportar DataSet
-              </button>
+            {/* Exportar */}
+            <button
+              onClick={() => {
+                if (subTab === "estandar") {
+                  setShowExportModal(true);
+                } else {
+                  setShowExportModalMasivo(true);
+                }
+              }}
+              className="w-full flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded shadow transition-colors"
+            >
+              <Download size={18} />
+              Exportar DataSet
+            </button>
 
-              {/* Historial */}
-              <button
-                onClick={openHistorial}
-                className="w-full flex items-center gap-2 bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-2 px-4 rounded shadow transition-colors"
-              >
-                <History size={18} />
-                Historial
-              </button>
+            {/* Historial */}
+            <button
+              onClick={() => {
+                if (subTab === "estandar") {
+                  openHistorial();
+                } else {
+                  openHistorialMasivo();
+                }
+              }}
+              className="w-full flex items-center gap-2 bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-2 px-4 rounded shadow transition-colors"
+            >
+              <History size={18} />
+              Historial
+            </button>
 
-              {/* Imprimir Historial */}
-              <button
-                onClick={exportPdf}
-                className="w-full flex items-center gap-2 bg-purple-600 hover:bg-purple-900 text-white font-semibold py-2 px-4 rounded shadow transition-colors"
-              >
-                <Printer size={18} />
-                Imprimir Historial
-              </button>
+            {/* Imprimir Historial */}
+            <button
+              onClick={() => {
+                if (subTab === "estandar") {
+                  exportPdf();
+                } else {
+                  exportPdfMasivo();
+                }
+              }}
+              className="w-full flex items-center gap-2 bg-purple-600 hover:bg-purple-900 text-white font-semibold py-2 px-4 rounded shadow transition-colors"
+            >
+              <Printer size={18} />
+              Imprimir Historial
+            </button>
 
-              {/* Limpiar Historial */}
-              <button
-                onClick={clearHistorial}
-                className="w-full flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded shadow transition-colors"
-              >
-                <Trash2 size={18} />
-                Limpiar Historial
-              </button>
+            {/* Limpiar Historial */}
+            <button
+              onClick={() => {
+                if (subTab === "estandar") {
+                  clearHistorial();
+                } else {
+                  clearHistorialMasivo();
+                }
+              }}
+              className="w-full flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded shadow transition-colors"
+            >
+              <Trash2 size={18} />
+              Limpiar Historial
+            </button>
           </div>
         </div>
 
@@ -907,6 +1262,129 @@ export default function MuestraPage() {
           </div>
         )}
 
+        {/* MODAL: Muestreo Masivo */}
+        {showModalMasivo && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/30">
+            <div className="bg-white p-6 rounded-lg shadow-lg w-96 space-y-4 z-50">
+              <h2 className="text-lg font-bold mb-2">Opciones de Muestra (Masivo):</h2>
+              <div className="space-y-3">
+                {/* Número de registros */}
+                <label className="flex justify-between">
+                  Número de Registros:
+                  <input
+                    type="number"
+                    min="1"
+                    value={sampleParamsMasivo.records ?? ""}
+                    onChange={(e) =>
+                      setSampleParamsMasivo((prev) => ({
+                        ...prev,
+                        records: e.target.value === "" ? 0 : parseInt(e.target.value, 10),
+                      }))
+                    }
+                    className="border rounded px-2 py-1 w-20 text-center"
+                  />
+                </label>
+
+                {/* Semilla */}
+                <label className="flex justify-between">
+                  Semilla Número Aleatorio:
+                  <input
+                    type="number"
+                    min="1"
+                    value={sampleParamsMasivo.seed ?? ""}
+                    onChange={(e) =>
+                      setSampleParamsMasivo((prev) => ({
+                        ...prev,
+                        seed: e.target.value === "" ? 0 : parseInt(e.target.value, 10),
+                      }))
+                    }
+                    className="border rounded px-2 py-1 w-20 text-center"
+                  />
+                </label>
+
+                {/* Inicio */}
+                <label className="flex justify-between">
+                  Inicio:
+                  <input
+                    type="number"
+                    min="1"
+                    value={sampleParamsMasivo.start ?? ""}
+                    onChange={(e) => {
+                      const v = e.target.value === "" ? 0 : parseInt(e.target.value, 10);
+                      setSampleParamsMasivo((prev) => ({
+                        ...prev,
+                        start: Math.max(1, v),
+                      }));
+                    }}
+                    className="border rounded px-2 py-1 w-20 text-center"
+                  />
+                </label>
+
+                {/* Fin */}
+                <label className="flex justify-between">
+                  Fin:
+                  <input
+                    type="number"
+                    min="1"
+                    value={sampleParamsMasivo.end ?? ""}
+                    onChange={(e) => {
+                      const v = e.target.value === "" ? 0 : parseInt(e.target.value, 10);
+                      setSampleParamsMasivo((prev) => ({
+                        ...prev,
+                        end: Math.max(1, v),
+                      }));
+                    }}
+                    className="border rounded px-2 py-1 w-20 text-center"
+                  />
+                </label>
+
+                {/* Checkbox duplicados */}
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={sampleParamsMasivo.allowDuplicates}
+                    onChange={(e) =>
+                      setSampleParamsMasivo((prev) => ({
+                        ...prev,
+                        allowDuplicates: e.target.checked,
+                      }))
+                    }
+                  />
+                  <span>Seleccionar Duplicados</span>
+                </label>
+
+                {/* Nombre del archivo */}
+                <label className="flex justify-between">
+                  Nombre del Archivo:
+                  <input
+                    type="text"
+                    value={sampleParamsMasivo.fileName}
+                    onChange={(e) =>
+                      setSampleParamsMasivo((prev) => ({ ...prev, fileName: e.target.value }))
+                    }
+                    className="border rounded px-2 py-1 w-40"
+                  />
+                </label>
+              </div>
+
+              <div className="flex justify-end space-x-1 mt-2">
+                <button
+                  onClick={handleOkMasivo}
+                  className="bg-sky-600 text-white px-4 py-2 rounded"
+                >
+                  Aceptar
+                </button>
+                <button
+                  onClick={() => setShowModalMasivo(false)}
+                  className="bg-gray-400 text-white px-4 py-2 rounded"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* MODAL: Cargar Datos */}
         {showUploadModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/30">
@@ -1001,6 +1479,87 @@ export default function MuestraPage() {
             </div>
           </div>
         )}
+        
+        {/* MODAL: Cargar Datos Masivo */}
+        {showUploadModalMasivo && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/30">
+            <div className="bg-white p-6 rounded-lg shadow-lg w-[32rem] space-y-4">
+              <h2 className="text-lg font-bold mb-2">Cargar Datos Masivos</h2>
+              <div className="space-y-3">
+                {/* Selección de archivo */}
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-700">Archivo:</span>
+                  <div className="flex items-center space-x-3 w-full ml-4">
+                    <input
+                      id="fileInputMasivo"
+                      type="file"
+                      accept=".csv,.json,.xml,.txt"
+                      className="hidden"
+                      onChange={(e) => setUploadedFileMasivo(e.target.files?.[0] || null)}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => document.getElementById("fileInputMasivo")?.click()}
+                      className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded shadow text-sm"
+                    >
+                      Seleccionar Archivo
+                    </button>
+                    <span className="flex-grow text-gray-900 text-sm text-right pl-3 truncate">
+                      {uploadedFileMasivo ? uploadedFileMasivo.name : "Ningún archivo seleccionado"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Nombre dataset */}
+                <label className="flex justify-between items-center">
+                  <span className="text-sm font-medium text-gray-700">Nombre del Dataset:</span>
+                  <input
+                    type="text"
+                    value={datasetNameMasivo}
+                    onChange={(e) => setDatasetNameMasivo(e.target.value)}
+                    placeholder="Ej: VentasMasivas2024"
+                    className="border rounded px-2 py-1 w-48"
+                  />
+                </label>
+
+                {/* Loader de progreso */}
+                {uploadingMasivo && (
+                  <div className="w-full mt-4">
+                    <div className="text-sm text-gray-600 mb-1">Subiendo archivo... {progressMasivo}%</div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div
+                        className="bg-blue-600 h-2 rounded-full transition-all"
+                        style={{ width: `${progressMasivo}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Botones */}
+              <div className="flex justify-end space-x-2 mt-4">
+                <button
+                  onClick={handleFileUploadMasivo}
+                  disabled={uploadingMasivo}
+                  className={`px-4 py-2 rounded text-white ${
+                    uploadingMasivo
+                      ? "bg-gray-400 cursor-not-allowed"
+                      : "bg-blue-600 hover:bg-blue-700"
+                  }`}
+                >
+                  {uploadingMasivo ? "Cargando..." : "Aceptar"}
+                </button>
+                <button
+                  onClick={() => setShowUploadModalMasivo(false)}
+                  disabled={uploadingMasivo}
+                  className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-gray-500"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* MODAL: Exportación */}
         {showExportModal && (
@@ -1070,6 +1629,66 @@ export default function MuestraPage() {
             </div>
           </div>
         )}
+
+        {/* MODAL: Exportación Masivo */}
+        {showExportModalMasivo && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/40">
+            <div className="bg-white p-6 rounded shadow-lg w-80 space-y-4">
+              <h2 className="text-lg font-bold mb-2">Exportar Datos Masivos</h2>
+              <p className="text-sm text-gray-600">Selecciona el formato:</p>
+                <div className="flex flex-col space-y-2">
+                  <button
+                    onClick={() => exportDataMasivo("csv")}
+                    className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+                  >
+                    CSV (.csv)
+                  </button>
+                  <button
+                    onClick={() => exportDataMasivo("json")}
+                    className="bg-violet-600 text-white px-4 py-2 rounded hover:bg-violet-700"
+                  >
+                    JSON (.json)
+                  </button>
+                  <button
+                    onClick={() => exportDataMasivo("xml")}
+                    className="bg-yellow-400 text-white px-4 py-2 rounded hover:bg-yellow-500"
+                  >
+                    XML (.xml)
+                  </button>
+                  <button
+                    onClick={() => exportDataMasivo("txt")}
+                    className="bg-orange-400 text-white px-4 py-2 rounded hover:bg-orange-500"
+                  >
+                    TXT (.txt)
+                  </button>
+                </div>
+                <label className="flex flex-col text-sm font-medium text-gray-700">
+                  Selecciona la pestaña de muestreo:
+                  <select
+                    value={selectedTabIdMasivo}
+                    onChange={(e) => setSelectedTabIdMasivo(e.target.value)}
+                    className="mt-1 border rounded px-2 py-1"
+                  >
+                    <option value="">--Seleccionar pestaña--</option>
+                    {tabs.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              <div className="flex justify-end mt-3">
+                <button
+                  onClick={() => setShowExportModalMasivo(false)}
+                  className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
   </div>
   );
 }
