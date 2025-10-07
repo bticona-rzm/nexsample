@@ -400,8 +400,6 @@ export const readExcelFile = (file: File): Promise<any[]> => {
 };
 
 // Función para formatear números con separadores de miles y decimales
-// Agrega estas funciones en tu componente
-// Formato inglés: 1,000,000.00 (centenas con coma, decimales con punto)
 export const formatNumber = (value: number, decimals: number = 2): string => {
     if (value === null || value === undefined || isNaN(value)) {
         return '0.00'; // Valor por defecto si hay error

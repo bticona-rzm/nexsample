@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { readExcelFile } from '@/lib/apiClient';
+import { formatNumber, readExcelFile } from '@/lib/apiClient';
 
 interface StringerBoundFormProps {
     // onOk espera un argumento 'stringer-bound'
@@ -231,10 +231,8 @@ const StringerBoundForm: React.FC<StringerBoundFormProps> = ({ onOk, confidenceL
                         <div className="flex items-center space-x-4">
                             <label className="text-sm font-medium text-gray-700 w-48">Nivel de confianza (%):</label>
                             <input 
-                                type="number" 
-                                min="1" 
-                                max="100" 
-                                value={confidenceLevel || ''}
+                                type="text" 
+                                value={formatNumber(confidenceLevel,2) || ''}
                                 disabled={true}
                                 className="block w-30 rounded-md border-gray-300 shadow-sm sm:text-sm text-center bg-gray-200 cursor-not-allowed"
                             />
@@ -273,32 +271,30 @@ const StringerBoundForm: React.FC<StringerBoundFormProps> = ({ onOk, confidenceL
                             {/* Columna izquierda */}
                              <div className="space-y-4">
                                 <div className="flex items-center space-x-4">
-                                    <label className="text-sm font-medium text-gray-700 w-48">Valor de la población muestreada:</label>
+                                    <label className="text-sm font-medium text-gray-700 w-68">Valor de la población muestreada:</label>
                                     <input 
-                                        type="number" 
-                                        min="1" 
-                                        value={estimatedPopulationValue.toFixed(2)}
+                                        type="text" 
+                                        value={formatNumber(estimatedPopulationValue,2)}
                                         disabled={true}
-                                        className="block w-30 rounded-md border-gray-300 shadow-sm sm:text-sm text-center bg-gray-200 cursor-not-allowed" 
+                                        className="block w-40 rounded-md border-gray-300 shadow-sm sm:text-sm text-center bg-gray-200 cursor-not-allowed" 
                                     />
                                 </div>
                                 <div className="flex items-center space-x-4">
-                                    <label className="text-sm font-medium text-gray-700 w-48">Tamaño de la muestra:</label>
+                                    <label className="text-sm font-medium text-gray-700 w-68">Tamaño de la muestra:</label>
                                     <input 
-                                        type="number" 
-                                        min="1" 
-                                        value={estimatedSampleSize.toFixed(2)}
+                                        type="text" 
+                                        value={formatNumber(estimatedSampleSize,2)}
                                         disabled={true}
-                                        className="block w-30 rounded-md border-gray-300 shadow-sm sm:text-sm text-center bg-gray-200 cursor-not-allowed" 
+                                        className="block w-40 rounded-md border-gray-300 shadow-sm sm:text-sm text-center bg-gray-200 cursor-not-allowed" 
                                     />
                                 </div>
                                 <div className="flex items-center space-x-4">
-                                    <label className="text-sm font-medium text-gray-700 w-48">Precisión Básica de la Fijación de Precios:</label>
+                                    <label className="text-sm font-medium text-gray-700 w-68">Precisión Básica de la Fijación de Precios:</label>
                                     <input 
-                                        type="number"
-                                        value={basicPrecision.toFixed(2)} // Vinculamos el valor al nuevo estado
+                                        type="text"
+                                        value={formatNumber(basicPrecision,2)} // Vinculamos el valor al nuevo estado
                                         disabled={true} // Se llena automáticamente, por lo que debe ser de solo lectura
-                                        className="block w-30 rounded-md border-gray-300 shadow-sm sm:text-sm text-center bg-gray-200 cursor-not-allowed"
+                                        className="block w-40 rounded-md border-gray-300 shadow-sm sm:text-sm text-center bg-gray-200 cursor-not-allowed"
                                     />
                                 </div>
                             </div>

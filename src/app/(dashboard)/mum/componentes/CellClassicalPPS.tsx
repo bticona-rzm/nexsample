@@ -257,34 +257,29 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({ onOk, confi
                             <div className="flex items-center space-x-4">
                                 <label className="text-sm font-medium text-gray-700 w-60">Nivel de confianza (%):</label>
                                 <input 
-                                    type="number" 
-                                    min="1" 
-                                    max="100" 
+                                    type="text" 
                                     value={formatNumber(confidenceLevel, 2)}
                                     disabled={true} // Se hereda, no se puede cambiar
-                                    className="block w-30 rounded-md border-gray-300 shadow-sm sm:text-sm text-center bg-gray-200 cursor-not-allowed"
+                                    className="block w-48 rounded-md border-gray-300 shadow-sm sm:text-sm text-center bg-gray-200 cursor-not-allowed"
                                 />
                             </div>
                             <div className="flex items-center space-x-4">
                                 <label className="text-sm font-medium text-gray-700 w-60">Valor de la población muestreada:</label>
                                 <input 
-                                    type="number" 
-                                    min="1" 
-                                    // Usar la coalescencia nula (??) para asegurar que siempre haya un string ('') si es null/undefined.
-                                    value={populationValue !== null && populationValue !== undefined ? populationValue.toFixed(2) : ''}
+                                    type="text" 
+                                    value={populationValue !== null && populationValue !== undefined ? formatNumber(populationValue, 2) : ''}
                                     disabled={true} 
-                                    className="block w-30 rounded-md border-gray-300 shadow-sm sm:text-sm text-center bg-gray-200 cursor-not-allowed" 
+                                    className="block w-48 rounded-md border-gray-300 shadow-sm sm:text-sm text-center bg-gray-200 cursor-not-allowed" 
                                 />
                             </div>
                             <div className="flex items-center space-x-4">
                                 <label className="text-sm font-medium text-gray-700 w-60">Tamaño de la muestra:</label>
                                 <input 
-                                    type="number" 
-                                    min="1" 
+                                    type="text"
                                     // Lo mismo aquí: asegurar un string ('') en lugar de null/undefined
                                     value={sampleSize !== null && sampleSize !== undefined ? formatNumber(sampleSize,0) : ''}
                                     disabled={true} 
-                                    className="block w-30 rounded-md border-gray-300 shadow-sm sm:text-sm text-center bg-gray-200 cursor-not-allowed" 
+                                    className="block w-48 rounded-md border-gray-300 shadow-sm sm:text-sm text-center bg-gray-200 cursor-not-allowed" 
                                 />
                             </div>
                             <div className="flex items-center space-x-4">
@@ -296,13 +291,11 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({ onOk, confi
                                 />
                                 <label className="text-sm font-medium text-gray-700">Cambiar la precisión básica del 100%:</label>
                                 <input
-                                    type="number"
-                                    min="0"
-                                    max="100"
+                                    type="text"
                                     value={formatNumber(precisionValue)}
                                     onChange={(e) => setPrecisionValue(Number(e.target.value))}
                                     disabled={!changePrecision}
-                                    className={`block w-30 rounded-md border-gray-300 shadow-sm sm:text-sm text-center ${!changePrecision ? 'bg-gray-200 cursor-not-allowed' : ''}`}
+                                    className={`block w-41 rounded-md border-gray-300 shadow-sm sm:text-sm text-center ${!changePrecision ? 'bg-gray-200 cursor-not-allowed' : ''}`}
                                 />
                             </div>
                         </div>
