@@ -5,6 +5,11 @@ import csv from "csv-parser";
 import JSONStream from "JSONStream";
 import xmlFlow from "xml-flow";
 import crypto from "crypto";
+import { prisma } from "@/lib/prisma";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import type { Session } from "next-auth";
+
 
 // Tipo genérico para las filas
 // ---------- Tipos ----------
@@ -104,9 +109,17 @@ export async function POST(req: Request) {
 
       // --- B) Muestreo masivo (streaming)
       if (action === "sample") {
-        const { datasetId, n, seed, start, end, allowDuplicates } = options as SampleOptions;
+        const { datasetId, n, seed, start, end, allowDuplicates, fileName, userId: userIdFromClient } =
+          options as SampleOptions & { fileName?: string; userId?: string };
+
+        // 🔑 Obtenemos la sesión del usuario autenticado
+        const session = (await getServerSession(authOptions)) as Session | null;
+        const effectiveUserId = session?.user?.id ?? userIdFromClient;
+
         const meta = datasetStoreMasivo[datasetId];
-        if (!meta) return NextResponse.json({ error: "Dataset no registrado" }, { status: 404 });
+        if (!meta) {
+          return NextResponse.json({ error: "Dataset no registrado" }, { status: 404 });
+        }
 
         const filePath = path.join(DATASETS_DIR, meta.fileName);
         if (!fs.existsSync(filePath)) {
@@ -117,6 +130,7 @@ export async function POST(req: Request) {
         let sample: RowData[] = [];
         let count = 0;
 
+        // --- CSV ---
         if (meta.format === "csv") {
           await new Promise<void>((resolve, reject) => {
             fs.createReadStream(filePath)
@@ -135,7 +149,10 @@ export async function POST(req: Request) {
               .on("end", resolve)
               .on("error", reject);
           });
-        } else if (meta.format === "json") {
+        }
+
+        // --- JSON ---
+        else if (meta.format === "json") {
           await new Promise<void>((resolve, reject) => {
             fs.createReadStream(filePath)
               .pipe(JSONStream.parse("*"))
@@ -153,7 +170,10 @@ export async function POST(req: Request) {
               .on("end", resolve)
               .on("error", reject);
           });
-        } else if (meta.format === "xml") {
+        }
+
+        // --- XML ---
+        else if (meta.format === "xml") {
           await new Promise<void>((resolve, reject) => {
             const xmlStream = xmlFlow(fs.createReadStream(filePath));
             xmlStream.on("tag:row", (row: RowData) => {
@@ -174,10 +194,32 @@ export async function POST(req: Request) {
 
         const hash = generateHash({ sample, n, seed, start, end, allowDuplicates });
 
+        // --- Guardar historial ---
+        if (effectiveUserId) {
+          try {
+            await prisma.historialMuestra.create({
+              data: {
+                name: fileName || `MuestraMasiva-${Date.now()}`,
+                records: sample.length,
+                range: `${start}-${end}`,
+                seed,
+                allowDuplicates,
+                source: meta.fileName,
+                hash,
+                tipo: "masivo",
+                userId: effectiveUserId,
+              },
+            });
+          } catch (err) {
+            console.error("❌ Error guardando historial masivo:", err);
+          }
+        }
+
         return NextResponse.json({
           sample,
           hash,
           totalRows: count,
+          tipo: "masivo",
         });
       }
 
@@ -188,13 +230,24 @@ export async function POST(req: Request) {
           return NextResponse.json({ error: "No hay filas para exportar" }, { status: 400 });
         }
 
-        if (format === "json") return NextResponse.json(rows);
+        // --- JSON ---
+        if (format === "json") {
+          return new Response(JSON.stringify(rows, null, 2), {
+            headers: {
+              "Content-Type": "application/json",
+              "Content-Disposition": `attachment; filename=${fileName || "muestra"}.json`,
+            },
+          });
+        }
 
+        // --- TXT (columnas alineadas) ---
         if (format === "txt") {
           const headers = Object.keys(rows[0]);
           const colWidths = headers.map(
-            (h, i) => Math.max(h.length, ...rows.map((row: RowData) => String(Object.values(row)[i]).length))
+            (h, i) =>
+              Math.max(h.length, ...rows.map((row: RowData) => String(Object.values(row)[i]).length))
           );
+
           let text = "";
           text += headers.map((h, i) => h.padEnd(colWidths[i] + 2)).join("") + "\n";
           text += colWidths.map((w) => "-".repeat(w + 2)).join("") + "\n";
@@ -214,6 +267,7 @@ export async function POST(req: Request) {
           });
         }
 
+        // --- XML ---
         if (format === "xml") {
           let xml = "<rows>\n";
           rows.forEach((row: RowData) => {
@@ -233,9 +287,66 @@ export async function POST(req: Request) {
           });
         }
 
+        // --- CSV ---
+        if (format === "csv") {
+          const headers = Object.keys(rows[0]);
+          const csvData = [
+            headers.join(","), // encabezados
+            ...rows.map((row: RowData) =>
+              headers.map((h) => JSON.stringify(row[h] ?? "")).join(",")
+            ),
+          ].join("\n");
+
+          return new Response(csvData, {
+            headers: {
+              "Content-Type": "text/csv",
+              "Content-Disposition": `attachment; filename=${fileName || "muestra"}.csv`,
+            },
+          });
+        }
+
         return NextResponse.json({ error: "Formato no soportado en masivo" }, { status: 400 });
       }
+      
+      // --- D) Consultar historial masivo ---
+      if (action === "historial") {
+        const { userId } = options;
+        if (!userId) {
+          return NextResponse.json({ error: "Falta userId" }, { status: 400 });
+        }
 
+        try {
+          const historial = await prisma.historialMuestra.findMany({
+            where: { userId, tipo: "masivo" },
+            orderBy: { createdAt: "desc" },
+            include: {
+              user: { select: { name: true, email: true } },
+            },
+          });
+
+          const items = historial.map((h) => ({
+            id: h.id,
+            name: h.name,
+            createdAt: h.createdAt,
+            userDisplay: h.user?.name ?? h.user?.email ?? h.userId,
+            records: h.records,
+            range: h.range,
+            seed: h.seed,
+            allowDuplicates: h.allowDuplicates,
+            source: h.source,
+            hash: h.hash,
+            tipo: h.tipo,
+          }));
+
+          return NextResponse.json(items);
+        } catch (err: any) {
+          return NextResponse.json(
+            { error: "Error al consultar historial masivo", details: err.message },
+            { status: 500 }
+          );
+        }
+      }
+      // este return solo si la acción no coincide
       return NextResponse.json({ error: "Acción no válida en masivo" }, { status: 400 });
     }
 

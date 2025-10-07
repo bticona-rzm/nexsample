@@ -72,6 +72,7 @@ model HistorialMuestra {
   allowDuplicates Boolean
   source          String
   hash            String
+  tipo            String   @default("estandar") // "estandar" | "masivo"
 
   userId String
   user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -79,6 +80,7 @@ model HistorialMuestra {
   @@index([userId, createdAt(sort: Desc)])
   @@map("historial_muestras")
 }
+
 
 model VerificationToken {
   identifier String

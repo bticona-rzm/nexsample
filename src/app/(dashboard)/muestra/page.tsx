@@ -38,6 +38,7 @@ const TablaHistorial = ({ historial }: { historial: any[] }) => (
           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">DUPLICADOS</th>
           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">ARCHIVO FUENTE</th>
           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">HASH</th>
+          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">TIPO</th>
         </tr>
       </thead>
         <tbody>
@@ -52,6 +53,7 @@ const TablaHistorial = ({ historial }: { historial: any[] }) => (
               <td className="px-6 py-2">{h.allowDuplicates ? "Sí" : "No"}</td>
               <td className="px-6 py-2">{h.source || "Desconocido"}</td>
               <td className="px-6 py-2 font-mono text-xs">{h.hash}</td>
+              <td className="px-6 py-2 font-bold">{h.tipo === "masivo" ? "Masivo" : "Estándar"}</td>
             </tr>
           ))}
         </tbody>
@@ -393,8 +395,6 @@ export default function MuestraPage() {
   const [uploadingMasivo, setUploadingMasivo] = useState(false);
   const [selectedTabIdMasivo, setSelectedTabIdMasivo] = useState("");
 
-
-
   // Dataset de pestaña activa (ya lo tienes)
   const currentRows =
     activeTab === "historial"
@@ -480,7 +480,7 @@ export default function MuestraPage() {
           id: newTabId,
           name: sampleParams.fileName || `Muestra-${newTabId}`,
           rows: sample,
-          datasetId: currentTab.datasetId,   // 🔑 seguimos guardando el id
+          datasetId: currentTab.datasetId,   // seguimos guardando el id
           sourceFile: currentTab.sourceFile,
           datasetLabel: currentTab.datasetLabel,
         },
@@ -509,79 +509,65 @@ export default function MuestraPage() {
     }
   };
 
-  // === Muestreo masivo vía backend ===
+  // === Muestreo Masivo ===
+  // === Muestreo Masivo ===
   const handleOkMasivo = async () => {
-    if (!sampleParamsMasivo.records || sampleParamsMasivo.records <= 0) {
-      alert("Debe especificar cuántos registros quiere muestrear.");
+    if (!selectedTabIdMasivo) {
+      alert("Debes seleccionar un dataset masivo cargado.");
       return;
     }
 
-    const currentTab = tabs.find((t) => t.id === activeTab);
-    if (!currentTab || !currentTab.datasetId) {
-      alert("No hay dataset masivo cargado en esta pestaña.");
+    const tab = tabs.find((t) => t.id === selectedTabIdMasivo);
+    if (!tab) {
+      alert("La pestaña seleccionada no existe.");
       return;
     }
 
     try {
-      const response = await fetch("/api/masiva", {
+      const res = await fetch("/api/masiva", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "sample",
-          datasetId: currentTab.datasetId,
+          datasetId: tab.id, // id de la pestaña como datasetId
           n: sampleParamsMasivo.records,
           seed: sampleParamsMasivo.seed,
           start: sampleParamsMasivo.start,
           end: sampleParamsMasivo.end,
           allowDuplicates: sampleParamsMasivo.allowDuplicates,
-          nombreMuestra: sampleParamsMasivo.fileName || currentTab.name,
-          datasetLabel: currentTab.datasetLabel,
-          sourceFile: currentTab.sourceFile,
+          fileName: sampleParamsMasivo.fileName,
+          userId,//  usuario autenticado
         }),
       });
 
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({} as any));
-        alert(`Error: ${err.details || err.error || "No se pudo generar la muestra masiva"}`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(`Error al muestrear masivo: ${err.error || res.statusText}`);
         return;
       }
 
-      const { sample, hash } = await response.json();
-      const newTabId = `masivo_${Date.now()}`;
+      const { sample, hash } = await res.json();
+      const newTabId = Date.now().toString();
 
+      // Agregamos la nueva pestaña con resultados
       setTabs((prev) => [
         ...prev,
         {
           id: newTabId,
           name: sampleParamsMasivo.fileName || `MuestraMasiva-${newTabId}`,
           rows: sample,
-          datasetId: currentTab.datasetId,
-          sourceFile: currentTab.sourceFile,
-          datasetLabel: currentTab.datasetLabel,
-          isMasivo: true,
+          datasetId: tab.id,
+          sourceFile: tab.sourceFile,
+          datasetLabel: tab.datasetLabel,
         },
       ]);
       setActiveTab(newTabId);
 
-      setHistorial((prev) => [
-        ...prev,
-        {
-          id: newTabId,
-          hash,
-          name: sampleParamsMasivo.fileName || `MuestraMasiva-${newTabId}`,
-          date: new Date().toLocaleString(),
-          user: "Administrador",
-          records: sample.length,
-          range: `${sampleParamsMasivo.start} - ${sampleParamsMasivo.end}`,
-          seed: sampleParamsMasivo.seed,
-          allowDuplicates: sampleParamsMasivo.allowDuplicates ? "Sí" : "No",
-          source: currentTab.sourceFile || "Desconocido",
-        },
-      ]);
-
+      // En vez de setHistorial manual → refrescamos desde backend
+      openHistorial();
       setShowModalMasivo(false);
     } catch (e: any) {
-      alert(`Error inesperado en muestreo masivo: ${e.message}`);
+      alert(`Error inesperado: ${e.message}`);
     }
   };
 
@@ -651,7 +637,7 @@ export default function MuestraPage() {
   };
 
 
-  // === Exportación de dataset masivo ===
+  // === Exportar Dataset Masivo ===
   const exportDataMasivo = async (format: string) => {
     if (!selectedTabIdMasivo) {
       alert("Debes seleccionar una pestaña de muestreo masivo.");
@@ -659,8 +645,13 @@ export default function MuestraPage() {
     }
 
     const tab = tabs.find((t) => t.id === selectedTabIdMasivo);
-    if (!tab || !tab.datasetId) {
-      alert("El dataset masivo seleccionado no es válido.");
+    if (!tab) {
+      alert("La pestaña seleccionada no existe.");
+      return;
+    }
+
+    if (!tab.rows || tab.rows.length === 0) {
+      alert("No hay datos en esta pestaña para exportar.");
       return;
     }
 
@@ -670,9 +661,9 @@ export default function MuestraPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "export",
-          datasetId: tab.datasetId,
+          rows: tab.rows,              // 👈 exportamos SOLO la muestra de la pestaña
           format,
-          fileName: sampleParamsMasivo.fileName || tab.name,
+          fileName: tab.name || "muestra_masiva",
         }),
       });
 
@@ -682,15 +673,16 @@ export default function MuestraPage() {
         return;
       }
 
+      // Descarga del archivo
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `${sampleParamsMasivo.fileName || tab.name}.${format}`;
+      link.download = `${tab.name}.${format}`;
       link.click();
       URL.revokeObjectURL(url);
     } catch (e: any) {
-      alert(`Error inesperado en exportación masiva: ${e.message}`);
+      alert(`Error inesperado: ${e.message}`);
     }
   };
 
@@ -805,82 +797,84 @@ export default function MuestraPage() {
     }
   };
 
-  // === Subida de archivo Masivo vía API con loader/progreso ===
+  // === Subida de archivo Masivo ===
   const handleFileUploadMasivo = async () => {
     if (!uploadedFileMasivo) {
       alert("Seleccione un archivo masivo");
       return;
     }
 
+    setUploadingMasivo(true);
+    setProgressMasivo(0);
+
     try {
-      setUploadingMasivo(true);
-      setProgressMasivo(0);
+      // Detecta formato por extensión
+      const format = uploadedFileMasivo.name.endsWith(".json")
+        ? "json"
+        : uploadedFileMasivo.name.endsWith(".xml")
+        ? "xml"
+        : "csv"; // default csv/txt
 
-      const formData = new FormData();
-      formData.append("file", uploadedFileMasivo);
-      formData.append("datasetName", datasetNameMasivo || uploadedFileMasivo.name);
-      formData.append("useHeader", useHeadersMasivo ? "true" : "false");
-
+      // --- Usamos XMLHttpRequest para capturar progreso ---
       const xhr = new XMLHttpRequest();
-      xhr.open("POST", "/api/masiva");
+      xhr.open("POST", "/api/masiva", true);
+      xhr.setRequestHeader("Content-Type", "application/json");
 
       xhr.upload.onprogress = (event) => {
         if (event.lengthComputable) {
           const percent = Math.round((event.loaded / event.total) * 100);
-          setProgressMasivo(percent);
+          setProgressMasivo(percent); // ⬅️ actualiza la barra
         }
       };
 
-      xhr.onload = async () => {
+      xhr.onload = () => {
         setUploadingMasivo(false);
-        setProgressMasivo(0);
+        setProgressMasivo(100);
 
-        if (xhr.status >= 200 && xhr.status < 300) {
-          const { preview, total, datasetId, fileName } = JSON.parse(xhr.responseText);
+        if (xhr.status === 200) {
+          const data = JSON.parse(xhr.responseText);
 
-          const newTabId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+          // Guardamos el dataset masivo como nueva pestaña
           setTabs((prev) => [
             ...prev,
             {
-              id: newTabId,
-              name: fileName || uploadedFileMasivo.name,
-              rows: preview || [],
-              datasetId,
-              sourceFile: uploadedFileMasivo.name,
-              datasetLabel: datasetNameMasivo || "",
-              isMasivo: true,
+              id: data.datasetId,
+              name: datasetNameMasivo || data.fileName,
+              rows: data.preview || [],   // preview mostrado
+              total: data.total || 0,
+              type: "masivo",
             },
           ]);
+          setActiveTab(data.datasetId);
+          setSelectedTabIdMasivo(data.datasetId); // Guardar el dataset masivo cargado
 
-          setSampleParamsMasivo((prev) => ({
-            ...prev,
-            start: 1,
-            end: total,
-            totalRows: total,
-          }));
-
-          setActiveTab(newTabId);
           setShowUploadModalMasivo(false);
           setUploadedFileMasivo(null);
+          setDatasetNameMasivo("");
         } else {
-          alert(`Error al procesar archivo masivo: ${xhr.statusText}`);
+          const err = JSON.parse(xhr.responseText);
+          alert("Error al subir masivo: " + (err.error || "Error desconocido"));
         }
       };
 
       xhr.onerror = () => {
         setUploadingMasivo(false);
-        setProgressMasivo(0);
-        alert("Error de conexión al subir archivo masivo");
+        alert("Error de red al subir masivo");
       };
 
-      xhr.send(formData);
-    } catch (e: any) {
+      // --- Payload enviado al backend ---
+      const payload = JSON.stringify({
+        action: "register",
+        fileName: uploadedFileMasivo.name, // debe estar en DATASETS_DIR
+        format,
+      });
+
+      xhr.send(payload);
+    } catch (err: any) {
+      alert("Error al subir masivo: " + err.message);
       setUploadingMasivo(false);
-      setProgressMasivo(0);
-      alert(`Error inesperado: ${e.message}`);
     }
   };
-
 
   // === Acciones UI ===
   const closeTab = (id: string) => {
@@ -889,19 +883,13 @@ export default function MuestraPage() {
     if (activeTab === id) setActiveTab(null);
   };
 
-  const openHistorial = () => {
-    setActiveTab("historial");
-    fetchHistorial(); // carga desde backend
-  };
-
-  // === Historial MASIVO ===
-  const openHistorialMasivo = async () => {
+  const openHistorial = async () => {
     setActiveTab("historial");
     try {
-      const res = await fetch("/api/masiva", {
+      const res = await fetch("/api/historial", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "historial", userId }),
+        body: JSON.stringify({ action: "list" }),
       });
       if (!res.ok) {
         setHistorial([]);
@@ -913,6 +901,32 @@ export default function MuestraPage() {
       setHistorial([]);
     }
   };
+
+
+  // const openHistorial = () => {
+  //   setActiveTab("historial");
+  //   fetchHistorial(); // carga desde backend
+  // };
+
+  // === Historial MASIVO ===
+  // const openHistorialMasivo = async () => {
+  //   setActiveTab("historial");
+  //   try {
+  //     const res = await fetch("/api/masiva", {
+  //       method: "POST",
+  //       headers: { "Content-Type": "application/json" },
+  //       body: JSON.stringify({ action: "historial", userId }),
+  //     });
+  //     if (!res.ok) {
+  //       setHistorial([]);
+  //       return;
+  //     }
+  //     const data = await res.json();
+  //     setHistorial(Array.isArray(data) ? data : []);
+  //   } catch {
+  //     setHistorial([]);
+  //   }
+  // };
 
   // Hasta que esté hidratado, no renders (evita mismatch SSR/CSR)
   if (!hydrated) {
@@ -1093,13 +1107,7 @@ export default function MuestraPage() {
 
             {/* Historial */}
             <button
-              onClick={() => {
-                if (subTab === "estandar") {
-                  openHistorial();
-                } else {
-                  openHistorialMasivo();
-                }
-              }}
+              onClick={openHistorial} 
               className="w-full flex items-center gap-2 bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-2 px-4 rounded shadow transition-colors"
             >
               <History size={18} />

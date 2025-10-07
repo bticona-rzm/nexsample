@@ -1,17 +1,32 @@
 import { NextResponse } from "next/server";
-import * as XLSX from "xlsx";
-import { createHash } from "crypto";   
-import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import fs from "fs";
+import path from "path";
+import csv from "csv-parser";
+import JSONStream from "JSONStream";
+import xmlFlow from "xml-flow";
+import { createHash } from "crypto";
 
-// ---- Cache global para datasets ----
-if (!(globalThis as any).datasetStore) {
-  (globalThis as any).datasetStore = {};
+// ---------- Tipos ----------
+type RowData = Record<string, any>;
+
+interface SampleOptions {
+  datasetId: string;
+  n: number;
+  seed: number;
+  start: number;
+  end: number;
+  allowDuplicates: boolean;
 }
-const datasetStore: Record<string, any[]> = (globalThis as any).datasetStore;
 
-// ---------- Algoritmos internos ----------
+// ---------- Configuración ----------
+const DATASETS_DIR = "C:/datasets";
+
+if (!(globalThis as any).datasetStoreMasivo) {
+  (globalThis as any).datasetStoreMasivo = {};
+}
+const datasetStoreMasivo: Record<string, { rows: RowData[] }> = (globalThis as any).datasetStoreMasivo;
+
+// ---------- Utilidades ----------
 function mulberry32(a: number) {
   return function () {
     let t = (a += 0x6d2b79f5);
@@ -22,23 +37,22 @@ function mulberry32(a: number) {
 }
 
 function randomSample(
-  array: any[],
+  array: RowData[],
   n: number,
   seed: number,
   start: number,
   end: number,
   allowDuplicates: boolean
-) {
-  if (!Array.isArray(array) || array.length === 0)
-    throw new Error("El dataset está vacío");
+): RowData[] {
+  if (array.length === 0) throw new Error("Dataset vacío");
   if (start < 1 || end > array.length || start > end)
-    throw new Error("El rango de inicio/fin no es válido");
+    throw new Error("Rango inválido");
   if (!allowDuplicates && n > end - start + 1)
     throw new Error("Más registros que rango disponible sin duplicados");
 
   let rng = mulberry32(seed);
   let slice = array.slice(start - 1, end);
-  let result: any[] = [];
+  let result: RowData[] = [];
 
   while (result.length < n && slice.length > 0) {
     let idx = Math.floor(rng() * slice.length);
@@ -49,7 +63,14 @@ function randomSample(
   return result;
 }
 
-function toXML(rows: any[]): string {
+function generateHash(data: any): string {
+  return createHash("sha256")
+    .update(JSON.stringify(data))
+    .digest("hex")
+    .slice(0, 12);
+}
+
+function toXML(rows: RowData[]): string {
   let xml = "<rows>\n";
   rows.forEach((row) => {
     xml += "  <row>\n";
@@ -62,104 +83,86 @@ function toXML(rows: any[]): string {
   return xml;
 }
 
-function generateHash(data: any): string {
-  return createHash("sha256")
-    .update(JSON.stringify(data))
-    .digest("hex")
-    .slice(0, 12);
-}
-
 // ---------- API ----------
 export async function POST(req: Request) {
   try {
-    const session: any = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-    const userId = session.user.id as string;
+    const { action, ...options } = await req.json();
 
-    const contentType = req.headers.get("content-type");
+    // === UPLOAD ===
+    if (action === "upload") {
+      const { fileName, format } = options as { fileName: string; format: string };
+      if (!fileName) return NextResponse.json({ error: "Debe especificar fileName" }, { status: 400 });
 
-    if (contentType?.includes("multipart/form-data")) {
-      const formData = await req.formData();
-      const file = formData.get("file") as File;
-      const datasetName = formData.get("datasetName") as string;
-      const useHeader = formData.get("useHeader") === "true";
-
-      if (!file) {
-        return NextResponse.json({ error: "No se subió ningún archivo" }, { status: 400 });
-      }
-      // ⚠️ Validación de tamaño: máximo 100 MB
-      const maxSize = 100 * 1024 * 1024; // 100 MB en bytes
-      if (file.size > maxSize) {
-        return NextResponse.json(
-          {
-            error: `El archivo excede el límite permitido (100 MB). Tamaño recibido: ${(file.size / (1024 * 1024)).toFixed(2)} MB`
-          },
-          { status: 413 } // 413 Payload Too Large
-        );
+      const filePath = path.join(DATASETS_DIR, fileName);
+      if (!fs.existsSync(filePath)) {
+        return NextResponse.json({ error: "Archivo no encontrado en datasets" }, { status: 404 });
       }
 
-      const bytes = await file.arrayBuffer();
-      const buffer = Buffer.from(bytes);
-      const workbook = XLSX.read(buffer, { type: "buffer" });
-      const sheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[sheetName];
-      const rows = XLSX.utils.sheet_to_json(worksheet, { header: useHeader ? 0 : 1 });
-      const datasetId = `ds_${Date.now()}`;
-      datasetStore[datasetId] = rows;
+      const rows: RowData[] = [];
+      const datasetId = `msv_${Date.now()}`;
+
+      if (format === "csv") {
+        await new Promise<void>((resolve, reject) => {
+          fs.createReadStream(filePath)
+            .pipe(csv())
+            .on("data", (row: RowData) => rows.push(row))
+            .on("end", resolve)
+            .on("error", reject);
+        });
+      }
+
+      else if (format === "json") {
+        await new Promise<void>((resolve, reject) => {
+          fs.createReadStream(filePath)
+            .pipe(JSONStream.parse("*"))
+            .on("data", (row: RowData) => rows.push(row))
+            .on("end", resolve)
+            .on("error", reject);
+        });
+      }
+
+      else if (format === "xml") {
+        await new Promise<void>((resolve, reject) => {
+          const stream = fs.createReadStream(filePath);
+          const xmlStream = xmlFlow(stream);
+
+          xmlStream.on("tag:row", (row: RowData) => rows.push(row));
+          xmlStream.on("end", resolve);
+          xmlStream.on("error", reject);
+        });
+      }
+
+      datasetStoreMasivo[datasetId] = { rows };
 
       return NextResponse.json({
         datasetId,
-        rows: rows.slice(0, 50), // preview de 50 filas
         total: rows.length,
-        dataset: datasetName || file.name,
+        preview: rows.slice(0, 50),
+        fileName,
       });
     }
 
-    // === ACCIONES JSON ===
-    const { action, ...options } = await req.json();
-
+    // === SAMPLE ===
     if (action === "sample") {
-      const {
-        datasetId, n, seed, start, end, allowDuplicates,
-        nombreMuestra, datasetLabel, sourceFile,
-      } = options;
+      const { datasetId, n, seed, start, end, allowDuplicates } = options as SampleOptions;
+      const meta = datasetStoreMasivo[datasetId];
+      if (!meta) return NextResponse.json({ error: "Dataset no registrado" }, { status: 404 });
 
-      const dataset = datasetStore[datasetId];
-      if (!dataset) {
-        return NextResponse.json({ error: "Dataset no encontrado o expirado" }, { status: 404 });
-      }
+      const sample = randomSample(meta.rows, n, seed, start, end, allowDuplicates);
+      const hash = generateHash({ n, seed, start, end, allowDuplicates });
 
-      const sample = randomSample(dataset, n, seed, start, end, allowDuplicates);
-      const hash = generateHash({ sample, n, seed, start, end, allowDuplicates });
-
-      await prisma.historialMuestra.create({
-        data: {
-          userId,
-          name: nombreMuestra || `Muestra_${Date.now()}`,
-          records: n,
-          range: `${start}-${end}`,
-          seed,
-          allowDuplicates,
-          source: sourceFile || datasetLabel || "frontend",
-          hash,
-        },
-      });
-
-      return NextResponse.json({ sample, hash, totalRows: dataset.length });
+      return NextResponse.json({ sample, hash, totalRows: meta.rows.length });
     }
 
+    // === EXPORT ===
     if (action === "export") {
-      const { datasetId, format, fileName } = options as {
-        datasetId: string;
-        format: string;
-        fileName?: string;
-      };
+      const { datasetId, format } = options as { datasetId: string; format: string };
+      const meta = datasetStoreMasivo[datasetId];
+      if (!meta) return NextResponse.json({ error: "Dataset no registrado" }, { status: 404 });
 
-      const rows = datasetStore[datasetId];
+      const rows = meta.rows;
       if (!rows || rows.length === 0) {
-        return NextResponse.json({ error: "Dataset no encontrado o vacío" }, { status: 400 });
+        return NextResponse.json({ error: "Dataset vacío" }, { status: 400 });
       }
 
       if (format === "json") return NextResponse.json(rows);
@@ -187,68 +190,16 @@ export async function POST(req: Request) {
         return new Response(text, {
           headers: {
             "Content-Type": "text/plain",
-            "Content-Disposition": `attachment; filename=${fileName || "muestra"}.txt`,
+            "Content-Disposition": `attachment; filename=masivo.txt`,
           },
         });
       }
 
-      const worksheet = XLSX.utils.json_to_sheet(rows);
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Datos");
-      const arrayBuffer = XLSX.write(workbook, { type: "array", bookType: format as any });
-
-      return new Response(arrayBuffer, {
-        headers: {
-          "Content-Type":
-            format === "csv"
-              ? "text/csv"
-              : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-          "Content-Disposition": `attachment; filename=${fileName || "muestra"}.${format}`,
-        },
-      });
-    } 
-
-    if (action === "historial") {
-      const historial = await prisma.historialMuestra.findMany({
-        where: { userId },
-        orderBy: { createdAt: "desc" },
-        include: { user: { select: { name: true, email: true } } },
-      });
-
-      const items = historial.map((h) => ({
-        id: h.id,
-        name: h.name,
-        createdAt: h.createdAt,
-        userDisplay: h.user?.name ?? h.user?.email ?? h.userId,
-        records: h.records,
-        range: h.range,
-        seed: h.seed,
-        allowDuplicates: h.allowDuplicates,
-        source: h.source,
-        hash: h.hash,
-      }));
-
-      return NextResponse.json(items);
-    }
-
-    if (action === "clearHistorial") {
-      await prisma.historialMuestra.deleteMany({ where: { userId } });
-      return NextResponse.json({ success: true });
+      return NextResponse.json({ error: "Formato no soportado" }, { status: 400 });
     }
 
     return NextResponse.json({ error: "Acción no válida" }, { status: 400 });
   } catch (err: any) {
-    return NextResponse.json(
-      { error: "Error interno del servidor", details: err?.message ?? String(err) },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Error interno masivo", details: err.message }, { status: 500 });
   }
 }
-
-// ---------- CONFIGURACIÓN ESPECÍFICA PARA ESTE ROUTE ----------
-export const config = {
-  api: {
-    bodyParser: false,
-    sizeLimit: "100mb", // límite para DataEstandar
-  },
-};  
