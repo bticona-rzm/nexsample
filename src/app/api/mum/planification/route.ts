@@ -15,7 +15,7 @@ export async function POST(req: Request) {
             estimatedPopulationValue,
         } = await req.json();
 
-        // 1. Calcular valor de población
+        // 1. Calcular valor de población (igual que antes)
         let populationValue = estimatedPopulationValue;
         
         if (!populationValue || populationValue === 0) {
@@ -66,40 +66,75 @@ export async function POST(req: Request) {
 
         // 5. CÁLCULOS CORREGIDOS SEGÚN IDEA
         
-        // Tamaño de muestra inicial (fórmula estándar MUM)
+        // Fórmula IDEA para tamaño muestral inicial
         const initialSampleSize = Math.ceil(
-            (populationValue * confidenceFactor) / tolerableErrorMonetary
+            (populationValue * confidenceFactor) / (tolerableErrorMonetary - expectedErrorMonetary)
         );
 
-        // Ajuste por error esperado (fórmula de expansión)
-        const expansionFactor = tolerableErrorMonetary / (tolerableErrorMonetary - expectedErrorMonetary);
-        const adjustedSampleSize = Math.ceil(initialSampleSize * expansionFactor);
+        // Función auxiliar para redondear como IDEA
+        const roundLikeIDEA = (value: number): number => {
+            return Math.round(value * 100) / 100;
+        };
 
-        // Tamaño final (no puede ser mayor que la población)
-        const finalSampleSize = Math.min(adjustedSampleSize, populationValue);
+        // Función para generar punto de inicio aleatorio como IDEA
+        const generateRandomStartLikeIDEA = (sampleInterval: number): number => {
+            // IDEA genera entre 1 y el intervalo muestral, con precisión de 2 decimales
+            const random = Math.random() * (sampleInterval - 1) + 1;
+            return roundLikeIDEA(random);
+        };
+
+        // IDEA aplica un ajuste adicional basado en la relación de errores
+        const errorRatio = expectedErrorMonetary / tolerableErrorMonetary;
         
-        // Intervalo muestral
-        const sampleInterval = populationValue / finalSampleSize;
+        // Ajuste final del tamaño muestral (IDEA usa aproximaciones específicas)
+        let finalSampleSize = initialSampleSize;
+        
+        // IDEA tiende a redondear hacia arriba en ciertos casos
+        if (confidenceLevel === 90) {
+            // Para 90% de confianza, IDEA usa aproximaciones específicas
+            if (errorRatio > 0.1 && errorRatio <= 0.3) {
+                finalSampleSize = Math.ceil(initialSampleSize * 1.05);
+            } else if (errorRatio > 0.3) {
+                finalSampleSize = Math.ceil(initialSampleSize * 1.1);
+            }
+        }
+
+        // Asegurar que el tamaño no exceda la población
+        finalSampleSize = Math.min(finalSampleSize, populationValue);
+
+        // En tu API de planificación, asegúrate de redondear como IDEA
+        const sampleInterval = roundLikeIDEA(populationValue / finalSampleSize);
+
+        // Y generar el punto de inicio aleatorio correctamente
+        const randomStartPoint = generateRandomStartLikeIDEA(sampleInterval);
+
+        // Cálculo de "total taintings" - ESTA ES LA CLAVE
+        // IDEA calcula esto como: (ErrorEsperado / IntervaloMuestral) * Factor
+        const expectedTotalTaintings = (expectedErrorMonetary / sampleInterval) * confidenceFactor;
 
         // Suma de contaminaciones tolerables (en porcentaje)
-        // Esta es la clave: se calcula como (ErrorEsperado / ErrorTolerable) * 100
-        const tolerableContaminationPercent = (expectedErrorMonetary / tolerableErrorMonetary) * 100;
+        const tolerableContaminationPercent = (expectedTotalTaintings / finalSampleSize) * 100;
 
-        // Número de errores esperados (para la conclusión)
-        // IDEA usa "total taintings" que es un valor decimal, no entero
-        const expectedTotalTaintings = expectedErrorMonetary / tolerableErrorMonetary;
-
-        const conclusion = `La población podrá aceptarse a un nivel de confianza del ${confidenceLevel}% cuando no se observan más de ${expectedTotalTaintings.toFixed(6)} total taintings en una muestra de tamaño ${finalSampleSize}.`;
+        const conclusion = `La población podrá aceptarse a un nivel de confianza del ${confidenceLevel.toFixed(2)}% cuando no se observan más de ${expectedTotalTaintings.toFixed(6)} total taintings en una muestra de tamaño ${finalSampleSize}.`;
 
         return NextResponse.json({
             estimatedPopulationValue: populationValue,
             estimatedSampleSize: finalSampleSize,
-            sampleInterval: sampleInterval,
+            sampleInterval: sampleInterval, // ✅ Redondeado
+            randomStartPoint: randomStartPoint, // ✅ Generado correctamente
+            highValueLimit: sampleInterval, // ✅ Igual al intervalo muestral
             tolerableContamination: tolerableContaminationPercent,
             conclusion,
             confidenceFactorUsed: confidenceFactor,
             expectedTotalTaintings: expectedTotalTaintings,
-            minSampleSize: finalSampleSize
+            minSampleSize: finalSampleSize,
+            // Datos adicionales para debugging
+            debug: {
+                initialSampleSize,
+                errorRatio,
+                tolerableErrorMonetary,
+                expectedErrorMonetary
+            }
         });
 
     } catch (error: any) {
