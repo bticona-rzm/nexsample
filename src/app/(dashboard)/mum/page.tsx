@@ -8,6 +8,8 @@ import Planification from "./componentes/Planification";
 import Extraction from "./componentes/Extraction";
 import Evaluation from "./componentes/Evaluation";
 import { LogProvider } from '../../../contexts/LogContext'; // Importa el LogProvider
+import AnimatedTabs from '../../../components/visual/AnimatedTabs';
+import { motion } from 'framer-motion';
 
 function MumPageContent() {
     const [excelData, setExcelData] = useState<ExcelRow[]>([]);
@@ -315,7 +317,7 @@ function MumPageContent() {
     };
 
     const tabs = [
-        { id: "visualizar", name: "Visualizar Datos" },
+        { id: "visualizar", name: "Visualizar" },
         { id: "planificacion", name: "Planificación", disabled: !isExcelLoaded },
         { id: "extraccion", name: "Extracción", disabled: !isPlanificacionDone },
         { id: "evaluacion", name: "Evaluación", disabled: !isExtraccionDone },
@@ -353,148 +355,146 @@ function MumPageContent() {
                     </div>
                 </div>
 
-                <hr className="my-6 border-t border-gray-300" />
+                <hr className="my-5 border-t border-gray-300" />
 
                 {/* Navegación por pestañas */}
-                <div className="mb-6 flex space-x-2 border-b border-gray-200">
-                    {tabs.map((tab) => (
-                        <button
-                            key={tab.id}
-                            onClick={() => setActiveTab(tab.id)}
-                            disabled={tab.disabled}
-                            className={`py-2 px-4 text-sm font-medium rounded-t-lg ${
-                                activeTab === tab.id
-                                    ? "bg-white text-blue-600 border-b-2 border-blue-600"
-                                    : "bg-gray-100 text-gray-500 hover:bg-gray-200"
-                            } ${tab.disabled ? "cursor-not-allowed opacity-50" : ""}`}
-                        >
-                            {tab.name}
-                        </button>
-                    ))}
-                </div>
+                <AnimatedTabs
+                tabs={tabs}
+                activeTab={activeTab}
+                onTabChange={setActiveTab}
+                className="mb-8"
+                />
 
                 {/* Contenido de la pestaña activa */}
                 <div>
-                    {activeTab === "visualizar" && (
-                        <Visualizer excelData={excelData} headers={headers} />
-                    )}
-                    {activeTab === "planificacion" && (
-                        <Planification
-                            isExcelLoaded={isExcelLoaded}
-                            headers={headers}
-                            useFieldValue={useFieldValue}
-                            setUseFieldValue={setUseFieldValue}
-                            selectedField={selectedField}
-                            setSelectedField={setSelectedField}
-                            selectedPopulationType={selectedPopulationType}
-                            setSelectedPopulationType={setSelectedPopulationType}
-                            confidenceLevel={confidenceLevel}
-                            setConfidenceLevel={setConfidenceLevel}
-                            errorType={errorType}
-                            setErrorType={setErrorType}
-                            tolerableError={tolerableError}
-                            setTolerableError={setTolerableError}
-                            expectedError={expectedError}
-                            setExpectedError={setExpectedError}
-                            modifyPrecision={modifyPrecision}
-                            setModifyPrecision={setModifyPrecision}
-                            precisionValue={precisionValue}
-                            setPrecisionValue={setPrecisionValue}
-                            estimatedPopulationValue={estimatedPopulationValue}
-                            setEstimatedPopulationValue={setEstimatedPopulationValue}
-                            estimatedSampleSize={estimatedSampleSize}
-                            setEstimatedSampleSize={setEstimatedSampleSize}
-                            sampleInterval={sampleInterval}
-                            setSampleInterval={setSampleInterval}
-                            tolerableContamination={tolerableContamination}
-                            setTolerableContamination={setTolerableContamination}
-                            conclusion={conclusion}
-                            setConclusion={setConclusion}
-                            minSampleSize={minSampleSize}
-                            setMinSampleSize={setMinSampleSize}
-                            excelData={excelData}
-                            setIsPlanificacionDone={setIsPlanificacionDone}
-                            setActiveTab={setActiveTab}
-                            handlePlanification={handlePlanification}
-                        />
-                    )}
-                    {activeTab === "extraccion" && (
-                        <Extraction
-                            isPlanificacionDone={isPlanificacionDone}
-                            headers={headers}
-                            excelData={excelData}
-                            estimatedSampleSize={estimatedSampleSize}
-                            sampleInterval={sampleInterval}
-                            highValueLimit={highValueLimit}
-                            highValueManagement={highValueManagement}
-                            setHighValueManagement={setHighValueManagement}
-                            highValueFilename={highValueFilename}
-                            setHighValueFilename={setHighValueFilename}
-                            highValueCount={highValueCount}
-                            setHighValueCount={setHighValueCount}
-                            setHighValueLimit={setHighValueLimit}
-                            modifyHighValueLimit={modifyHighValueLimit}
-                            setModifyHighValueLimit={setModifyHighValueLimit}
-                            sampleField={sampleField}
-                            setSampleField={setSampleField}
-                            randomStartPoint={randomStartPoint}
-                            setRandomStartPoint={setRandomStartPoint}
-                            selectedTableType={selectedTableType}
-                            setSelectedTableType={setSelectedTableType}
-                            positiveTotal={positiveTotal}
-                            setPositiveTotal={setPositiveTotal}
-                            positiveRecords={positiveRecords}
-                            setPositiveRecords={setPositiveRecords}
-                            negativeTotal={negativeTotal}
-                            setNegativeTotal={setNegativeTotal}
-                            negativeRecords={negativeRecords}
-                            setNegativeRecords={setNegativeRecords}
-                            absoluteTotal={absoluteTotal}
-                            setAbsoluteTotal={setAbsoluteTotal}
-                            absoluteRecords={absoluteRecords}
-                            setAbsoluteRecords={setAbsoluteRecords}
-                            extractionFilename={extractionFilename}
-                            setExtractionFilename={setExtractionFilename}
-                            setIsExtraccionDone={setIsExtraccionDone}
-                            setActiveTab={setActiveTab}
-                            extractionType={extractionType}
-                            setExtractionType={setExtractionType}
-                            selectedField={selectedField}
-                            setSelectedField={setSelectedField}
-                            excelFilename={excelFilename}
-                            estimatedPopulationValue={estimatedPopulationValue}
-                            populationRecords={populationRecords}
-                            handleExtraction={handleExtraction}
-                        />
-                    )}
-                    {activeTab === "evaluacion" && (
-                        <Evaluation
-                            isExtraccionDone={isExtraccionDone}
-                            confidenceLevel={confidenceLevel}
-                            sampleInterval={sampleInterval}
-                            highValueLimit={highValueLimit}
-                            precisionValue={precisionValue}
-                            setPrecisionValue={setPrecisionValue}
-                            estimatedSampleSize={estimatedSampleSize}
-                            estimatedPopulationValue={estimatedPopulationValue}
-                            numErrores={numErrores}
-                            errorMasProbableBruto={errorMasProbableBruto}
-                            errorMasProbableNeto={errorMasProbableNeto}
-                            precisionTotal={precisionTotal}
-                            limiteErrorSuperiorBruto={limiteErrorSuperiorBruto}
-                            limiteErrorSuperiorNeto={limiteErrorSuperiorNeto}
-                            highValueCountResume={highValueCountResume}
-                            highValueTotal={highValueTotal}
-                            populationExcludingHigh={populationExcludingHigh}
-                            populationIncludingHigh={populationIncludingHigh}
-                            handleEvaluation={handleEvaluation}
-                            setActiveTab={setActiveTab}
-                            headers={headers} 
-                            tolerableError={tolerableError}
-                        />
-                    )}
+                    <motion.div
+                        key={activeTab}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -20 }}
+                        transition={{ duration: 0.3 }}
+                    >
+                        {activeTab === "visualizar" && (
+                            <Visualizer excelData={excelData} headers={headers} />
+                        )}
+                        {activeTab === "planificacion" && (
+                            <Planification
+                                isExcelLoaded={isExcelLoaded}
+                                headers={headers}
+                                useFieldValue={useFieldValue}
+                                setUseFieldValue={setUseFieldValue}
+                                selectedField={selectedField}
+                                setSelectedField={setSelectedField}
+                                selectedPopulationType={selectedPopulationType}
+                                setSelectedPopulationType={setSelectedPopulationType}
+                                confidenceLevel={confidenceLevel}
+                                setConfidenceLevel={setConfidenceLevel}
+                                errorType={errorType}
+                                setErrorType={setErrorType}
+                                tolerableError={tolerableError}
+                                setTolerableError={setTolerableError}
+                                expectedError={expectedError}
+                                setExpectedError={setExpectedError}
+                                modifyPrecision={modifyPrecision}
+                                setModifyPrecision={setModifyPrecision}
+                                precisionValue={precisionValue}
+                                setPrecisionValue={setPrecisionValue}
+                                estimatedPopulationValue={estimatedPopulationValue}
+                                setEstimatedPopulationValue={setEstimatedPopulationValue}
+                                estimatedSampleSize={estimatedSampleSize}
+                                setEstimatedSampleSize={setEstimatedSampleSize}
+                                sampleInterval={sampleInterval}
+                                setSampleInterval={setSampleInterval}
+                                tolerableContamination={tolerableContamination}
+                                setTolerableContamination={setTolerableContamination}
+                                conclusion={conclusion}
+                                setConclusion={setConclusion}
+                                minSampleSize={minSampleSize}
+                                setMinSampleSize={setMinSampleSize}
+                                excelData={excelData}
+                                setIsPlanificacionDone={setIsPlanificacionDone}
+                                setActiveTab={setActiveTab}
+                                handlePlanification={handlePlanification}
+                            />
+                        )}
+                        {activeTab === "extraccion" && (
+                            <Extraction
+                                isPlanificacionDone={isPlanificacionDone}
+                                headers={headers}
+                                excelData={excelData}
+                                estimatedSampleSize={estimatedSampleSize}
+                                sampleInterval={sampleInterval}
+                                highValueLimit={highValueLimit}
+                                highValueManagement={highValueManagement}
+                                setHighValueManagement={setHighValueManagement}
+                                highValueFilename={highValueFilename}
+                                setHighValueFilename={setHighValueFilename}
+                                highValueCount={highValueCount}
+                                setHighValueCount={setHighValueCount}
+                                setHighValueLimit={setHighValueLimit}
+                                modifyHighValueLimit={modifyHighValueLimit}
+                                setModifyHighValueLimit={setModifyHighValueLimit}
+                                sampleField={sampleField}
+                                setSampleField={setSampleField}
+                                randomStartPoint={randomStartPoint}
+                                setRandomStartPoint={setRandomStartPoint}
+                                selectedTableType={selectedTableType}
+                                setSelectedTableType={setSelectedTableType}
+                                positiveTotal={positiveTotal}
+                                setPositiveTotal={setPositiveTotal}
+                                positiveRecords={positiveRecords}
+                                setPositiveRecords={setPositiveRecords}
+                                negativeTotal={negativeTotal}
+                                setNegativeTotal={setNegativeTotal}
+                                negativeRecords={negativeRecords}
+                                setNegativeRecords={setNegativeRecords}
+                                absoluteTotal={absoluteTotal}
+                                setAbsoluteTotal={setAbsoluteTotal}
+                                absoluteRecords={absoluteRecords}
+                                setAbsoluteRecords={setAbsoluteRecords}
+                                extractionFilename={extractionFilename}
+                                setExtractionFilename={setExtractionFilename}
+                                setIsExtraccionDone={setIsExtraccionDone}
+                                setActiveTab={setActiveTab}
+                                extractionType={extractionType}
+                                setExtractionType={setExtractionType}
+                                selectedField={selectedField}
+                                setSelectedField={setSelectedField}
+                                excelFilename={excelFilename}
+                                estimatedPopulationValue={estimatedPopulationValue}
+                                populationRecords={populationRecords}
+                                handleExtraction={handleExtraction}
+                            />
+                        )}
+                        {activeTab === "evaluacion" && (
+                            <Evaluation
+                                isExtraccionDone={isExtraccionDone}
+                                confidenceLevel={confidenceLevel}
+                                sampleInterval={sampleInterval}
+                                highValueLimit={highValueLimit}
+                                precisionValue={precisionValue}
+                                setPrecisionValue={setPrecisionValue}
+                                estimatedSampleSize={estimatedSampleSize}
+                                estimatedPopulationValue={estimatedPopulationValue}
+                                numErrores={numErrores}
+                                errorMasProbableBruto={errorMasProbableBruto}
+                                errorMasProbableNeto={errorMasProbableNeto}
+                                precisionTotal={precisionTotal}
+                                limiteErrorSuperiorBruto={limiteErrorSuperiorBruto}
+                                limiteErrorSuperiorNeto={limiteErrorSuperiorNeto}
+                                highValueCountResume={highValueCountResume}
+                                highValueTotal={highValueTotal}
+                                populationExcludingHigh={populationExcludingHigh}
+                                populationIncludingHigh={populationIncludingHigh}
+                                handleEvaluation={handleEvaluation}
+                                setActiveTab={setActiveTab}
+                                headers={headers} 
+                                tolerableError={tolerableError}
+                            />
+                        )}
+                    </motion.div>
                 </div>
-            </div>
+            </div> 
         </main>
     );
 }

@@ -1,11 +1,11 @@
-import { fetchData, calculatePlanification, createRandomSample, calculateEvaluation } from "../../../lib/apiClient";
-import {PlanificationDataType } from "../../../lib/types";
-import { printPlanificationResults } from "./utils/printUtils"; // Nueva utilidad
+import { fetchData, calculatePlanification, createRandomSample, calculateEvaluation } from "./apiClient";
+import {PlanificationDataType } from "./types";
+import { printPlanificationResults } from "../utils/printUtils"; // Nueva utilidad
 import { useState, useRef } from "react";
 import * as XLSX from 'xlsx';
 
 // 🚨 AJUSTA ESTA RUTA 🚨 Asegúrate de que apunte a tu archivo de constantes.
-import { CONFIDENCE_FACTORS } from '../../../components/atributos/constants'; 
+import { CONFIDENCE_FACTORS } from '../components/atributos/constants'; 
 
 // Definiciones de tipos... (las mantienes aquí)
 type ExcelRow = { [key: string]: any };

@@ -2,15 +2,19 @@
 "use client";
 
 import { useRef } from "react";
+import { motion } from "framer-motion";
 
 // Importa el Presenter/Controlador del flujo
-import { useAtributosFlow } from "./useAtributosFlow"; 
+import { useAtributosFlow } from "../../../lib/useAtributosFlow"; 
 
 // Importa los componentes UI
 import Visualizer from "./componentes/Visualizer";
 import Planification from "./componentes/Planification";
 import Aleatorio from "./componentes/Aleatorio";
 import Evaluar from "./componentes/Evaluar";
+
+// Importa el componente AnimatedTabs
+import AnimatedTabs from "../../../components/visual/AnimatedTabs"; // Ajusta la ruta según tu estructura
 
 export default function AtributosPage() {
     // 1. CORRECCIÓN: Desestructurar TODAS las propiedades y funciones del hook 'useAtributosFlow'
@@ -43,15 +47,28 @@ export default function AtributosPage() {
 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-
     const renderContent = () => {
         switch (activeTab) {
             case "visualizar":
-                return <Visualizer excelData={excelData} headers={headers} />;
+                return (
+                  <motion.div
+                    key="visualizar"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <Visualizer excelData={excelData} headers={headers} />
+                  </motion.div>
+                );
             case "planificacion":
                 return (
+                  <motion.div
+                    key="planificacion"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3 }}
+                  >
                     <Planification
-                        // 🚨 CORRECCIÓN FINAL: Añadir la prop faltante 🚨
                         isExcelLoaded={isExcelLoaded} 
                         populationSize={populationSize}
                         expectedDeviation={expectedDeviation}
@@ -73,54 +90,69 @@ export default function AtributosPage() {
                         handleClose={handleClose}
                         handleHelp={handleHelp}
                     />
+                  </motion.div>
                 );
             case "aleatorio":
                 return (
+                  <motion.div
+                    key="aleatorio"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3 }}
+                  >
                     <Aleatorio
                         isPlanificacionDone={isPlanificacionDone}
                         excelData={excelData}
                         headers={headers}
-                        numRecordsToSelect={numRecordsToSelect}      // <== AHORA EXISTE
-                        startRandomNumber={startRandomNumber}        // <== AHORA EXISTE
-                        startRecordToSelect={startRecordToSelect}    // <== AHORA EXISTE
-                        endRecordToSelect={endRecordToSelect}        // <== AHORA EXISTE
-                        allowDuplicates={allowDuplicates}            // <== AHORA EXISTE
-                        outputFileName={outputFileName}              // <== AHORA EXISTE
-                        randomSample={randomSample}                  // <== AHORA EXISTE
+                        numRecordsToSelect={numRecordsToSelect}
+                        startRandomNumber={startRandomNumber}
+                        startRecordToSelect={startRecordToSelect}
+                        endRecordToSelect={endRecordToSelect}
+                        allowDuplicates={allowDuplicates}
+                        outputFileName={outputFileName}
+                        randomSample={randomSample}
                         isAleatorioDone={isAleatorioDone}
-                        setNumRecordsToSelect={setNumRecordsToSelect} // <== AHORA EXISTE
-                        setStartRandomNumber={setStartRandomNumber}   // <== AHORA EXISTE
-                        setStartRecordToSelect={setStartRecordToSelect} // <== AHORA EXISTE
-                        setEndRecordToSelect={setEndRecordToSelect}     // <== AHORA EXISTE
-                        setAllowDuplicates={setAllowDuplicates}         // <== AHORA EXISTE
-                        setOutputFileName={setOutputFileName}           // <== AHORA EXISTE
+                        setNumRecordsToSelect={setNumRecordsToSelect}
+                        setStartRandomNumber={setStartRandomNumber}
+                        setStartRecordToSelect={setStartRecordToSelect}
+                        setEndRecordToSelect={setEndRecordToSelect}
+                        setAllowDuplicates={setAllowDuplicates}
+                        setOutputFileName={setOutputFileName}
                         handleCreateRandomSample={handleCreateRandomSample}
-                        handleFields={handleFields}                     // <== AHORA EXISTE
+                        handleFields={handleFields}
                         handleClose={handleClose}
                         handleHelp={handleHelp}
-                        handleExportToExcel={handleExportToExcel} // 🚨 ¡PASA LA PROP AQUÍ!
+                        handleExportToExcel={handleExportToExcel}
                     />
+                  </motion.div>
                 );
             case "evaluar":
                 return (
+                  <motion.div
+                    key="evaluar"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3 }}
+                  >
                     <Evaluar
                         isAleatorioDone={isAleatorioDone}
                         populationSize={populationSize}
-                        evaluatedSampleSize={evaluatedSampleSize} // <== CORREGIDO
-                        observedDeviations={observedDeviations}   // <== AHORA EXISTE
-                        desiredConfidence={desiredConfidence}     // <== AHORA EXISTE
-                        sampleDeviationRate={sampleDeviationRate} // <== AHORA EXISTE
-                        unilateralUpperLimit={unilateralUpperLimit} // <== AHORA EXISTE
-                        bilateralLowerLimit={bilateralLowerLimit} // <== AHORA EXISTE
-                        bilateralUpperLimit={bilateralUpperLimit} // <== AHORA EXISTE
-                        isEvaluarDone={isEvaluarDone}             // <== AHORA EXISTE
-                        setObservedDeviations={setObservedDeviations} // <== AHORA EXISTE
-                        setDesiredConfidence={setDesiredConfidence}   // <== AHORA EXISTE
+                        evaluatedSampleSize={evaluatedSampleSize}
+                        observedDeviations={observedDeviations}
+                        desiredConfidence={desiredConfidence}
+                        sampleDeviationRate={sampleDeviationRate}
+                        unilateralUpperLimit={unilateralUpperLimit}
+                        bilateralLowerLimit={bilateralLowerLimit}
+                        bilateralUpperLimit={bilateralUpperLimit}
+                        isEvaluarDone={isEvaluarDone}
+                        setObservedDeviations={setObservedDeviations}
+                        setDesiredConfidence={setDesiredConfidence}
                         handleCalculateEvaluation={handleCalculateEvaluation}
                         handlePrint={handlePrint}
                         handleClose={handleClose}
                         handleHelp={handleHelp}
                     />
+                  </motion.div>
                 );
             default:
                 return null;
@@ -162,27 +194,17 @@ export default function AtributosPage() {
                     />
                 </div>
 
-                <hr className="my-6 border-t border-gray-300" />
+                <hr className="my-5 border-t border-gray-300" />
 
-                {/* Navegación por pestañas */}
-                <div className="mb-6 flex space-x-2 border-b border-gray-200">
-                    {tabs.map((tab) => (
-                        <button
-                            key={tab.id}
-                            onClick={() => setActiveTab(tab.id)}
-                            disabled={tab.disabled}
-                            className={`py-2 px-4 text-sm font-medium rounded-t-lg ${
-                                activeTab === tab.id
-                                    ? "bg-white text-blue-600 border-b-2 border-blue-600"
-                                    : "bg-gray-100 text-gray-500 hover:bg-gray-200"
-                            } ${tab.disabled ? "cursor-not-allowed opacity-50" : ""}`}
-                        >
-                            {tab.name}
-                        </button>
-                    ))}
-                </div>
+                {/* Navegación por pestañas animadas - REEMPLAZA la navegación anterior */}
+                <AnimatedTabs
+                  tabs={tabs}
+                  activeTab={activeTab}
+                  onTabChange={setActiveTab}
+                  className="mb-8"
+                />
 
-                {/* Contenido de la pestaña activa */}
+                {/* Contenido de la pestaña activa con animación */}
                 <div>
                     {renderContent()}
                 </div>
