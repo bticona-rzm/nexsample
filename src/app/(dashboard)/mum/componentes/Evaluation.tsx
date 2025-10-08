@@ -39,8 +39,8 @@ const Evaluation: React.FC<EvaluationProps> = (props) => {
 
     const handleEvaluationProcess = async (method: 'cell-classical' | 'stringer-bound') => {
         try {
-            const results = await props.handleEvaluation(method);
-            setEvaluationResults(results);
+            const results = await props.handleEvaluation(method); // ← Recibes los resultados
+            setEvaluationResults(results); // ← Los guardas en estado local
             setShowSummary(true);
         } catch (error) {
             console.error("Error durante la evaluación:", error);
@@ -168,21 +168,26 @@ const Evaluation: React.FC<EvaluationProps> = (props) => {
                             sampleInterval={props.sampleInterval}
                             highValueLimit={props.highValueLimit}
                             precisionValue={props.precisionValue}
-                            populationExcludingHigh={props.estimatedPopulationValue}
+                            populationExcludingHigh={props.populationExcludingHigh}
                             highValueTotal={props.highValueTotal}
-                            populationIncludingHigh={props.estimatedPopulationValue}
+                            populationIncludingHigh={props.populationIncludingHigh}
                             estimatedSampleSize={props.estimatedSampleSize}
-                            numErrores={props.numErrores}
-                            errorMasProbableBruto={props.errorMasProbableBruto}
-                            errorMasProbableNeto={props.errorMasProbableNeto}
-                            precisionTotal={props.precisionTotal}
-                            limiteErrorSuperiorBruto={props.limiteErrorSuperiorBruto}
-                            limiteErrorSuperiorNeto={props.limiteErrorSuperiorNeto}
-                            highValueCountResume={props.highValueCountResume}
+                            // ✅ PASAR LOS RESULTADOS REALES DE LA EVALUACIÓN
+                            numErrores={evaluationResults?.numErrores || props.numErrores}
+                            errorMasProbableBruto={evaluationResults?.errorMasProbableBruto || props.errorMasProbableBruto}
+                            errorMasProbableNeto={evaluationResults?.errorMasProbableNeto || props.errorMasProbableNeto}
+                            precisionTotal={evaluationResults?.precisionTotal || props.precisionTotal}
+                            limiteErrorSuperiorBruto={evaluationResults?.limiteErrorSuperiorBruto || props.limiteErrorSuperiorBruto}
+                            limiteErrorSuperiorNeto={evaluationResults?.limiteErrorSuperiorNeto || props.limiteErrorSuperiorNeto}
+                            highValueCountResume={evaluationResults?.highValueCountResume || props.highValueCountResume}
+                            
                             setActiveTab={props.setActiveTab}
                             handleSummary={() => props.handleEvaluation(selectedMethod)}
                             evaluationMethod={selectedMethod} 
                             onBack={handleBack}
+                            
+                            // ✅ PASAR LOS DATOS DETALLADOS DE CELL CLASSICAL
+                            cellClassicalData={evaluationResults?.cellClassicalData} 
                         />
                     </motion.div>
                 )}

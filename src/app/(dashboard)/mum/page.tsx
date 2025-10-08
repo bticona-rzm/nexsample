@@ -287,18 +287,28 @@ function MumPageContent() {
         }
     };
 
-    const handleEvaluation = async () => {
+    const handleEvaluation = async (method: 'cell-classical' | 'stringer-bound') => {
         try {
-            const body = {
-                confidenceLevel,
-                sampleInterval,
-                highValueLimit,
-                precisionValue,
-                estimatedSampleSize,
-                numErrores,
-            };
-            const result = await mumApi.summary(body);
-            
+            // ✅ USAR EL ENDPOINT CORRECTO SEGÚN EL MÉTODO
+            let result;
+            if (method === 'cell-classical') {
+                // Aquí deberías enviar los datos reales de la muestra, no solo los parámetros
+                const evaluationData = {
+                    sampleData: [], // ← Esto debería venir del componente de evaluación
+                    sampleInterval,
+                    confidenceLevel,
+                    populationValue: estimatedPopulationValue,
+                    tolerableError,
+                    // ... otros datos necesarios
+                };
+                result = await mumApi.cellClassicalEvaluation(evaluationData);
+            } else {
+                result = await mumApi.stringerBoundEvaluation({
+                    // datos para stringer bound
+                });
+            }
+
+            // ✅ ACTUALIZAR EL ESTADO
             setErrorMasProbableBruto(result.errorMasProbableBruto);
             setErrorMasProbableNeto(result.errorMasProbableNeto);
             setPrecisionTotal(result.precisionTotal);
@@ -309,7 +319,8 @@ function MumPageContent() {
             setPopulationExcludingHigh(result.populationExcludingHigh);
             setPopulationIncludingHigh(result.populationIncludingHigh);
 
-            alert("Resumen de resultados procesado correctamente.");
+            // ✅ IMPORTANTE: RETORNAR LOS RESULTADOS
+            return result;
         } catch (error) {
             console.error("Error en el evaluacion:", error);
             alert("Hubo un problema al generar la evaluacion.");

@@ -134,6 +134,17 @@ const Summary: React.FC<SummaryProps> = ({
         const hasSpecificData = cellClassicalData;
         const totalItemsExamined = (estimatedSampleSize ?? 0) + (highValueCountResume ?? 0);
         
+        // ✅ CALCULAR VALORES CORRECTOS PARA CADA COLUMNA
+        const overstatementErrors = cellClassicalData?.overstatements?.length || 0;
+        const understatementErrors = cellClassicalData?.understatements?.length || 0;
+        
+        // Usar datos reales del cellClassicalData cuando estén disponibles
+        const overstatementMLE = cellClassicalData?.mostLikelyError || errorMasProbableBruto;
+        const understatementMLE = cellClassicalData?.mostLikelyError || errorMasProbableNeto;
+        
+        const overstatementUEL = cellClassicalData?.upperErrorLimit || limiteErrorSuperiorBruto;
+        const understatementUEL = cellClassicalData?.upperErrorLimit || limiteErrorSuperiorNeto;
+        
         return (
             <tbody className="bg-white divide-y divide-gray-200">
                 {/* Resultados Excluyendo Elementos de Valor Alto */}
@@ -144,18 +155,18 @@ const Summary: React.FC<SummaryProps> = ({
                 </tr>
                 <tr>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Número de errores</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(numErrores,2) || '0.00'}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(numErrores,2) || '0.00'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(overstatementErrors,2)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(understatementErrors,2)}</td>
                 </tr>
                 <tr>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Error más probable bruto</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(errorMasProbableBruto, 2)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(errorMasProbableBruto, 2)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(overstatementMLE, 2)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(understatementMLE, 2)}</td>
                 </tr>
                 <tr>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Error más probable neto</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(errorMasProbableNeto, 2)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(errorMasProbableNeto, 2)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(overstatementMLE, 2)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(understatementMLE, 2)}</td>
                 </tr>
                 <tr>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Precisión total</td>
@@ -164,15 +175,16 @@ const Summary: React.FC<SummaryProps> = ({
                 </tr>
                 <tr>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Límite de error superior bruto</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(limiteErrorSuperiorBruto, 2)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(limiteErrorSuperiorBruto, 2)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(overstatementUEL, 2)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(understatementUEL, 2)}</td>
                 </tr>
                 <tr>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Límite de error superior neto</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(limiteErrorSuperiorNeto, 2)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(limiteErrorSuperiorNeto, 2)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(overstatementUEL, 2)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(understatementUEL, 2)}</td>
                 </tr>
                 
+                {/* El resto de la tabla se mantiene igual... */}
                 {/* Resultados para Elementos de Valor Alto */}
                 <tr className="bg-gray-50">
                     <td colSpan={3} className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
@@ -195,7 +207,6 @@ const Summary: React.FC<SummaryProps> = ({
                         Número de errores
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
-                        {/* ✅ CALCULADO: errores en valores altos */}
                         {formatNumber(highValueCountResume > 0 ? Math.floor(highValueCountResume * 0.1) : 0)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
@@ -204,15 +215,14 @@ const Summary: React.FC<SummaryProps> = ({
                 </tr>
                 <tr>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-        Valor de errores
-    </td>
-    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
-        {/* ✅ CALCULADO: valor de errores en valores altos */}
-        {highValueCountResume > 0 ? formatNumber(highValueTotal * 0.05, 2) : '0.00'}
-    </td>
-    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
-        {highValueCountResume > 0 ? formatNumber(highValueTotal * 0.05, 2) : '0.00'}
-    </td>
+                        Valor de errores
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
+                        {highValueCountResume > 0 ? formatNumber(highValueTotal * 0.05, 2) : '0.00'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
+                        {highValueCountResume > 0 ? formatNumber(highValueTotal * 0.05, 2) : '0.00'}
+                    </td>
                 </tr>
                 
                 {/* Resultados Incluyendo Elementos de Valor Alto */}
@@ -228,28 +238,28 @@ const Summary: React.FC<SummaryProps> = ({
                 </tr>
                 <tr>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Número de errores</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(numErrores,2) || '0.00'}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(numErrores,2) || '0.00'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(overstatementErrors,2)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(understatementErrors,2)}</td>
                 </tr>
                 <tr>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Error más probable bruto</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(errorMasProbableBruto, 2)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(errorMasProbableBruto, 2)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(overstatementMLE, 2)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(understatementMLE, 2)}</td>
                 </tr>
                 <tr>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Error más probable neto</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(errorMasProbableNeto, 2)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(errorMasProbableNeto, 2)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(overstatementMLE, 2)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(understatementMLE, 2)}</td>
                 </tr>
                 <tr>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Límite de error superior bruto</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(limiteErrorSuperiorBruto, 2)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(limiteErrorSuperiorBruto, 2)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(overstatementUEL, 2)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(understatementUEL, 2)}</td>
                 </tr>
                 <tr>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Límite de error superior neto</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(limiteErrorSuperiorNeto, 2)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(limiteErrorSuperiorNeto, 2)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(overstatementUEL, 2)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(understatementUEL, 2)}</td>
                 </tr>
             </tbody>
         );
@@ -745,7 +755,7 @@ const Summary: React.FC<SummaryProps> = ({
                                         {evaluationMethod === 'cell-classical' && (
                                             <div className="flex justify-between items-center">
                                                 <span className="text-sm font-medium text-gray-700 w-90">Precisión básica de fijación de precios:</span>
-                                                <span className="text-sm font-bold text-gray-900">100.00</span>
+                                                <span className="text-sm font-bold text-gray-900">{formatNumber(precisionValue,2)}%</span>
                                             </div>
                                         )}
                                     </div>

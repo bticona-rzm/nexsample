@@ -59,37 +59,45 @@ export async function POST(req: Request) {
             sampleInterval, 
             confidenceLevel, 
             populationValue, 
-            tolerableError 
-        }: {
-            sampleData: SampleItem[];
-            sampleInterval: number;
-            confidenceLevel: number;
-            populationValue: number;
-            tolerableError: number;
+            tolerableError,
+            populationExcludingHigh,  // ✅ RECIBIR estos valores reales
+            highValueTotal,           // ✅ en lugar de calcularlos
+            highValueCountResume      // ✅ con porcentajes fijos
         } = await req.json();
 
         console.log("📊 PROCESANDO CELL & CLASSICAL PPS:", {
             items: sampleData.length,
             interval: sampleInterval,
             confidence: confidenceLevel,
-            poblacion: populationValue
+            poblacion: populationValue,
+            populationExcludingHigh,
+            highValueTotal
         });
 
-        // 1. CALCULAR ERRORES REALES CON TAINTING CORRECTO
+        // 1. CALCULAR ERRORES REALES - VERSIÓN MEJORADA
         const errors: CalculatedError[] = sampleData
             .filter((item: SampleItem) => {
-                const hasError = item.bookValue !== item.auditedValue;
-                const bookValueValid = !isNaN(item.bookValue) && item.bookValue !== 0;
-                return hasError && bookValueValid;
+                const bookValue = Number(item.bookValue);
+                const auditedValue = Number(item.auditedValue);
+                
+                if (isNaN(bookValue) || isNaN(auditedValue) || bookValue === 0) {
+                    return false;
+                }
+                
+                // Tolerancia para errores pequeños
+                const hasError = Math.abs(bookValue - auditedValue) > 0.01;
+                return hasError;
             })
             .map((item: SampleItem) => {
-                const error = item.bookValue - item.auditedValue;
-                const tainting = Math.abs(error) / Math.abs(item.bookValue);
+                const bookValue = Number(item.bookValue);
+                const auditedValue = Number(item.auditedValue);
+                const error = bookValue - auditedValue;
+                const tainting = Math.abs(error) / Math.abs(bookValue);
                 
                 return {
                     reference: item.reference,
-                    bookValue: item.bookValue,
-                    auditedValue: item.auditedValue,
+                    bookValue: bookValue,
+                    auditedValue: auditedValue,
                     error,
                     tainting,
                     isOverstatement: error > 0,
@@ -99,9 +107,6 @@ export async function POST(req: Request) {
             });
 
         console.log("🔍 ERRORES ENCONTRADOS:", errors.length);
-        errors.forEach((e: CalculatedError) => 
-            console.log(`   - Error: ${e.error}, Tainting: ${e.tainting}, Projected: ${e.projectedError}`)
-        );
 
         // 2. FACTORES UEL SEGÚN NIVEL DE CONFIANZA
         const getUELFactors = (confidence: number): number[] => {
@@ -116,16 +121,19 @@ export async function POST(req: Request) {
 
         const factors = getUELFactors(confidenceLevel);
 
-        // 3. CÁLCULOS CORRECTOS
-        const totalProjectedError = errors.reduce((sum: number, e: CalculatedError) => sum + e.projectedError, 0);
-        const totalTaintings = errors.reduce((sum: number, e: CalculatedError) => sum + e.tainting, 0);
-        const basicPrecision = factors[0] * sampleInterval;
-        
-        // 4. CALCULAR UEL CORRECTO - ALGORITMO CELL & CLASSICAL
-        let stageUEL = factors[0];
-        
-        if (errors.length > 0) {
-            const sortedErrors = errors.sort((a: CalculatedError, b: CalculatedError) => b.tainting - a.tainting);
+        // 3. ✅ SEPARAR CÁLCULOS PARA SOBREESTIMACIONES Y SUBESTIMACIONES
+        const overstatements = errors.filter((e: CalculatedError) => e.isOverstatement);
+        const understatements = errors.filter((e: CalculatedError) => e.isUnderstatement);
+
+        // Calcular errores proyectados por separado
+        const overstatementProjectedError = overstatements.reduce((sum: number, e: CalculatedError) => sum + e.projectedError, 0);
+        const understatementProjectedError = understatements.reduce((sum: number, e: CalculatedError) => sum + e.projectedError, 0);
+
+        // Calcular UEL por separado
+        const calculateUEL = (errorList: CalculatedError[]): number => {
+            if (errorList.length === 0) return factors[0];
+            
+            const sortedErrors = errorList.sort((a: CalculatedError, b: CalculatedError) => b.tainting - a.tainting);
             let cumulativeUEL = factors[0];
             
             for (let i = 0; i < Math.min(sortedErrors.length, factors.length); i++) {
@@ -136,32 +144,35 @@ export async function POST(req: Request) {
                 }
             }
             
-            stageUEL = cumulativeUEL;
-        }
+            return cumulativeUEL;
+        };
 
-        const upperErrorLimit = stageUEL * sampleInterval;
+        const overstatementUEL = calculateUEL(overstatements);
+        const understatementUEL = calculateUEL(understatements);
 
-        // 5. SEPARAR SOBREESTIMACIONES Y SUBESTIMACIONES
-        const overstatements = errors.filter((e: CalculatedError) => e.isOverstatement);
-        const understatements = errors.filter((e: CalculatedError) => e.isUnderstatement);
+        const basicPrecision = factors[0] * sampleInterval;
 
-        // 6. CALCULAR ETAPAS PARA TABLAS DETALLADAS
+        // 4. ✅ CALCULAR ETAPAS MEJORADO
         const calculateStages = (errorList: CalculatedError[]): StageData[] => {
             const stages: StageData[] = [];
             let cumulativeUEL = factors[0];
+            const sortedErrors = errorList.sort((a: CalculatedError, b: CalculatedError) => b.tainting - a.tainting);
             
-            for (let i = 0; i < Math.min(errorList.length, factors.length); i++) {
-                const currentError = errorList[i];
+            for (let i = 0; i < Math.min(sortedErrors.length, factors.length); i++) {
+                const currentError = sortedErrors[i];
+                const incrementalFactor = i === 0 ? factors[0] : factors[i] - factors[i-1];
+                
                 const stage: StageData = {
-                    stage: i,
+                    stage: i + 1,
                     uelFactor: factors[i],
                     tainting: currentError.tainting,
-                    averageTainting: errorList.slice(0, i + 1).reduce((sum: number, e: CalculatedError) => sum + e.tainting, 0) / (i + 1),
+                    averageTainting: sortedErrors.slice(0, i + 1).reduce((sum: number, e: CalculatedError) => sum + e.tainting, 0) / (i + 1),
                     previousUEL: cumulativeUEL,
-                    loadingPropagation: factors[i] * (1 - currentError.tainting),
+                    loadingPropagation: cumulativeUEL + currentError.tainting,
                     simplePropagation: factors[i] * currentError.tainting,
-                    maxStageUEL: cumulativeUEL + (factors[i] * currentError.tainting)
+                    maxStageUEL: Math.max(cumulativeUEL + currentError.tainting, factors[i] * currentError.tainting)
                 };
+                
                 cumulativeUEL = stage.maxStageUEL;
                 stages.push(stage);
             }
@@ -171,39 +182,46 @@ export async function POST(req: Request) {
         const overstatementStages = calculateStages(overstatements);
         const understatementStages = calculateStages(understatements);
 
-        // 7. RESULTADOS FINALES
+        // 5. ✅ RESULTADOS FINALES CORREGIDOS - VERSIÓN REAL
         const response: CellClassicalResponse = {
             numErrores: errors.length,
-            errorMasProbableBruto: totalProjectedError,
-            errorMasProbableNeto: totalProjectedError * 0.9,
-            precisionTotal: basicPrecision,
-            limiteErrorSuperiorBruto: upperErrorLimit,
-            limiteErrorSuperiorNeto: upperErrorLimit * 0.9,
             
-            // Datos de población (estimados basados en la muestra)
-            populationExcludingHigh: populationValue * 0.85,
-            highValueTotal: populationValue * 0.15,
+            // ✅ VALORES DIFERENTES PARA CADA COLUMNA
+            errorMasProbableBruto: overstatementProjectedError,
+            errorMasProbableNeto: understatementProjectedError,
+            
+            precisionTotal: basicPrecision,
+            
+            // ✅ LÍMITES DIFERENTES
+            limiteErrorSuperiorBruto: overstatementUEL * sampleInterval,
+            limiteErrorSuperiorNeto: understatementUEL * sampleInterval,
+            
+            // ✅✅✅ CORRECCIÓN PRINCIPAL - NO USAR PORCENTAJES FIJOS
+            populationExcludingHigh: populationExcludingHigh !== undefined ? populationExcludingHigh : populationValue,
+            highValueTotal: highValueTotal !== undefined ? highValueTotal : 0,
             populationIncludingHigh: populationValue,
-            highValueCountResume: Math.floor(sampleData.length * 0.08),
+            highValueCountResume: highValueCountResume !== undefined ? highValueCountResume : 0,
             
             // Datos para tablas detalladas
             cellClassicalData: {
                 overstatements: overstatementStages,
                 understatements: understatementStages,
-                totalTaintings,
-                stageUEL,
+                totalTaintings: errors.reduce((sum: number, e: CalculatedError) => sum + e.tainting, 0),
+                stageUEL: Math.max(overstatementUEL, understatementUEL),
                 basicPrecision,
-                mostLikelyError: totalProjectedError,
-                upperErrorLimit
+                mostLikelyError: overstatementProjectedError + understatementProjectedError,
+                upperErrorLimit: Math.max(overstatementUEL, understatementUEL) * sampleInterval
             }
         };
 
         console.log("📈 RESULTADOS CALCULADOS CELL & CLASSICAL:", {
             errores: response.numErrores,
-            errorProbable: response.errorMasProbableBruto,
-            precision: response.precisionTotal,
-            limiteSuperior: response.limiteErrorSuperiorBruto,
-            basicPrecision: response.cellClassicalData.basicPrecision
+            sobrestimaciones: overstatements.length,
+            subestimaciones: understatements.length,
+            errorBruto: response.errorMasProbableBruto,
+            errorNeto: response.errorMasProbableNeto,
+            limiteBruto: response.limiteErrorSuperiorBruto,
+            limiteNeto: response.limiteErrorSuperiorNeto
         });
 
         return NextResponse.json(response);

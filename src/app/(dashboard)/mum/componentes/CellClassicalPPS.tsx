@@ -127,9 +127,17 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({
             // 2. PREPARAR DATOS REALES DE MUESTRA
             const sampleData = fileData.map((row: any) => ({
                 reference: row[referenceField]?.toString() || `item-${Math.random()}`,
-                bookValue: parseFloat(row[bookValueField]) || 0, // ✅ Usa el campo correcto
+                bookValue: parseFloat(row[bookValueField]) || 0,
                 auditedValue: parseFloat(row[auditedValueField]) || 0
             }));
+
+            console.log("🔍 sampleData preparado:", sampleData); // ← Agrega este log
+            console.log("🔍 Campos usados:", {
+                bookValueField,
+                auditedValueField, 
+                referenceField
+            });
+            console.log("🔍 Primera fila de fileData:", fileData[0]); // ← Ver estructura real
 
             // 3. ENVIAR AL BACKEND REAL
             const response = await fetch('/api/mum/evaluation/cell-classical', {
@@ -145,7 +153,10 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({
                     tolerableError: tolerableError,
                     bookValueField: bookValueField, // ✅ Enviar el campo usado
                     auditedValueField: auditedValueField,
-                    selectedFieldFromPlanning: selectedField // ✅ Para debugging en backend
+                    selectedFieldFromPlanning: selectedField, // ✅ Para debugging en backend
+                    populationExcludingHigh: estimatedPopulationValue,
+                    highValueTotal: 0,
+                    highValueCountResume: 0
                 }),
             });
 

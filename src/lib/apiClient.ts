@@ -297,6 +297,37 @@ export const mumApi = {
             results: responseResults
         };
     },
+        cellClassicalEvaluation: async (data: any): Promise<any> => {
+        const response = await fetch('/api/mum/evaluation/cell-classical', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+        });
+        
+        if (!response.ok) {
+        throw new Error('Error en evaluación Cell & Classical');
+        }
+        
+        return await response.json();
+    },
+  
+    stringerBoundEvaluation: async (data: any): Promise<any> => {
+        const response = await fetch('/api/mum/evaluation/stringer-bound', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+        });
+        
+        if (!response.ok) {
+        throw new Error('Error en evaluación Stringer Bound');
+        }
+        
+        return await response.json();
+    }
 };
 
 // Definimos la interfaz para los datos de entrada
