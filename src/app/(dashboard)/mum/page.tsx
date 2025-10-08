@@ -490,6 +490,7 @@ function MumPageContent() {
                                 setActiveTab={setActiveTab}
                                 headers={headers} 
                                 tolerableError={tolerableError}
+                                selectedField={selectedField}
                             />
                         )}
                     </motion.div>

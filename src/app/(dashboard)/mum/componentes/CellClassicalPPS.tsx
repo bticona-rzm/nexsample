@@ -14,17 +14,27 @@ interface CellClassicalPPSFormProps {
     sampleInterval: number;
     tolerableError: number;
     highValueLimit: number;
+    selectedField: string | null; // ✅ MODIFICADO: acepta string | null
 }
 
-const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({ onOk, confidenceLevel, precisionValue, setPrecisionValue, estimatedPopulationValue, estimatedSampleSize, sampleInterval,
+const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({ 
+    onOk, 
+    confidenceLevel, 
+    precisionValue, 
+    setPrecisionValue, 
+    estimatedPopulationValue, 
+    estimatedSampleSize, 
+    sampleInterval,
     tolerableError,
-    highValueLimit  }) => {
+    highValueLimit,
+    selectedField // ✅ Ahora puede ser string | null
+}) => {
     // Estados para la lógica del formulario
     const [isClassical, setIsClassical] = useState(false);
     const [precisionLimit, setPrecisionLimit] = useState<'upper' | 'upper-lower'>('upper');
     const [changePrecision, setChangePrecision] = useState(false);
     const [useHighValueFile, setUseHighValueFile] = useState(false);
-    const [isLoading, setIsLoading] = useState(false); // Nuevo estado para deshabilitar el botón
+    const [isLoading, setIsLoading] = useState(false);
 
     // Estados para el manejo de archivos y datos
     const [mainFile, setMainFile] = useState<File | null>(null);
@@ -54,18 +64,31 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({ onOk, confi
         const file = event.target.files?.[0];
         if (file) {
             setMainFile(file);
+            
             // Simular la extracción de headers del archivo
-            const fileHeaders = ['TOTAL', 'AUDIT_AMT', 'REFERENCE', 'OTRA_COLUMNA'];
+            // En producción, esto vendría de readExcelFile
+            const fileHeaders = selectedField ? [selectedField, 'AUDIT_AMT', 'REFERENCE'] : ['AUDIT_AMT', 'REFERENCE'];
             setHeaders(fileHeaders);
             
-            // Asignar automáticamente los campos
-            if (fileHeaders.includes('TOTAL')) setBookValueField('TOTAL');
+            // ✅ CORREGIDO: Manejar el caso cuando selectedField es null
+            if (selectedField && fileHeaders.includes(selectedField)) {
+                setBookValueField(selectedField);
+            } else if (fileHeaders.includes('AUDIT_AMT')) {
+                setBookValueField(fileHeaders[0]); // Usar primer header disponible
+            }
+            
             if (fileHeaders.includes('AUDIT_AMT')) setAuditedValueField('AUDIT_AMT');
             if (fileHeaders.includes('REFERENCE')) setReferenceField('REFERENCE');
 
-            // Aquí deberías calcular el "Valor de la población muestreada" si es necesario.
-            // Por ejemplo, sumando la columna 'TOTAL' del archivo.
-            // Para este ejemplo, solo mantenemos el valor simulado.
+            // Si no hay selectedField o no existe en los headers, usar el primero disponible
+            if ((!selectedField || !fileHeaders.includes(selectedField)) && fileHeaders.length > 0) {
+                setBookValueField(fileHeaders[0]);
+                console.warn(selectedField ? 
+                    `El campo seleccionado "${selectedField}" no se encontró en el archivo. Usando "${fileHeaders[0]}" en su lugar.` :
+                    `No se especificó un campo seleccionado. Usando "${fileHeaders[0]}" como Book Value Field.`
+                );
+            }
+
         } else {
             setMainFile(null);
             setHeaders([]);
@@ -80,17 +103,13 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({ onOk, confi
         const file = event.target.files?.[0];
         if (file) {
             setHighValueFile(file);
-            // Si hay un archivo de valores altos, puedes procesarlo para obtener sus headers
-            // Por ahora, usamos los mismos headers que el archivo principal para simplificar
-            // y los asignamos a los campos correspondientes.
         } else {
             setHighValueFile(null);
         }
     };
 
     /**
-     * FUNCIÓN CORREGIDA: Llama a la prop onOk y pasa el método requerido.
-     * También gestiona el estado de carga (isLoading).
+     * FUNCIÓN CORREGIDA: Usa el campo seleccionado correctamente
      */
     const handleOkClick = async () => {
         // Validación mínima
@@ -103,12 +122,12 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({ onOk, confi
 
         try {
             // 1. LEER Y PROCESAR ARCHIVO REAL
-            const fileData = await readExcelFile(mainFile); // Necesitas implementar esta función
+            const fileData = await readExcelFile(mainFile);
             
             // 2. PREPARAR DATOS REALES DE MUESTRA
             const sampleData = fileData.map((row: any) => ({
                 reference: row[referenceField]?.toString() || `item-${Math.random()}`,
-                bookValue: parseFloat(row[bookValueField]) || 0,
+                bookValue: parseFloat(row[bookValueField]) || 0, // ✅ Usa el campo correcto
                 auditedValue: parseFloat(row[auditedValueField]) || 0
             }));
 
@@ -119,11 +138,14 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({ onOk, confi
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    sampleData: sampleData, // ✅ Datos del archivo
-                    sampleInterval: sampleInterval, // ✅ De planificación
-                    confidenceLevel: confidenceLevel, // ✅ De planificación  
-                    populationValue: estimatedPopulationValue, // ✅ De planificación
-                    tolerableError: tolerableError // ✅ De planificación
+                    sampleData: sampleData,
+                    sampleInterval: sampleInterval,
+                    confidenceLevel: confidenceLevel,  
+                    populationValue: estimatedPopulationValue,
+                    tolerableError: tolerableError,
+                    bookValueField: bookValueField, // ✅ Enviar el campo usado
+                    auditedValueField: auditedValueField,
+                    selectedFieldFromPlanning: selectedField // ✅ Para debugging en backend
                 }),
             });
 
@@ -135,9 +157,9 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({ onOk, confi
 
             // 4. MANEJAR RESULTADOS REALES
             console.log("Resultados evaluación REALES:", results);
+            console.log("Campo seleccionado en planificación:", selectedField); // ✅ Para debugging
+            console.log("Campo usado para Book Value:", bookValueField);
             
-            // Aquí deberías pasar los resultados al componente padre
-            // para que los muestre en el Summary
             await onOk('cell-classical'); 
 
         } catch (error: any) {
@@ -153,7 +175,8 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({ onOk, confi
             <div className="flex">
                 {/* Sección principal de formularios */}
                 <div className="flex-1 space-y-6">
-                    {/* Nuevo: Sección para subir el archivo principal */}
+
+                    {/* Sección para subir el archivo principal */}
                     <div className="bg-gray-50 p-6 rounded-lg shadow-inner">
                         <h3 className="text-lg font-bold text-gray-800">Subir Archivo de Muestra</h3>
                         <div className="flex items-center space-x-4 mt-2">
@@ -174,7 +197,8 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({ onOk, confi
                             </p>
                         </div>
                     </div>
-                     <div className="bg-gray-50 p-6 rounded-lg shadow-inner">
+
+                    <div className="bg-gray-50 p-6 rounded-lg shadow-inner">
                         <h3 className="text-lg font-bold text-gray-800">Método</h3>
                         <div className="flex space-x-4 mb-4 mt-2">
                             <label className="inline-flex items-center">
@@ -204,7 +228,6 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({ onOk, confi
 
                     <div className="bg-gray-50 p-6 rounded-lg shadow-inner">
                         <h3 className="text-lg font-bold text-gray-800">Campos</h3>
-                        <p className="text-sm text-gray-500 mb-4">Los campos han sido pre-seleccionados automáticamente del archivo cargado.</p>
                         <div className="space-y-4 mt-2">
                             <div className="flex items-center space-x-4">
                                 <label className="text-sm font-medium text-gray-700 w-48">Book value field:</label>
@@ -259,7 +282,7 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({ onOk, confi
                                 <input 
                                     type="text" 
                                     value={formatNumber(confidenceLevel, 2)}
-                                    disabled={true} // Se hereda, no se puede cambiar
+                                    disabled={true}
                                     className="block w-48 rounded-md border-gray-300 shadow-sm sm:text-sm text-center bg-gray-200 cursor-not-allowed"
                                 />
                             </div>
@@ -276,7 +299,6 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({ onOk, confi
                                 <label className="text-sm font-medium text-gray-700 w-60">Tamaño de la muestra:</label>
                                 <input 
                                     type="text"
-                                    // Lo mismo aquí: asegurar un string ('') en lugar de null/undefined
                                     value={sampleSize !== null && sampleSize !== undefined ? formatNumber(sampleSize,0) : ''}
                                     disabled={true} 
                                     className="block w-48 rounded-md border-gray-300 shadow-sm sm:text-sm text-center bg-gray-200 cursor-not-allowed" 
@@ -405,9 +427,8 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({ onOk, confi
                 {/* Columna de botones a la derecha */}
                 <div className="ml-8 flex flex-col justify-start space-y-4">
                     <button
-                        // CAMBIO CLAVE: Usar la nueva función handleOkClick
                         onClick={handleOkClick}
-                        disabled={isLoading} // Deshabilitar mientras está cargando
+                        disabled={isLoading}
                         className={`font-semibold py-2 px-6 rounded-md shadow transition-colors ${
                             isLoading 
                                 ? 'bg-blue-400 cursor-not-allowed' 

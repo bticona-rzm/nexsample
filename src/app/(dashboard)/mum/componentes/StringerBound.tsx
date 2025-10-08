@@ -2,19 +2,30 @@ import React, { useState, useEffect } from 'react';
 import { formatNumber, readExcelFile } from '@/lib/apiClient';
 
 interface StringerBoundFormProps {
-    // onOk espera un argumento 'stringer-bound'
     onOk: (method: 'stringer-bound') => Promise<void>; 
     confidenceLevel: number;
     estimatedPopulationValue: number;
     estimatedSampleSize: number;
-    sampleInterval: number;        // ✅ NUEVO
-    tolerableError: number;        // ✅ NUEVO  
-    highValueLimit: number;        // ✅ NUEVO
-    precisionValue: number;        // ✅ NUEVO
-    setPrecisionValue: (value: number) => void; // ✅ NUEVO
+    sampleInterval: number;
+    tolerableError: number;  
+    highValueLimit: number;
+    precisionValue: number;
+    setPrecisionValue: (value: number) => void;
+    selectedField: string | null; // ✅ NUEVA PROP: campo seleccionado en planificación
 }
 
-const StringerBoundForm: React.FC<StringerBoundFormProps> = ({ onOk, confidenceLevel, estimatedPopulationValue, estimatedSampleSize, sampleInterval, tolerableError, highValueLimit, precisionValue, setPrecisionValue }) => {
+const StringerBoundForm: React.FC<StringerBoundFormProps> = ({ 
+    onOk, 
+    confidenceLevel, 
+    estimatedPopulationValue, 
+    estimatedSampleSize, 
+    sampleInterval, 
+    tolerableError, 
+    highValueLimit, 
+    precisionValue, 
+    setPrecisionValue,
+    selectedField // ✅ RECIBIR el campo seleccionado
+}) => {
     const [initialFile, setInitialFile] = useState<File | null>(null);
     const [files, setFiles] = useState<File[]>([]);
     const [selectedFileName, setSelectedFileName] = useState<string>('');
@@ -38,7 +49,7 @@ const StringerBoundForm: React.FC<StringerBoundFormProps> = ({ onOk, confidenceL
     
     // Nuevo estado para los encabezados
     const [headers, setHeaders] = useState<string[]>([]);
-    const [basicPrecision, setBasicPrecision] = useState(0); // Nuevo estado para la precisión básica
+    const [basicPrecision, setBasicPrecision] = useState(0);
 
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         // 1. Obtener los archivos seleccionados ANTES de limpiar el valor del input
@@ -48,12 +59,30 @@ const StringerBoundForm: React.FC<StringerBoundFormProps> = ({ onOk, confidenceL
             setInitialFile(newFiles[0]);
             setSelectedFileName(newFiles[0].name);
             setFiles(newFiles.slice(1));
-            // Lógica para precargar campos del primer archivo (simulada)
-            const fileHeaders = ['TOTAL', 'AUDIT_AMT', 'REFERENCE', 'OTRA_COLUMNA'];
+            
+            // ✅ CORREGIDO: Usar selectedField en lugar de 'TOTAL'
+            const fileHeaders = selectedField ? [selectedField, 'AUDIT_AMT', 'REFERENCE'] : ['AUDIT_AMT', 'REFERENCE'];
             setHeaders(fileHeaders);
-            if (fileHeaders.includes('TOTAL')) setBookValueField('TOTAL');
+            
+            // ✅ CORREGIDO: Usar selectedField para bookValueField
+            if (selectedField && fileHeaders.includes(selectedField)) {
+                setBookValueField(selectedField);
+            } else if (fileHeaders.includes('AUDIT_AMT')) {
+                setBookValueField(fileHeaders[0]); // Usar primer header disponible
+            }
+            
             if (fileHeaders.includes('AUDIT_AMT')) setAuditedValueField('AUDIT_AMT');
             if (fileHeaders.includes('REFERENCE')) setReferenceField('REFERENCE');
+
+            // Si no hay selectedField o no existe en los headers, usar el primero disponible
+            if ((!selectedField || !fileHeaders.includes(selectedField)) && fileHeaders.length > 0) {
+                setBookValueField(fileHeaders[0]);
+                console.warn(selectedField ? 
+                    `El campo seleccionado "${selectedField}" no se encontró en el archivo. Usando "${fileHeaders[0]}" en su lugar.` :
+                    `No se especificó un campo seleccionado. Usando "${fileHeaders[0]}" como Book Value Field.`
+                );
+            }
+
         } else {
             const existingFileNames = new Set(files.map(file => file.name));
             if (initialFile) {
@@ -63,9 +92,7 @@ const StringerBoundForm: React.FC<StringerBoundFormProps> = ({ onOk, confidenceL
             setFiles([...files, ...uniqueNewFiles]);
         }
 
-        // 2. Limpiar el valor del input AL FINAL para permitir la re-selección.
-        // Esto es crucial para que el evento 'onChange' se dispare la próxima vez
-        // que se seleccione el mismo archivo (aunque aquí lo filtra por nombre) o nuevos archivos.
+        // 2. Limpiar el valor del input AL FINAL
         event.target.value = ''; 
     };
 
@@ -84,7 +111,6 @@ const StringerBoundForm: React.FC<StringerBoundFormProps> = ({ onOk, confidenceL
                  if (referenceField) setHighValueReferenceField(referenceField);
             } else {
                 // Fallback o lógica si el archivo de alto valor tiene encabezados únicos y el principal no tiene
-                // En un escenario real, aquí se cargan los encabezados del archivo 'file'.
                 const highValueHeaders = ['MONTO', 'VALOR_AUDITADO', 'ID_TRANSACCION'];
                 if (highValueHeaders.includes('MONTO')) setHighValueBookValueField('MONTO');
                 if (highValueHeaders.includes('VALOR_AUDITADO')) setHighValueAuditedValueField('VALOR_AUDITADO');
@@ -110,6 +136,8 @@ const StringerBoundForm: React.FC<StringerBoundFormProps> = ({ onOk, confidenceL
             return;
         }
 
+        setIsLoading(true);
+
         try {
             // 1. LEER ARCHIVO REAL
             const fileData = await readExcelFile(initialFile);
@@ -117,7 +145,7 @@ const StringerBoundForm: React.FC<StringerBoundFormProps> = ({ onOk, confidenceL
             // 2. PROCESAR DATOS
             const sampleData = fileData.map((row: any) => ({
                 reference: row[referenceField]?.toString() || `item-${Math.random()}`,
-                bookValue: parseFloat(row[bookValueField]) || 0,
+                bookValue: parseFloat(row[bookValueField]) || 0, // ✅ Usa el campo correcto
                 auditedValue: parseFloat(row[auditedValueField]) || 0
             }));
 
@@ -131,7 +159,10 @@ const StringerBoundForm: React.FC<StringerBoundFormProps> = ({ onOk, confidenceL
                     confidenceLevel,
                     populationValue: estimatedPopulationValue,
                     tolerableError,
-                    highValueLimit
+                    highValueLimit,
+                    bookValueField: bookValueField, // ✅ Enviar el campo usado
+                    auditedValueField: auditedValueField,
+                    selectedFieldFromPlanning: selectedField // ✅ Para debugging en backend
                 }),
             });
 
@@ -139,17 +170,21 @@ const StringerBoundForm: React.FC<StringerBoundFormProps> = ({ onOk, confidenceL
             
             const results = await response.json();
             console.log("Resultados Stringer Bound:", results);
+            console.log("Campo seleccionado en planificación:", selectedField); // ✅ Para debugging
+            console.log("Campo usado para Book Value:", bookValueField);
             
             await onOk('stringer-bound');
 
         } catch (error: any) {
             console.error("Error en evaluación:", error);
             alert(`Error: ${error.message}`);
+        } finally {
+            setIsLoading(false);
         }
     };
 
     const getHeadersForDropdown = () => {
-        return headers; // Ahora usa el estado 'headers'
+        return headers;
     };
 
     // Función para el cálculo de la precisión básica
@@ -163,23 +198,27 @@ const StringerBoundForm: React.FC<StringerBoundFormProps> = ({ onOk, confidenceL
         };
         
         const factor = reliabilityFactors[confidenceLevel as keyof typeof reliabilityFactors] || 3.00;
-        const result = factor * sampleInterval; // ✅ CORRECTO: factor × intervalo
+        const result = factor * sampleInterval;
         setBasicPrecision(result);
     };
 
-    // 1. Efecto para calcular la Precisión Básica (Este ya lo tenías)
+    // 1. Efecto para calcular la Precisión Básica
     useEffect(() => {
         if (estimatedPopulationValue && confidenceLevel) {
             calculateBasicPrecision();
         }
-    }, [estimatedPopulationValue, confidenceLevel]); // Dependencias del efecto
+    }, [estimatedPopulationValue, confidenceLevel]);
 
     // 2. NUEVO EFECTO: Auto-seleccionar los campos del archivo de Alto Valor
     useEffect(() => {
         // Solo pre-selecciona si la opción está activa Y ya tenemos encabezados cargados
         if (useHighValueFile && headers.length > 0) {
-            // Lógica de Pre-selección similar a la del archivo principal
-            if (headers.includes('TOTAL')) setHighValueBookValueField('TOTAL');
+            // ✅ CORREGIDO: Usar lógica similar con selectedField
+            if (selectedField && headers.includes(selectedField)) {
+                setHighValueBookValueField(selectedField);
+            } else if (headers.includes('AUDIT_AMT')) {
+                setHighValueBookValueField(headers[0]);
+            }
             if (headers.includes('AUDIT_AMT')) setHighValueAuditedValueField('AUDIT_AMT');
             if (headers.includes('REFERENCE')) setHighValueReferenceField('REFERENCE');
         } else if (!useHighValueFile) {
@@ -188,8 +227,7 @@ const StringerBoundForm: React.FC<StringerBoundFormProps> = ({ onOk, confidenceL
             setHighValueAuditedValueField('');
             setHighValueReferenceField('');
         }
-    }, [useHighValueFile, headers]); // Se ejecuta cuando cambia el uso o los encabezados
-
+    }, [useHighValueFile, headers, selectedField]);
 
     const allFiles = initialFile ? [initialFile, ...files] : [...files];
 
@@ -292,8 +330,8 @@ const StringerBoundForm: React.FC<StringerBoundFormProps> = ({ onOk, confidenceL
                                     <label className="text-sm font-medium text-gray-700 w-68">Precisión Básica de la Fijación de Precios:</label>
                                     <input 
                                         type="text"
-                                        value={formatNumber(basicPrecision,2)} // Vinculamos el valor al nuevo estado
-                                        disabled={true} // Se llena automáticamente, por lo que debe ser de solo lectura
+                                        value={formatNumber(basicPrecision,2)}
+                                        disabled={true}
                                         className="block w-40 rounded-md border-gray-300 shadow-sm sm:text-sm text-center bg-gray-200 cursor-not-allowed"
                                     />
                                 </div>
@@ -377,8 +415,8 @@ const StringerBoundForm: React.FC<StringerBoundFormProps> = ({ onOk, confidenceL
                             <div className="flex items-center space-x-4">
                                 <label className="text-sm font-medium text-gray-700 w-48">Book value field:</label>
                                 <select className="block w-48 rounded-md border-gray-300 shadow-sm sm:text-sm"
-                                    value={bookValueField}
-                                    onChange={(e) => setBookValueField(e.target.value)}
+                                    value={highValueBookValueField}
+                                    onChange={(e) => setHighValueBookValueField(e.target.value)}
                                     disabled={!useHighValueFile}
                                 >
                                     <option value="">Selecciona una columna</option>
@@ -390,8 +428,8 @@ const StringerBoundForm: React.FC<StringerBoundFormProps> = ({ onOk, confidenceL
                             <div className="flex items-center space-x-4">
                                 <label className="text-sm font-medium text-gray-700 w-48">Audited value field:</label>
                                 <select className="block w-48 rounded-md border-gray-300 shadow-sm sm:text-sm"
-                                    value={auditedValueField}
-                                    onChange={(e) => setAuditedValueField(e.target.value)}
+                                    value={highValueAuditedValueField}
+                                    onChange={(e) => setHighValueAuditedValueField(e.target.value)}
                                     disabled={!useHighValueFile}
                                 >
                                     <option value="">Selecciona una columna</option>
@@ -403,8 +441,8 @@ const StringerBoundForm: React.FC<StringerBoundFormProps> = ({ onOk, confidenceL
                             <div className="flex items-center space-x-4">
                                 <label className="text-sm font-medium text-gray-700 w-48">Reference (optional):</label>
                                 <select className="block w-48 rounded-md border-gray-300 shadow-sm sm:text-sm"
-                                    value={referenceField}
-                                    onChange={(e) => setReferenceField(e.target.value)}
+                                    value={highValueReferenceField}
+                                    onChange={(e) => setHighValueReferenceField(e.target.value)}
                                     disabled={!useHighValueFile}
                                 >
                                     <option value="">Selecciona una columna</option>
@@ -420,9 +458,8 @@ const StringerBoundForm: React.FC<StringerBoundFormProps> = ({ onOk, confidenceL
                 {/* Columna de botones a la derecha */}
                 <div className="ml-8 flex flex-col justify-start space-y-4">
                     <button
-                        // CAMBIO CLAVE: Usar la nueva función handleOkClick
                         onClick={handleOkClick}
-                        disabled={isLoading} // Deshabilitar mientras está cargando
+                        disabled={isLoading}
                         className={`font-semibold py-2 px-6 rounded-md shadow transition-colors ${
                             isLoading 
                                 ? 'bg-blue-400 cursor-not-allowed' 
