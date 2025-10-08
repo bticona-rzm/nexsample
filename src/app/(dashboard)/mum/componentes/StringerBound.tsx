@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { formatNumber, readExcelFile } from '@/lib/apiClient';
+import { formatNumber, readExcelFile, StringerBoundService, StringerBoundClient } from '@/lib/apiClient';
 
 interface StringerBoundFormProps {
     onOk: (method: 'stringer-bound') => Promise<void>; 
@@ -50,6 +50,58 @@ const StringerBoundForm: React.FC<StringerBoundFormProps> = ({
     // Nuevo estado para los encabezados
     const [headers, setHeaders] = useState<string[]>([]);
     const [basicPrecision, setBasicPrecision] = useState(0);
+
+    // Cálculo de precisión básica usando el servicio
+    useEffect(() => {
+        if (estimatedPopulationValue && confidenceLevel) {
+            const precision = StringerBoundService.calculateBasicPrecision(
+                confidenceLevel, 
+                sampleInterval
+            );
+            setBasicPrecision(precision);
+        }
+    }, [estimatedPopulationValue, confidenceLevel, sampleInterval]);
+
+    const handleOkClick = async () => {
+        if (!initialFile || !bookValueField || !auditedValueField) {
+            alert("Por favor, complete todos los campos requeridos");
+            return;
+        }
+
+        setIsLoading(true);
+
+        try {
+            // 1. LEER ARCHIVO (UI responsibility)
+            const fileData = await readExcelFile(initialFile);
+            
+            // 2. PROCESAR DATOS (UI - preparación para backend)
+            const sampleData = fileData.map((row: any) => ({
+                reference: row[referenceField]?.toString() || `item-${Math.random()}`,
+                bookValue: parseFloat(row[bookValueField]) || 0,
+                auditedValue: parseFloat(row[auditedValueField]) || 0
+            }));
+
+            // 3. ENVIAR AL BACKEND usando el cliente
+            const results = await StringerBoundClient.evaluate({
+                sampleData,                    // ✅ Datos procesados
+                sampleInterval,               // ✅
+                confidenceLevel,              // ✅
+                populationValue: estimatedPopulationValue, // ✅
+                tolerableError,               // ✅
+                highValueLimit,
+            });
+
+            console.log("Resultados Stringer Bound:", results);
+            
+            await onOk('stringer-bound');
+
+        } catch (error: any) {
+            console.error("Error en evaluación:", error);
+            alert(`Error: ${error.message}`);
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         // 1. Obtener los archivos seleccionados ANTES de limpiar el valor del input
@@ -127,59 +179,6 @@ const StringerBoundForm: React.FC<StringerBoundFormProps> = ({
     const handleRemoveFile = (fileName: string) => {
         if (initialFile?.name !== fileName) {
             setFiles(files.filter(file => file.name !== fileName));
-        }
-    };
-
-    const handleOkClick = async () => {
-        if (!initialFile || !bookValueField || !auditedValueField) {
-            alert("Por favor, complete todos los campos requeridos");
-            return;
-        }
-
-        setIsLoading(true);
-
-        try {
-            // 1. LEER ARCHIVO REAL
-            const fileData = await readExcelFile(initialFile);
-            
-            // 2. PROCESAR DATOS
-            const sampleData = fileData.map((row: any) => ({
-                reference: row[referenceField]?.toString() || `item-${Math.random()}`,
-                bookValue: parseFloat(row[bookValueField]) || 0, // ✅ Usa el campo correcto
-                auditedValue: parseFloat(row[auditedValueField]) || 0
-            }));
-
-            // 3. ENVIAR AL BACKEND STRINGER BOUND
-            const response = await fetch('/api/mum/evaluation/stringer-bound', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    sampleData,
-                    sampleInterval,
-                    confidenceLevel,
-                    populationValue: estimatedPopulationValue,
-                    tolerableError,
-                    highValueLimit,
-                    bookValueField: bookValueField, // ✅ Enviar el campo usado
-                    auditedValueField: auditedValueField,
-                    selectedFieldFromPlanning: selectedField // ✅ Para debugging en backend
-                }),
-            });
-
-            if (!response.ok) throw new Error('Error en evaluación Stringer Bound');
-            
-            const results = await response.json();
-            console.log("Resultados Stringer Bound:", results);
-            console.log("Campo seleccionado en planificación:", selectedField); // ✅ Para debugging
-            console.log("Campo usado para Book Value:", bookValueField);
-            
-            await onOk('stringer-bound');
-
-        } catch (error: any) {
-            console.error("Error en evaluación:", error);
-            alert(`Error: ${error.message}`);
-        } finally {
-            setIsLoading(false);
         }
     };
 

@@ -58,118 +58,135 @@ const Evaluation: React.FC<EvaluationProps> = (props) => {
                 MUM - Evaluación
             </h2>
             
-            {/* Toggle Switch Animado */}
-            <div className="flex justify-center mb-8">
-                <div className="relative bg-gray-100 rounded-full p-1 shadow-inner">
-                    {/* Fondo deslizante */}
-                    <motion.div
-                        className="absolute top-1 bottom-1 bg-blue-600 rounded-full shadow-md"
-                        initial={false}
-                        animate={{
-                            left: selectedMethod === 'cell-classical' ? '4px' : '50%',
-                            width: 'calc(50% - 8px)'
-                        }}
-                        transition={{
-                            type: "spring",
-                            stiffness: 400,
-                            damping: 30
-                        }}
-                    />
-                    
-                    {/* Botones */}
-                    <button
-                        onClick={() => setSelectedMethod('cell-classical')}
-                        className={`relative z-10 py-3 px-8 rounded-full text-sm font-medium transition-colors duration-200 ${
-                            selectedMethod === 'cell-classical' 
-                                ? 'text-white' 
-                                : 'text-gray-600 hover:text-gray-800'
-                        }`}
+            {/* Toggle Switch Animado - Solo se muestra cuando NO hay summary */}
+            <AnimatePresence>
+                {!showSummary && (
+                    <motion.div 
+                        className="flex justify-center mb-8"
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        transition={{ duration: 0.2 }}
                     >
-                        Cell & Classical PPS
-                    </button>
-                    
-                    <button
-                        onClick={() => setSelectedMethod('stringer-bound')}
-                        className={`relative z-10 py-3 px-8 rounded-full text-sm font-medium transition-colors duration-200 ${
-                            selectedMethod === 'stringer-bound' 
-                                ? 'text-white' 
-                                : 'text-gray-600 hover:text-gray-800'
-                        }`}
-                    >
-                        Stringer Bound
-                    </button>
-                </div>
-            </div>
-
-            {/* Contenido que se desliza */}
-            <AnimatePresence mode="wait">
-                <motion.div
-                    key={selectedMethod}
-                    initial={{ opacity: 0, x: selectedMethod === 'cell-classical' ? -20 : 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: selectedMethod === 'cell-classical' ? -20 : 20 }}
-                    transition={{ duration: 0.3, ease: "easeOut" }}
-                >
-                    {!showSummary && (
-                        <>
-                            {selectedMethod === 'cell-classical' && (
-                                <CellClassicalPPSForm 
-                                    onOk={handleEvaluationProcess} 
-                                    confidenceLevel={props.confidenceLevel}
-                                    precisionValue={props.precisionValue}
-                                    setPrecisionValue={props.setPrecisionValue}
-                                    estimatedPopulationValue={props.estimatedPopulationValue}
-                                    estimatedSampleSize={props.estimatedSampleSize}
-                                    sampleInterval={props.sampleInterval}
-                                    tolerableError={props.tolerableError}
-                                    highValueLimit={props.highValueLimit}
-                                    selectedField={props.selectedField}
-                                />
-                            )}
-                            {selectedMethod === 'stringer-bound' && (
-                                <StringerBoundForm 
-                                    onOk={handleEvaluationProcess} 
-                                    confidenceLevel={props.confidenceLevel}
-                                    estimatedPopulationValue={props.estimatedPopulationValue}
-                                    estimatedSampleSize={props.estimatedSampleSize}
-                                    sampleInterval={props.sampleInterval}
-                                    tolerableError={props.tolerableError}
-                                    highValueLimit={props.highValueLimit}
-                                    precisionValue={props.precisionValue}
-                                    setPrecisionValue={props.setPrecisionValue}
-                                    selectedField={props.selectedField}
-                                />
-                            )}
-                        </>
-                    )}
-                </motion.div>
+                        <div className="relative bg-gray-100 rounded-full p-1 shadow-inner">
+                            {/* Fondo deslizante */}
+                            <motion.div
+                                className="absolute top-1 bottom-1 bg-blue-600 rounded-full shadow-md"
+                                initial={false}
+                                animate={{
+                                    left: selectedMethod === 'cell-classical' ? '4px' : '50%',
+                                    width: 'calc(50% - 8px)'
+                                }}
+                                transition={{
+                                    type: "spring",
+                                    stiffness: 400,
+                                    damping: 30
+                                }}
+                            />
+                            
+                            {/* Botones */}
+                            <button
+                                onClick={() => setSelectedMethod('cell-classical')}
+                                className={`relative z-10 py-3 px-8 rounded-full text-sm font-medium transition-colors duration-200 ${
+                                    selectedMethod === 'cell-classical' 
+                                        ? 'text-white' 
+                                        : 'text-gray-600 hover:text-gray-800'
+                                }`}
+                            >
+                                Cell & Classical PPS
+                            </button>
+                            
+                            <button
+                                onClick={() => setSelectedMethod('stringer-bound')}
+                                className={`relative z-10 py-3 px-8 rounded-full text-sm font-medium transition-colors duration-200 ${
+                                    selectedMethod === 'stringer-bound' 
+                                        ? 'text-white' 
+                                        : 'text-gray-600 hover:text-gray-800'
+                                }`}
+                            >
+                                Stringer Bound
+                            </button>
+                        </div>
+                    </motion.div>
+                )}
             </AnimatePresence>
 
-            {/* Mostrar el resumen */}
-            {showSummary && (
-                <Summary 
-                    isEvaluationDone={props.isExtraccionDone} 
-                    confidenceLevel={props.confidenceLevel}
-                    sampleInterval={props.sampleInterval}
-                    highValueLimit={props.highValueLimit}
-                    precisionValue={props.precisionValue}
-                    populationExcludingHigh={props.populationExcludingHigh}
-                    highValueTotal={props.highValueTotal}
-                    populationIncludingHigh={props.populationIncludingHigh}
-                    estimatedSampleSize={props.estimatedSampleSize}
-                    numErrores={props.numErrores}
-                    errorMasProbableBruto={props.errorMasProbableBruto}
-                    errorMasProbableNeto={props.errorMasProbableNeto}
-                    precisionTotal={props.precisionTotal}
-                    limiteErrorSuperiorBruto={props.limiteErrorSuperiorBruto}
-                    limiteErrorSuperiorNeto={props.limiteErrorSuperiorNeto}
-                    highValueCountResume={props.highValueCountResume}
-                    setActiveTab={props.setActiveTab}
-                    handleSummary={() => props.handleEvaluation(selectedMethod)}
-                    evaluationMethod={selectedMethod} 
-                    onBack={handleBack}
-                />
-            )}
+            {/* Contenido que se desliza - Solo formularios cuando NO hay summary */}
+            <AnimatePresence mode="wait">
+                {!showSummary && (
+                    <motion.div
+                        key={selectedMethod}
+                        initial={{ opacity: 0, x: selectedMethod === 'cell-classical' ? -20 : 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: selectedMethod === 'cell-classical' ? -20 : 20 }}
+                        transition={{ duration: 0.3, ease: "easeOut" }}
+                    >
+                        {selectedMethod === 'cell-classical' && (
+                            <CellClassicalPPSForm 
+                                onOk={handleEvaluationProcess} 
+                                confidenceLevel={props.confidenceLevel}
+                                precisionValue={props.precisionValue}
+                                setPrecisionValue={props.setPrecisionValue}
+                                estimatedPopulationValue={props.estimatedPopulationValue}
+                                estimatedSampleSize={props.estimatedSampleSize}
+                                sampleInterval={props.sampleInterval}
+                                tolerableError={props.tolerableError}
+                                highValueLimit={props.highValueLimit}
+                                selectedField={props.selectedField}
+                            />
+                        )}
+                        {selectedMethod === 'stringer-bound' && (
+                            <StringerBoundForm 
+                                onOk={handleEvaluationProcess} 
+                                confidenceLevel={props.confidenceLevel}
+                                estimatedPopulationValue={props.estimatedPopulationValue}
+                                estimatedSampleSize={props.estimatedSampleSize}
+                                sampleInterval={props.sampleInterval}
+                                tolerableError={props.tolerableError}
+                                highValueLimit={props.highValueLimit}
+                                precisionValue={props.precisionValue}
+                                setPrecisionValue={props.setPrecisionValue}
+                                selectedField={props.selectedField}
+                            />
+                        )}
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Mostrar el resumen - Solo cuando showSummary es true */}
+            <AnimatePresence>
+                {showSummary && (
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        transition={{ duration: 0.3 }}
+                    >
+                        <Summary 
+                            isEvaluationDone={props.isExtraccionDone} 
+                            confidenceLevel={props.confidenceLevel}
+                            sampleInterval={props.sampleInterval}
+                            highValueLimit={props.highValueLimit}
+                            precisionValue={props.precisionValue}
+                            populationExcludingHigh={props.populationExcludingHigh}
+                            highValueTotal={props.highValueTotal}
+                            populationIncludingHigh={props.populationIncludingHigh}
+                            estimatedSampleSize={props.estimatedSampleSize}
+                            numErrores={props.numErrores}
+                            errorMasProbableBruto={props.errorMasProbableBruto}
+                            errorMasProbableNeto={props.errorMasProbableNeto}
+                            precisionTotal={props.precisionTotal}
+                            limiteErrorSuperiorBruto={props.limiteErrorSuperiorBruto}
+                            limiteErrorSuperiorNeto={props.limiteErrorSuperiorNeto}
+                            highValueCountResume={props.highValueCountResume}
+                            setActiveTab={props.setActiveTab}
+                            handleSummary={() => props.handleEvaluation(selectedMethod)}
+                            evaluationMethod={selectedMethod} 
+                            onBack={handleBack}
+                        />
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };
