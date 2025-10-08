@@ -40,7 +40,17 @@ interface PlanificationProps {
     excelData: any[];
     setIsPlanificacionDone: (value: boolean) => void;
     setActiveTab: (tabId: string) => void;
-    handlePlanification: () => void
+    handlePlanification: () => void;
+    highValueLimit: number; // ← NUEVO: necesitas el límite para elementos de alto valor
+    setHighValueLimit: (value: number) => void; // ← NUEVO
+    populationExcludingHigh: number; // ← NUEVO
+    setPopulationExcludingHigh: (value: number) => void; // ← NUEVO
+    highValueTotal: number; // ← NUEVO
+    setHighValueTotal: (value: number) => void; // ← NUEVO
+    populationIncludingHigh: number; // ← NUEVO
+    setPopulationIncludingHigh: (value: number) => void; // ← NUEVO
+    highValueCount: number; // ← NUEVO: cantidad de elementos de alto valor
+    setHighValueCount: (value: number) => void; // ← NUEVO
 }
 
 const Planification: React.FC<PlanificationProps> = ({
@@ -80,6 +90,16 @@ const Planification: React.FC<PlanificationProps> = ({
     setIsPlanificacionDone,
     setActiveTab,
     handlePlanification,
+    highValueLimit, 
+    setHighValueLimit,
+    populationExcludingHigh,
+    setPopulationExcludingHigh,
+    populationIncludingHigh,
+    setPopulationIncludingHigh,
+    highValueCount,
+    setHighValueCount,
+    highValueTotal,
+    setHighValueTotal
 }) => {
 
     const { addLog } = useLog();
@@ -87,24 +107,42 @@ const Planification: React.FC<PlanificationProps> = ({
 
     const calculatePopulationValue = () => {
         if (useFieldValue && selectedField && excelData.length > 0) {
-            const sum = excelData.reduce((acc, row) => {
-                const value = parseFloat(row[selectedField]);
+            let totalValue = 0;
+            let highValueSum = 0;
+            let highValueItemsCount = 0;
+            excelData.forEach(row => {
+            const value = parseFloat(row[selectedField]);
                 if (!isNaN(value)) {
+                    let processedValue = 0;
+                    
                     if (selectedPopulationType === "positive" && value > 0) {
-                        return acc + value;
+                        processedValue = value;
+                    } else if (selectedPopulationType === "negative" && value < 0) {
+                        processedValue = Math.abs(value);
+                    } else if (selectedPopulationType === "absolute") {
+                        processedValue = Math.abs(value);
                     }
-                    if (selectedPopulationType === "negative" && value < 0) {
-                        return acc + Math.abs(value);
-                    }
-                    if (selectedPopulationType === "absolute") {
-                        return acc + Math.abs(value);
+                    
+                    totalValue += processedValue;
+                    
+                    // Identificar elementos de alto valor
+                    if (processedValue >= highValueLimit) {
+                        highValueSum += processedValue;
+                        highValueItemsCount++;
                     }
                 }
-                return acc;
-            }, 0);
-            setEstimatedPopulationValue(sum);
+            });
+            setEstimatedPopulationValue(totalValue);
+            setHighValueTotal(highValueSum);
+            setHighValueCount(highValueItemsCount);
+            setPopulationExcludingHigh(totalValue - highValueSum);
+            setPopulationIncludingHigh(totalValue);
         } else if (!useFieldValue) {
-            setEstimatedPopulationValue(0); 
+            setEstimatedPopulationValue(0);
+            setHighValueTotal(0);
+            setHighValueCount(0);
+            setPopulationExcludingHigh(0);
+            setPopulationIncludingHigh(0);
         }
     };
 

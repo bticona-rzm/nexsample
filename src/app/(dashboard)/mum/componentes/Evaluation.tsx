@@ -168,9 +168,9 @@ const Evaluation: React.FC<EvaluationProps> = (props) => {
                             sampleInterval={props.sampleInterval}
                             highValueLimit={props.highValueLimit}
                             precisionValue={props.precisionValue}
-                            populationExcludingHigh={props.populationExcludingHigh}
+                            populationExcludingHigh={props.estimatedPopulationValue}
                             highValueTotal={props.highValueTotal}
-                            populationIncludingHigh={props.populationIncludingHigh}
+                            populationIncludingHigh={props.estimatedPopulationValue}
                             estimatedSampleSize={props.estimatedSampleSize}
                             numErrores={props.numErrores}
                             errorMasProbableBruto={props.errorMasProbableBruto}

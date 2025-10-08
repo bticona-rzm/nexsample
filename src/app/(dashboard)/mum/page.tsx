@@ -415,6 +415,16 @@ function MumPageContent() {
                                 setIsPlanificacionDone={setIsPlanificacionDone}
                                 setActiveTab={setActiveTab}
                                 handlePlanification={handlePlanification}
+                                highValueLimit={highValueLimit}
+                                setHighValueLimit={setHighValueLimit}
+                                populationExcludingHigh={populationExcludingHigh}
+                                setPopulationExcludingHigh={setPopulationExcludingHigh}
+                                highValueTotal={highValueTotal}
+                                setHighValueTotal={setHighValueTotal}
+                                populationIncludingHigh={populationIncludingHigh}
+                                setPopulationIncludingHigh={setPopulationIncludingHigh}
+                                highValueCount={highValueCount}
+                                setHighValueCount={setHighValueCount}
                             />
                         )}
                         {activeTab === "extraccion" && (

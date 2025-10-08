@@ -81,6 +81,21 @@ const Summary: React.FC<SummaryProps> = ({
         window.print();
     };
 
+    const calculateBasicPrecision = () => {
+        const reliabilityFactors = {
+            80: 1.61,
+            85: 1.90,
+            90: 2.31,
+            95: 3.00,
+            99: 4.61,
+        };
+        
+        const factor = reliabilityFactors[confidenceLevel as keyof typeof reliabilityFactors] || 3.00;
+        return factor * sampleInterval;
+    };
+
+    const basicPrecision = calculateBasicPrecision();
+
     // Determine the titles and conclusion based on the evaluation method
     const mainTitle = evaluationMethod === 'stringer-bound'
         ? 'Muestreo por Unidad Monetaria - Evaluación Stringer Bound'
@@ -96,7 +111,23 @@ const Summary: React.FC<SummaryProps> = ({
 
     const highValueConclusionText = evaluationMethod === 'cell-classical'
         ? `Además, se han identificado ${highValueCountResume ?? 0} elementos de valor alto que representan un total de ${formatNumber(highValueTotal, 2)}, los cuales fueron analizados por separado para asegurar una cobertura completa y confiable.`
-        : '';
+        : ''; 
+
+    const calculatedPopulationIncludingHigh = populationIncludingHigh > 0 
+        ? populationIncludingHigh 
+        : 0; // ← Valor de ejemplo de estimatedPopulationValue
+
+    const calculatedHighValueTotal = highValueTotal > 0 
+        ? highValueTotal 
+        : 0; // ← Puede ser 0 si no hay elementos de valor alto
+
+    const calculatedPopulationExcludingHigh = calculatedPopulationIncludingHigh - calculatedHighValueTotal;
+
+    console.log('🔍 Valores calculados en Summary:', {
+        calculatedPopulationExcludingHigh,
+        calculatedHighValueTotal, 
+        calculatedPopulationIncludingHigh
+    });
 
     // ✅ CORRECCIÓN: Tabla específica para Cell & Classical PPS
     const renderCellClassicalTable = () => {
@@ -684,44 +715,64 @@ const Summary: React.FC<SummaryProps> = ({
                         
                         {/* Título y Resumen General */}
                         <div className="page-break">
-                            <h2 className="text-2xl font-bold text-center text-gray-800">{mainTitle}</h2>
-                            <h3 className="text-xl font-semibold text-center text-gray-600 mb-4">Resumen</h3>
-                            <div className="p-4 bg-gray-50 rounded-lg shadow-inner">
-                                <div className="grid grid-cols-2 gap-y-4 gap-x-12 mb-4">
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-sm font-medium text-gray-700">Nivel de confianza:</span>
-                                        <span className="text-sm font-bold text-gray-900">{formatNumber(confidenceLevel,2)}%</span>
-                                    </div>
-                                    {/* Conditionally render Sample Interval and Basic Precision */}
-                                    {evaluationMethod === 'cell-classical' && (
-                                        <>
+                            <h2 className="text-2xl font-bold text-center text-gray-800 mb-6">{mainTitle}</h2>
+                            
+                            <div className="grid grid-cols-2 gap-10">
+                                {/* Columna izquierda - Parámetros de muestreo */}
+                                <div className="space-y-4">
+                                    <div className="space-y-3">
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-sm font-medium text-gray-700 w-160">Nivel de confianza:</span>
+                                            <span className="text-sm font-bold text-gray-900">{formatNumber(confidenceLevel, 2)}%</span>
+                                        </div>
+                                        {/* Campo 1: Intervalo muestral - Ocultar solo para Stringer Bound */}
+                                        {evaluationMethod === 'cell-classical' && (
                                             <div className="flex justify-between items-center">
-                                                <span className="text-sm font-medium text-gray-700">Intervalo muestral:</span>
+                                                <span className="text-sm font-medium text-gray-700 w-90">Intervalo muestral:</span>
                                                 <span className="text-sm font-bold text-gray-900">{formatNumber(sampleInterval, 2)}</span>
                                             </div>
+                                        )}
+                                        
+                                        {/* Campo 2: Valor alto - Ocultar solo para Stringer Bound */}
+                                        {evaluationMethod === 'cell-classical' && (
                                             <div className="flex justify-between items-center">
-                                                <span className="text-sm font-medium text-gray-700">Precisión básica:</span>
-                                                <span className="text-sm font-bold text-gray-900">{formatNumber(precisionValue, 2)}</span>
-                                            </div>
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-sm font-medium text-gray-700">Valor alto:</span>
+                                                <span className="text-sm font-medium text-gray-700 w-90">Valor alto:</span>
                                                 <span className="text-sm font-bold text-gray-900">{formatNumber(highValueLimit, 2)}</span>
                                             </div>
-                                        </>
-                                    )}
+                                        )}
+                                        
+                                        {/* Campo 3: Precisión básica de fijación de precios - Ocultar solo para Stringer Bound */}
+                                        {evaluationMethod === 'cell-classical' && (
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-sm font-medium text-gray-700 w-90">Precisión básica de fijación de precios:</span>
+                                                <span className="text-sm font-bold text-gray-900">100.00</span>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
+
+                                {/* Columna derecha - Valores de población */}
                                 <div className="space-y-4">
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-sm font-medium text-gray-700">Valor de población excluyendo valores altos:</span>
-                                        <span className="text-sm font-bold text-gray-900">{formatNumber(populationExcludingHigh, 2)}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-sm font-medium text-gray-700">Valor total de elementos de valor alto:</span>
-                                        <span className="text-sm font-bold text-gray-900">{formatNumber(highValueTotal, 2)}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-sm font-medium text-gray-700">Valor de población incluyendo elementos de valor alto:</span>
-                                        <span className="text-sm font-bold text-gray-900">{formatNumber(populationIncludingHigh, 2)}</span>
+                                    <div className="space-y-3">
+                                        {/* ✅ USAR VALORES CALCULADOS */}
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-sm font-medium text-gray-700 w-100">Valor de la población muestreada excluyendo valores altos:</span>
+                                            <span className="text-sm font-bold text-gray-900">{formatNumber(calculatedPopulationExcludingHigh, 2)}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-sm font-medium text-gray-700 w-90">Valor total de elementos de valor alto:</span>
+                                            <span className="text-sm font-bold text-left text-gray-900">{formatNumber(calculatedHighValueTotal, 2)}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-sm font-medium text-gray-700 w-90">Valor de población incluyendo elementos de valor alto:</span>
+                                            <span className="text-sm font-bold text-gray-900">{formatNumber(calculatedPopulationIncludingHigh, 2)}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-sm font-medium text-gray-700 w-90">Método de evaluación:</span>
+                                            <span className="text-sm font-bold text-gray-900">
+                                                {evaluationMethod === 'cell-classical' ? 'MUM - Evaluación Celda' : 'MUM - Evaluación Stringer Bound'}
+                                            </span>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
