@@ -69,10 +69,10 @@ function MumPageContent() {
     const [precisionTotal, setPrecisionTotal] = useState(0.02);
     const [limiteErrorSuperiorBruto, setLimiteErrorSuperiorBruto] = useState(1.5);
     const [limiteErrorSuperiorNeto, setLimiteErrorSuperiorNeto] = useState(1.2);
-    const [highValueCountResume, setHighValueCountResume] = useState(5);
-    const [highValueTotal, setHighValueTotal] = useState(25000);
-    const [populationExcludingHigh, setPopulationExcludingHigh] = useState(975000);
-    const [populationIncludingHigh, setPopulationIncludingHigh] = useState(1000000);
+    const [highValueCountResume, setHighValueCountResume] = useState(0);
+    const [highValueTotal, setHighValueTotal] = useState(0);
+    const [populationExcludingHigh, setPopulationExcludingHigh] = useState(0);
+    const [populationIncludingHigh, setPopulationIncludingHigh] = useState(0);
 
     // Manejador de carga de archivo SIN logs por ahora
     const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -123,13 +123,6 @@ function MumPageContent() {
             };
             
             const result = await mumApi.planification(body);
-
-            // DEBUG: Verificar resultados de planificación
-            console.log('=== DEBUG PLANIFICACIÓN ===');
-            console.log('Población estimada:', result.estimatedPopulationValue);
-            console.log('Tamaño muestra:', result.estimatedSampleSize);
-            console.log('Intervalo muestral:', result.sampleInterval);
-            console.log('==========================');
             
             setEstimatedPopulationValue(result.estimatedPopulationValue);
             setEstimatedSampleSize(result.estimatedSampleSize);
@@ -151,18 +144,6 @@ function MumPageContent() {
 
     const handleExtraction = async () => {
         try {
-            // ✅ VERIFICAR DATOS CRÍTICOS ANTES DE ENVIAR
-            console.log('=== DEBUG EXTRACCIÓN FRONTEND ===');
-            console.log('Sample field:', sampleField);
-            console.log('Sample interval:', sampleInterval);
-            console.log('High value management:', highValueManagement);
-            console.log('Extraction filename:', extractionFilename);
-            console.log('High value filename:', highValueFilename);
-            console.log('Estimated sample size:', estimatedSampleSize);
-            console.log('Random start point:', randomStartPoint);
-            console.log('High value limit:', highValueLimit);
-            console.log('================================');
-
             // ✅ VALIDAR CAMPOS REQUERIDOS
             if (!sampleField) {
                 alert("Debe seleccionar un campo numérico para la muestra");
@@ -206,13 +187,12 @@ function MumPageContent() {
             });
 
             const result = await mumApi.extraction(body);
-            
-            console.log('Respuesta del backend:', {
-                sampleFileBase64: result.sampleFileBase64 ? `[BASE64: ${result.sampleFileBase64.length} chars]` : 'NULL',
-                highValueFileBase64: result.highValueFileBase64 ? `[BASE64: ${result.highValueFileBase64.length} chars]` : 'NULL',
-                sampleFilename: result.sampleFilename,
-                highValueFilename: result.highValueFilename
-            });
+
+            // ✅ ACTUALIZAR: Setear los valores REALES calculados en el backend
+            setHighValueCountResume(result.highValueCount || 0);
+            setHighValueTotal(result.highValueTotal || 0);
+            setPopulationExcludingHigh(result.populationExcludingHigh || estimatedPopulationValue);
+            setPopulationIncludingHigh(result.populationIncludingHigh || estimatedPopulationValue);
 
             // ✅ CORRECCIÓN: DECODIFICACIÓN BASE64 MEJORADA
             if (!result.sampleFileBase64) {

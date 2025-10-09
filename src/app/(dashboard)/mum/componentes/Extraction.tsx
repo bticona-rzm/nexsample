@@ -173,15 +173,6 @@ const Extraction: React.FC<ExtractionProps> = ({
                 setHighValueLimit(newHighValueLimit);
             }
 
-            // DEBUG: Agregar logs para comparar con IDEA
-            console.log('=== DEBUG EXTRACCIÓN ===');
-            console.log('Población:', estimatedPopulationValue);
-            console.log('Tamaño muestra:', estimatedSampleSize);
-            console.log('Intervalo calculado:', sampleInterval);
-            console.log('Punto inicio aleatorio:', newRandomStartPoint);
-            console.log('Límite valor alto:', newHighValueLimit);
-            console.log('========================');
-
             calculateTableValues();
 
             const highValueRecords = excelData.filter(row => {
@@ -213,12 +204,6 @@ const Extraction: React.FC<ExtractionProps> = ({
             if (!modifyHighValueLimit) {
                 setHighValueLimit(newHighValueLimit);
             }
-
-            // DEBUG con información de la semilla
-            console.log('=== DEBUG EXTRACCIÓN CON SEMILLA ===');
-            console.log('Semilla (sampleInterval):', sampleInterval);
-            console.log('Punto inicio reproducible:', newRandomStartPoint);
-            console.log('====================================');
 
             calculateTableValues();
             

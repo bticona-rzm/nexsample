@@ -89,10 +89,6 @@ export const executeExtraction = (params: {
         highValueFilename
     } = params;
     
-    console.log('=== EXTRACTION SERVICE DEBUG ===');
-    console.log('Sample field:', sampleField);
-    console.log('Original sample interval:', sampleInterval);
-    
     // ✅ CORRECCIÓN: USAR ENTEROS COMO IDEA
     const correctedSampleInterval = roundToInteger(sampleInterval);
     const correctedHighValueLimit = correctedSampleInterval;

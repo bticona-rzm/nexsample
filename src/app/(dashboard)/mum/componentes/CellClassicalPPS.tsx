@@ -5,7 +5,7 @@ import {handleErrorChange, formatNumber, formatErrorValue} from '../../../../lib
 
 // Props para el formulario de Cell & Classical PPS
 interface CellClassicalPPSFormProps {
-    onOk: (method: 'cell-classical') => Promise<void>; 
+    onOk: (method: 'cell-classical', evaluationData?: any) => Promise<void>;
     confidenceLevel: number;
     precisionValue: number;
     setPrecisionValue: (value: number) => void;
@@ -131,14 +131,6 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({
                 auditedValue: parseFloat(row[auditedValueField]) || 0
             }));
 
-            console.log("🔍 sampleData preparado:", sampleData); // ← Agrega este log
-            console.log("🔍 Campos usados:", {
-                bookValueField,
-                auditedValueField, 
-                referenceField
-            });
-            console.log("🔍 Primera fila de fileData:", fileData[0]); // ← Ver estructura real
-
             // 3. ENVIAR AL BACKEND REAL
             const response = await fetch('/api/mum/evaluation/cell-classical', {
                 method: 'POST',
@@ -168,10 +160,17 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({
 
             // 4. MANEJAR RESULTADOS REALES
             console.log("Resultados evaluación REALES:", results);
-            console.log("Campo seleccionado en planificación:", selectedField); // ✅ Para debugging
-            console.log("Campo usado para Book Value:", bookValueField);
             
-            await onOk('cell-classical'); 
+            await onOk('cell-classical', {
+                cellClassicalData: results.cellClassicalData,
+                numErrores: results.numErrores,
+                errorMasProbableBruto: results.errorMasProbableBruto,
+                errorMasProbableNeto: results.errorMasProbableNeto,
+                precisionTotal: results.precisionTotal,
+                limiteErrorSuperiorBruto: results.limiteErrorSuperiorBruto,
+                limiteErrorSuperiorNeto: results.limiteErrorSuperiorNeto,
+                highValueCountResume: results.highValueCountResume
+            }); 
 
         } catch (error: any) {
             console.error("Error en evaluación:", error);

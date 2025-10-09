@@ -77,6 +77,12 @@ const Summary: React.FC<SummaryProps> = ({
 }) => {
     // ELIMINADA la función formatNumber local - ahora usamos la importada
 
+    console.log('🕵️‍♂️ SUMMARY - HIGH VALUE DATA:', {
+        highValueCountResume,
+        highValueTotal,
+        propsSource: '¿De dónde vienen estos valores?'
+    });
+
     const handlePrint = () => {
         window.print();
     };
@@ -113,15 +119,16 @@ const Summary: React.FC<SummaryProps> = ({
         ? `Además, se han identificado ${highValueCountResume ?? 0} elementos de valor alto que representan un total de ${formatNumber(highValueTotal, 2)}, los cuales fueron analizados por separado para asegurar una cobertura completa y confiable.`
         : ''; 
 
-    const calculatedPopulationIncludingHigh = populationIncludingHigh > 0 
-        ? populationIncludingHigh 
-        : 0; // ← Valor de ejemplo de estimatedPopulationValue
+    // ✅ CORREGIDO - En Summary.tsx
+    const calculatedPopulationExcludingHigh = populationExcludingHigh > 0 
+        ? populationExcludingHigh 
+        : 0; // ← Usar el valor real que muestra IDEA
 
     const calculatedHighValueTotal = highValueTotal > 0 
         ? highValueTotal 
-        : 0; // ← Puede ser 0 si no hay elementos de valor alto
+        : 0; // ← IDEA muestra 0, no 586,320,900
 
-    const calculatedPopulationExcludingHigh = calculatedPopulationIncludingHigh - calculatedHighValueTotal;
+    const calculatedPopulationIncludingHigh = calculatedPopulationExcludingHigh + calculatedHighValueTotal;
 
     console.log('🔍 Valores calculados en Summary:', {
         calculatedPopulationExcludingHigh,
@@ -142,7 +149,7 @@ const Summary: React.FC<SummaryProps> = ({
         const overstatementMLE = cellClassicalData?.mostLikelyError || errorMasProbableBruto;
         const understatementMLE = cellClassicalData?.mostLikelyError || errorMasProbableNeto;
         
-        const overstatementUEL = cellClassicalData?.upperErrorLimit || limiteErrorSuperiorBruto;
+        const overstatementUEL = (cellClassicalData?.stageUEL || 0) * sampleInterval;
         const understatementUEL = cellClassicalData?.upperErrorLimit || limiteErrorSuperiorNeto;
         
         return (
@@ -166,7 +173,7 @@ const Summary: React.FC<SummaryProps> = ({
                 <tr>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Error más probable neto</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(overstatementMLE, 2)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(understatementMLE, 2)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(-understatementMLE, 2)}</td>
                 </tr>
                 <tr>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Precisión total</td>

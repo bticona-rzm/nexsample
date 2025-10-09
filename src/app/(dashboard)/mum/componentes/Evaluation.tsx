@@ -6,6 +6,7 @@ import CellClassicalPPSForm from './CellClassicalPPS';
 import StringerBoundForm from './StringerBound'; 
 import Summary from './Summary'; 
 
+// ✅ ACTUALIZAR la interfaz
 interface EvaluationProps {
     isExtraccionDone: boolean;
     confidenceLevel: number;
@@ -27,7 +28,7 @@ interface EvaluationProps {
     highValueCountResume: number;
     headers: string[]; 
     setActiveTab: Dispatch<SetStateAction<string>>;
-    handleEvaluation: (method: 'cell-classical' | 'stringer-bound') => Promise<void>; 
+    handleEvaluation: (method: 'cell-classical' | 'stringer-bound', data?: any) => Promise<any>; // ← MODIFICADO
     tolerableError:number;
     selectedField: string | null;
 }
@@ -37,11 +38,23 @@ const Evaluation: React.FC<EvaluationProps> = (props) => {
     const [showSummary, setShowSummary] = useState(false);
     const [evaluationResults, setEvaluationResults] = useState<any>(null);
 
-    const handleEvaluationProcess = async (method: 'cell-classical' | 'stringer-bound') => {
+    // ✅ CORREGIDO - Manejar datos de evaluación
+    const handleEvaluationProcess = async (method: 'cell-classical' | 'stringer-bound', evaluationData?: any) => {
         try {
-            const results = await props.handleEvaluation(method); // ← Recibes los resultados
-            setEvaluationResults(results); // ← Los guardas en estado local
-            setShowSummary(true);
+            console.log('📥 Datos recibidos en Evaluation:', evaluationData);
+            
+            if (evaluationData) {
+                // Guardar los datos directamente
+                setEvaluationResults(evaluationData);
+                setShowSummary(true);
+            } else {
+                // Fallback: usar la función original
+                const results = await props.handleEvaluation(method);
+                if (results) {
+                    setEvaluationResults(results);
+                }
+                setShowSummary(true);
+            }
         } catch (error) {
             console.error("Error durante la evaluación:", error);
             alert("Ocurrió un error al realizar la evaluación.");
@@ -51,6 +64,21 @@ const Evaluation: React.FC<EvaluationProps> = (props) => {
     const handleBack = () => {
         setShowSummary(false); 
     };
+
+    // Debug: ver qué datos tenemos
+    console.log('🔍 Evaluation Results State:', evaluationResults);
+
+    console.log('🔍 VALORES DE POBLACIÓN RECIBIDOS:', {
+        populationExcludingHigh: props.populationExcludingHigh,
+        highValueTotal: props.highValueTotal, 
+        populationIncludingHigh: props.populationIncludingHigh,
+        estimatedPopulationValue: props.estimatedPopulationValue
+    });
+
+    console.log('🕵️‍♂️ ORIGEN DEL HIGH VALUE COUNT:', {
+        propValue: props.highValueCountResume,
+        evaluationResultsValue: evaluationResults?.highValueCountResume
+    });
 
     return (
         <div className="p-6 bg-white rounded-lg shadow-md">
@@ -123,7 +151,7 @@ const Evaluation: React.FC<EvaluationProps> = (props) => {
                     >
                         {selectedMethod === 'cell-classical' && (
                             <CellClassicalPPSForm 
-                                onOk={handleEvaluationProcess} 
+                                onOk={handleEvaluationProcess} // ← Esta función ahora acepta 2 parámetros
                                 confidenceLevel={props.confidenceLevel}
                                 precisionValue={props.precisionValue}
                                 setPrecisionValue={props.setPrecisionValue}
@@ -137,7 +165,7 @@ const Evaluation: React.FC<EvaluationProps> = (props) => {
                         )}
                         {selectedMethod === 'stringer-bound' && (
                             <StringerBoundForm 
-                                onOk={handleEvaluationProcess} 
+                                onOk={handleEvaluationProcess} // ← También actualizar aquí si es necesario
                                 confidenceLevel={props.confidenceLevel}
                                 estimatedPopulationValue={props.estimatedPopulationValue}
                                 estimatedSampleSize={props.estimatedSampleSize}
@@ -172,7 +200,7 @@ const Evaluation: React.FC<EvaluationProps> = (props) => {
                             highValueTotal={props.highValueTotal}
                             populationIncludingHigh={props.populationIncludingHigh}
                             estimatedSampleSize={props.estimatedSampleSize}
-                            // ✅ PASAR LOS RESULTADOS REALES DE LA EVALUACIÓN
+                            // ✅ AHORA SÍ: Usar los datos reales de la evaluación
                             numErrores={evaluationResults?.numErrores || props.numErrores}
                             errorMasProbableBruto={evaluationResults?.errorMasProbableBruto || props.errorMasProbableBruto}
                             errorMasProbableNeto={evaluationResults?.errorMasProbableNeto || props.errorMasProbableNeto}
@@ -187,7 +215,7 @@ const Evaluation: React.FC<EvaluationProps> = (props) => {
                             onBack={handleBack}
                             
                             // ✅ PASAR LOS DATOS DETALLADOS DE CELL CLASSICAL
-                            cellClassicalData={evaluationResults?.cellClassicalData} 
+                            cellClassicalData={evaluationResults?.cellClassicalData}
                         />
                     </motion.div>
                 )}
