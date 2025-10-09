@@ -150,6 +150,7 @@ const Extraction: React.FC<ExtractionProps> = ({
         setAbsoluteRecords(absoluteCount);
     };
 
+    
     // Efecto para inicializar con el campo heredado
     useEffect(() => {
         if (selectedField && isPlanificacionDone && !sampleField) {
@@ -162,43 +163,38 @@ const Extraction: React.FC<ExtractionProps> = ({
         }
     }, [selectedField, isPlanificacionDone, sampleField]);
 
-    // Efecto para cálculos cuando cambia sampleField
+    // ✅ CORREGIDO: Todo dentro del useEffect
     useEffect(() => {
         if (sampleField && excelData.length > 0) {
-            const newRandomStartPoint = Math.floor(Math.random() * estimatedPopulationValue) + 1;
+            // Función corregida para IDEA
+            const generateIDEARandom = (seed: number) => {
+                const a = 1103515245;
+                const c = 12345;
+                const m = Math.pow(2, 31);
+                
+                let currentSeed = seed;
+                
+                return function() {
+                    currentSeed = (a * currentSeed + c) % m;
+                    return currentSeed / m;
+                };
+            };
+
+            // ✅ CALCULAR DENTRO DEL EFFECT
+            const seed = sampleInterval;
+            const ideRandom = generateIDEARandom(seed);
+            const newRandomStartPoint = Math.floor(ideRandom() * sampleInterval) + 1;
+            
+            // ✅ ACTUALIZAR EL ESTADO
             setRandomStartPoint(newRandomStartPoint);
 
-            const newHighValueLimit = sampleInterval;
-             if (!modifyHighValueLimit) {
-                setHighValueLimit(newHighValueLimit);
-            }
-
-            calculateTableValues();
-
-            const highValueRecords = excelData.filter(row => {
-                const value = parseFloat(row[sampleField]);
-                return !isNaN(value) && Math.abs(value) >= sampleInterval;
+            console.log('🔍 DEBUG IDEA RANDOM:', {
+                sampleInterval,
+                seedUsed: seed,
+                randomValue: ideRandom(),
+                calculatedStartPoint: newRandomStartPoint,
+                expectedIDEA: 10899201
             });
-            setHighValueCount(highValueRecords.length);
-
-            addLog(
-                'Cálculos de extracción actualizados',
-                `Campo: ${sampleField}\nPunto inicio aleatorio: ${newRandomStartPoint}\nValores altos: ${highValueRecords.length}`,
-                'extraction'
-            );
-        }
-    }, [sampleField, excelData, sampleInterval, modifyHighValueLimit]);
-
-    // Efecto adicional para cuando cambian los datos o el intervalo
-    useEffect(() => {
-        if (sampleField && excelData.length > 0) {
-            // CORRECCIÓN: Usar el sampleInterval como semilla para generar punto de inicio reproducible
-            // Esto asegura que la misma configuración siempre genere la misma muestra
-            const seed = sampleInterval; // Usar el intervalo como semilla
-            const reproducibleRandom = generateSeededRandom(seed);
-            const newRandomStartPoint = Math.floor(reproducibleRandom() * sampleInterval) + 1;
-            
-            setRandomStartPoint(newRandomStartPoint*2);
 
             const newHighValueLimit = sampleInterval;
             if (!modifyHighValueLimit) {
@@ -220,14 +216,6 @@ const Extraction: React.FC<ExtractionProps> = ({
             );
         }
     }, [sampleField, excelData, sampleInterval, modifyHighValueLimit]);
-
-    // Función para generar números aleatorios reproducibles basados en semilla
-    const generateSeededRandom = (seed: number) => {
-        return function() {
-            seed = (seed * 9301 + 49297) % 233280;
-            return seed / 233280;
-        };
-    };
 
     // ✅ CORRECCIÓN: Mejorar el texto informativo sobre valores altos
     const getHighValueText = () => {
