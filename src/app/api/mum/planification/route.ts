@@ -1,6 +1,23 @@
 import { NextResponse } from 'next/server';
 import { getConfidenceFactor } from '@/utils/tables';
 
+// Y la función helper:
+const calculateIDEATaintings = (
+    expectedError: number,
+    sampleInterval: number,
+) => {  
+    // IDEA usa simplemente: Expected Error / Sample Interval
+    const totalTaintings = expectedError / sampleInterval;
+    
+    // Y para el porcentaje: (Total Taintings) × 100
+    const tolerableContaminationPercent = totalTaintings * 100;
+    
+    return {
+        totalTaintings: Math.round(totalTaintings * 1000000) / 1000000,
+        tolerableContamination: Math.round(tolerableContaminationPercent * 100) / 100
+    };
+};
+
 export async function POST(req: Request) {
     try {
         const {
@@ -107,7 +124,13 @@ export async function POST(req: Request) {
             const randomStart = Math.round((Math.random() * (sampleInterval - 0.01) + 0.01) * 100) / 100;
             
             // 5. Total taintings con alta precisión (6 decimales como IDEA)
-            const totalTaintings = Math.round(((expectedError / sampleInterval) * confidenceFactor) * 1000000) / 1000000;
+            const taintingResults = calculateIDEATaintings(
+                expectedError, 
+                sampleInterval, 
+            );
+
+            const totalTaintings = taintingResults.totalTaintings;
+            const tolerableContaminationPercent = totalTaintings * 100;
             
             // 6. Conclusión específica de IDEA
             const conclusion = `La población podrá aceptarse a un nivel de confianza del ${confidenceLevel}% cuando no se observan más de ${totalTaintings} total taintings en una muestra de tamaño ${finalSampleSize}.`;
@@ -118,7 +141,7 @@ export async function POST(req: Request) {
                 sampleInterval,
                 randomStartPoint: randomStart,
                 highValueLimit,
-                tolerableContamination: Math.round((totalTaintings / finalSampleSize) * 100 * 100) / 100, // 2 decimales
+                tolerableContamination: tolerableContaminationPercent, 
                 conclusion,
                 confidenceFactorUsed: confidenceFactor,
                 expectedTotalTaintings: totalTaintings,
