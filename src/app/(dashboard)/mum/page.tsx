@@ -63,12 +63,12 @@ function MumPageContent() {
     const [modifyHighValueLimit, setModifyHighValueLimit] = useState<boolean>(false);
 
     // --- Estados para el módulo de Resumen ---
-    const [numErrores, setNumErrores] = useState(2);
-    const [errorMasProbableBruto, setErrorMasProbableBruto] = useState(0.85);
-    const [errorMasProbableNeto, setErrorMasProbableNeto] = useState(0.75);
-    const [precisionTotal, setPrecisionTotal] = useState(0.02);
-    const [limiteErrorSuperiorBruto, setLimiteErrorSuperiorBruto] = useState(1.5);
-    const [limiteErrorSuperiorNeto, setLimiteErrorSuperiorNeto] = useState(1.2);
+    const [numErrores, setNumErrores] = useState(0);
+    const [errorMasProbableBruto, setErrorMasProbableBruto] = useState(0);
+    const [errorMasProbableNeto, setErrorMasProbableNeto] = useState(0);
+    const [precisionTotal, setPrecisionTotal] = useState(0);
+    const [limiteErrorSuperiorBruto, setLimiteErrorSuperiorBruto] = useState(0);
+    const [limiteErrorSuperiorNeto, setLimiteErrorSuperiorNeto] = useState(0);
     const [highValueCountResume, setHighValueCountResume] = useState(0);
     const [highValueTotal, setHighValueTotal] = useState(0);
     const [populationExcludingHigh, setPopulationExcludingHigh] = useState(0);

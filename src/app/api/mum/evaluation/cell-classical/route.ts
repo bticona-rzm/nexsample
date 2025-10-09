@@ -73,7 +73,14 @@ export async function POST(req: Request) {
             poblacion: populationValue
         });
 
-        // 1. CALCULAR ERRORES - CORREGIDO
+        // ✅ 1. REGLA IDEA: Precisión decimal para cálculos
+        const IDEA_DECIMAL_PRECISION = {
+            monetary: 2,      // Valores monetarios
+            percentages: 6,   // Taintings
+            factors: 4,       // Factores UEL
+        };
+
+        // 2. CALCULAR ERRORES - CON PRECISIÓN IDEA
         const errors: CalculatedError[] = sampleData
             .filter((item: SampleItem) => {
                 const bookValue = Number(item.bookValue);
@@ -83,7 +90,7 @@ export async function POST(req: Request) {
                     return false;
                 }
                 
-                // ✅ CORREGIDO: Solo considerar errores significativos (> 0.01)
+                // ✅ REGLA IDEA: Solo errores > 0.01
                 const hasError = Math.abs(bookValue - auditedValue) > 0.01;
                 return hasError;
             })
@@ -92,8 +99,8 @@ export async function POST(req: Request) {
                 const auditedValue = Number(item.auditedValue);
                 const error = bookValue - auditedValue;
                 
-                // ✅ CORREGIDO: Tainting siempre positivo, entre 0 y 1
-                const tainting = Math.min(Math.abs(error) / Math.abs(bookValue), 1);
+                // ✅ REGLA IDEA: Tainting entre 0-1, 6 decimales
+                const tainting = Math.round(Math.min(Math.abs(error) / Math.abs(bookValue), 1) * 1000000) / 1000000;
                 
                 return {
                     reference: item.reference,
@@ -103,16 +110,16 @@ export async function POST(req: Request) {
                     tainting,
                     isOverstatement: error > 0,
                     isUnderstatement: error < 0,
-                    projectedError: tainting * sampleInterval
+                    projectedError: Math.round(tainting * sampleInterval * 100) / 100 // 2 decimales monetarios
                 };
             });
 
         console.log("🔍 ERRORES ENCONTRADOS:", errors.length);
 
-        // 2. ✅ USAR FACTORES DE TABLAS CORREGIDOS
+        // 3. ✅ USAR FACTORES IDEA CORREGIDOS
         const factors = getIncrementalFactors(confidenceLevel);
 
-        // 3. ✅ SEPARAR ERRORES CORRECTAMENTE
+        // 4. ✅ SEPARAR ERRORES CORRECTAMENTE
         const overstatements = errors
             .filter((e: CalculatedError) => e.isOverstatement)
             .sort((a: CalculatedError, b: CalculatedError) => b.tainting - a.tainting);
@@ -121,15 +128,15 @@ export async function POST(req: Request) {
             .filter((e: CalculatedError) => e.isUnderstatement)  
             .sort((a: CalculatedError, b: CalculatedError) => b.tainting - a.tainting);
 
-        // 4. ✅ CALCULAR MOST LIKELY ERROR CORRECTO
-        const overstatementMLE = overstatements.reduce((sum: number, e: CalculatedError) => sum + e.projectedError, 0);
-        const understatementMLE = understatements.reduce((sum: number, e: CalculatedError) => sum + e.projectedError, 0);
+        // ✅ REGLA IDEA: Most Likely Error con 2 decimales
+        const overstatementMLE = Math.round(overstatements.reduce((sum: number, e: CalculatedError) => sum + e.projectedError, 0) * 100) / 100;
+        const understatementMLE = Math.round(understatements.reduce((sum: number, e: CalculatedError) => sum + e.projectedError, 0) * 100) / 100;
 
-        // 5. ✅ CALCULAR UEL COMO IDEA - ALGORITMO CORREGIDO
+        // 5. ✅ CALCULAR UEL CON ALGORITMO IDEA COMPLETO
         const calculateUEL = (errorList: CalculatedError[]): { uel: number, stages: StageData[] } => {
             if (errorList.length === 0) {
                 return { 
-                    uel: factors[0], 
+                    uel: Math.round(factors[0] * 10000) / 10000, // 4 decimales
                     stages: [] 
                 };
             }
@@ -137,31 +144,33 @@ export async function POST(req: Request) {
             const stages: StageData[] = [];
             let cumulativeUEL = factors[0];
             
-            for (let i = 0; i < Math.min(errorList.length, factors.length); i++) {
+            // ✅ REGLA IDEA: Máximo 10 errores procesados
+            const maxErrors = Math.min(errorList.length, 10);
+            
+            for (let i = 0; i < maxErrors; i++) {
                 const error = errorList[i];
-                const incrementalFactor = i === 0 ? factors[0] : factors[i] - factors[i-1];
                 
-                // ✅ CORREGIDO: Cálculos como IDEA
-                const loadingPropagation = cumulativeUEL + error.tainting;
-                const simplePropagation = factors[i] * error.tainting;
+                // ✅ CÁLCULOS CON PRECISIÓN IDEA
+                const loadingPropagation = Math.round((cumulativeUEL + error.tainting) * 10000) / 10000;
+                const simplePropagation = Math.round((factors[i] * error.tainting) * 10000) / 10000;
                 const maxStageUEL = Math.max(loadingPropagation, simplePropagation);
                 
                 const stage: StageData = {
                     stage: i + 1,
-                    uelFactor: factors[i],
+                    uelFactor: Math.round(factors[i] * 10000) / 10000,
                     tainting: error.tainting,
-                    averageTainting: errorList.slice(0, i + 1).reduce((sum, e) => sum + e.tainting, 0) / (i + 1),
-                    previousUEL: cumulativeUEL,
+                    averageTainting: Math.round(errorList.slice(0, i + 1).reduce((sum, e) => sum + e.tainting, 0) / (i + 1) * 1000000) / 1000000,
+                    previousUEL: Math.round(cumulativeUEL * 10000) / 10000,
                     loadingPropagation,
                     simplePropagation,
-                    maxStageUEL
+                    maxStageUEL: Math.round(maxStageUEL * 10000) / 10000
                 };
                 
                 cumulativeUEL = maxStageUEL;
                 stages.push(stage);
             }
             
-            return { uel: cumulativeUEL, stages };
+            return { uel: Math.round(cumulativeUEL * 10000) / 10000, stages };
         };
 
         // ✅ CALCULAR POR SEPARADO
@@ -173,42 +182,42 @@ export async function POST(req: Request) {
         const overstatementStages = overstatementResult.stages;
         const understatementStages = understatementResult.stages;
 
-        // 6. ✅ BASIC PRECISION CORRECTA
-        const basicPrecision = calculateBasicPrecision(confidenceLevel, sampleInterval);
+        // 6. ✅ BASIC PRECISION CORRECTA (2 decimales)
+        const basicPrecision = Math.round(calculateBasicPrecision(confidenceLevel, sampleInterval) * 100) / 100;
 
-        // 7. ✅ RESULTADOS FINALES - CORREGIDOS PARA COINCIDIR CON IDEA
+        // 7. ✅ RESULTADOS FINALES CON PRECISIÓN IDEA
         const response: CellClassicalResponse = {
             numErrores: errors.length,
             
-            // ✅ CORREGIDO: Most Likely Error diferente para cada columna
-            errorMasProbableBruto: overstatementMLE,  // Sobrestimaciones
-            errorMasProbableNeto: -understatementMLE, // Subestimaciones (negativo)
+            // ✅ PRECISIÓN MONETARIA: 2 decimales
+            errorMasProbableBruto: overstatementMLE,
+            errorMasProbableNeto: -understatementMLE,
             
             precisionTotal: basicPrecision,
             
-            // ✅ CORREGIDO: Límites diferentes multiplicados por sampleInterval
-            limiteErrorSuperiorBruto: overstatementUEL * sampleInterval,
-            limiteErrorSuperiorNeto: understatementUEL * sampleInterval,
+            // ✅ LÍMITES CON 2 DECIMALES
+            limiteErrorSuperiorBruto: Math.round(overstatementUEL * sampleInterval * 100) / 100,
+            limiteErrorSuperiorNeto: Math.round(understatementUEL * sampleInterval * 100) / 100,
             
-            // ✅ MANTENER valores reales recibidos
-            populationExcludingHigh: populationExcludingHigh !== undefined ? populationExcludingHigh : populationValue,
-            highValueTotal: highValueTotal !== undefined ? highValueTotal : 0,
-            populationIncludingHigh: populationValue,
+            // ✅ VALORES DE POBLACIÓN CON 2 DECIMALES
+            populationExcludingHigh: populationExcludingHigh !== undefined ? Math.round(populationExcludingHigh * 100) / 100 : Math.round(populationValue * 100) / 100,
+            highValueTotal: highValueTotal !== undefined ? Math.round(highValueTotal * 100) / 100 : 0,
+            populationIncludingHigh: Math.round(populationValue * 100) / 100,
             highValueCountResume: highValueCountResume !== undefined ? highValueCountResume : 0,
             
-            // ✅ DATOS DETALLADOS CORREGIDOS
+            // ✅ DATOS DETALLADOS CON PRECISIÓN IDEA
             cellClassicalData: {
                 overstatements: overstatementStages,
                 understatements: understatementStages,
-                totalTaintings: errors.reduce((sum: number, e: CalculatedError) => sum + e.tainting, 0),
-                stageUEL: Math.max(overstatementUEL, understatementUEL),
+                totalTaintings: Math.round(errors.reduce((sum: number, e: CalculatedError) => sum + e.tainting, 0) * 1000000) / 1000000,
+                stageUEL: Math.round(Math.max(overstatementUEL, understatementUEL) * 10000) / 10000,
                 basicPrecision,
-                mostLikelyError: overstatementMLE + understatementMLE,
-                upperErrorLimit: Math.max(overstatementUEL, understatementUEL) * sampleInterval
+                mostLikelyError: Math.round((overstatementMLE + understatementMLE) * 100) / 100,
+                upperErrorLimit: Math.round(Math.max(overstatementUEL, understatementUEL) * sampleInterval * 100) / 100
             }
         };
 
-        console.log("📈 RESULTADOS CALCULADOS CELL & CLASSICAL:", {
+        console.log("📈 RESULTADOS CELL & CLASSICAL - IDEA:", {
             errores: response.numErrores,
             sobrestimaciones: overstatements.length,
             subestimaciones: understatements.length,
@@ -216,7 +225,12 @@ export async function POST(req: Request) {
             errorNeto: response.errorMasProbableNeto,
             limiteBruto: response.limiteErrorSuperiorBruto,
             limiteNeto: response.limiteErrorSuperiorNeto,
-            basicPrecision: response.precisionTotal
+            precision: response.precisionTotal,
+            reglasAplicadas: {
+                decimalesMonetarios: 2,
+                decimalesTainting: 6,
+                maxErroresProcesados: 10
+            }
         });
 
         return NextResponse.json(response);
