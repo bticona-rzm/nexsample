@@ -1,3 +1,5 @@
+// src/app/api/muestra/route.ts
+
 import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
@@ -5,6 +7,10 @@ import csv from "csv-parser";
 import JSONStream from "JSONStream";
 import xmlFlow from "xml-flow";
 import { createHash } from "crypto";
+import { prisma } from "@/lib/prisma";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import type { Session } from "next-auth";
 
 // ---------- Tipos ----------
 type RowData = Record<string, any>;
@@ -151,6 +157,30 @@ export async function POST(req: Request) {
       const sample = randomSample(meta.rows, n, seed, start, end, allowDuplicates);
       const hash = generateHash({ n, seed, start, end, allowDuplicates });
 
+      // Guardar historial en Prisma
+      const session = (await getServerSession(authOptions)) as Session | null;
+      const userId = session?.user?.id;
+
+      if (userId) {
+        try {
+          await prisma.historialMuestra.create({
+            data: {
+              name: `Muestra-${datasetId}`,
+              records: sample.length,
+              range: `${start}-${end}`,
+              seed,
+              allowDuplicates,
+              source: "dataset local",
+              hash,
+              tipo: "estandar",
+              userId,
+            },
+          });
+        } catch (err) {
+          console.error("❌ Error guardando historial estándar:", err);
+        }
+      }
+
       return NextResponse.json({ sample, hash, totalRows: meta.rows.length });
     }
 
@@ -190,7 +220,7 @@ export async function POST(req: Request) {
         return new Response(text, {
           headers: {
             "Content-Type": "text/plain",
-            "Content-Disposition": `attachment; filename=masivo.txt`,
+            "Content-Disposition": `attachment; filename=estandar.txt`,
           },
         });
       }
@@ -198,6 +228,60 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Formato no soportado" }, { status: 400 });
     }
 
+    // === HISTORIAL ESTÁNDAR ===
+    if (action === "historial") {
+      const { userId } = options;
+      if (!userId) return NextResponse.json({ error: "Falta userId" }, { status: 400 });
+
+      try {
+        const historial = await prisma.historialMuestra.findMany({
+          where: { userId, tipo: "estandar" },
+          orderBy: { createdAt: "desc" },
+          include: { user: { select: { name: true, email: true } } },
+        });
+
+        const result = historial.map((h) => ({
+          id: h.id,
+          name: h.name,
+          createdAt: h.createdAt,
+          userDisplay: h.user?.name ?? h.user?.email ?? h.userId,
+          records: h.records,
+          range: h.range,
+          seed: h.seed,
+          allowDuplicates: h.allowDuplicates,
+          source: h.source,
+          hash: h.hash,
+          tipo: h.tipo,
+        }));
+
+        return NextResponse.json(result);
+      } catch (err: any) {
+        return NextResponse.json(
+          { error: "Error al consultar historial estándar", details: err.message },
+          { status: 500 }
+        );
+      }
+    }
+
+    // === LIMPIAR HISTORIAL ESTÁNDAR ===
+    if (action === "clearHistorial") {
+      const { userId } = options;
+      if (!userId) return NextResponse.json({ error: "Falta userId" }, { status: 400 });
+
+      try {
+        await prisma.historialMuestra.deleteMany({
+          where: { userId, tipo: "estandar" },
+        });
+        return NextResponse.json({ ok: true });
+      } catch (err: any) {
+        return NextResponse.json(
+          { error: "Error al limpiar historial estándar", details: err.message },
+          { status: 500 }
+        );
+      }
+    }
+
+    // === ACCIÓN INVÁLIDA ===
     return NextResponse.json({ error: "Acción no válida" }, { status: 400 });
   } catch (err: any) {
     return NextResponse.json({ error: "Error interno masivo", details: err.message }, { status: 500 });

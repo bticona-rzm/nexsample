@@ -344,12 +344,12 @@ export default function MuestraPage() {
       name: t.name,
       sourceFile: t.sourceFile,
       datasetLabel: t.datasetLabel,
-      datasetId: t.datasetId,   // 🔑 guardamos solo la referencia al dataset
+      datasetId: t.datasetId,
     }));
     localStorage.setItem("tabs", JSON.stringify(lightTabs));
   }, [tabs]);
 
-  // Guardar historial
+  // Guardar historial / parámetros según pestaña activa
   useEffect(() => {
     if (activeTab && activeTab !== "historial") {
       const rows = tabs.find((t) => t.id === activeTab)?.rows || [];
@@ -359,7 +359,7 @@ export default function MuestraPage() {
         end: rows.length,
         totalRows: rows.length,
       }));
-    } 
+    }
   }, [activeTab, tabs]);
 
   // Guardar pestaña activa
@@ -372,6 +372,13 @@ export default function MuestraPage() {
     localStorage.setItem("sampleParams", JSON.stringify(sampleParams));
   }, [sampleParams]);
 
+  // 🔄 Recargar historial al cambiar entre Data Estándar / Masivo
+  useEffect(() => {
+    if (activeTab === "historial") {
+      console.log("🔁 Cambio de subTab detectado. Recargando historial...");
+      openHistorial();
+    }
+  }, [subTab]);
 
 
   // UI: modales y estados auxiliares ESTANDAR
@@ -578,7 +585,7 @@ export default function MuestraPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "historial", userId }),
-      });
+      }); 
 
       if (!res.ok) {
         setHistorial([]); // fallback seguro
@@ -823,7 +830,7 @@ export default function MuestraPage() {
       xhr.upload.onprogress = (event) => {
         if (event.lengthComputable) {
           const percent = Math.round((event.loaded / event.total) * 100);
-          setProgressMasivo(percent); // ⬅️ actualiza la barra
+          setProgressMasivo(percent); //  actualiza la barra
         }
       };
 
@@ -840,8 +847,8 @@ export default function MuestraPage() {
             {
               id: data.datasetId,
               name: datasetNameMasivo || data.fileName,
-              rows: data.preview || [],   // preview mostrado
-              total: data.total || 0,
+              rows: data.preview || [],
+              totalRows: data.totalRows || 0, // total real del backend
               type: "masivo",
             },
           ]);
@@ -883,25 +890,53 @@ export default function MuestraPage() {
     if (activeTab === id) setActiveTab(null);
   };
 
+  // === ABRIR HISTORIAL ===
   const openHistorial = async () => {
     setActiveTab("historial");
+    console.log("🟢 Ejecutando openHistorial. subTab:", subTab);
+
     try {
-      const res = await fetch("/api/historial", {
+      // 1️⃣ Obtener sesión actual
+      const sessionRes = await fetch("/api/auth/session", { credentials: "include" });
+      const session = await sessionRes.json();
+      console.log("🧍 ID de sesión:", session?.user?.id);
+      const userId = session?.user?.id;
+
+      // 2️⃣ Detectar correctamente si estás en Data Masivo
+      const activeButton = document.querySelector("nav[aria-label='Tabs'] button.border-b-2");
+      const activeText = activeButton?.textContent?.trim().toLowerCase() || "";
+      const isMasivo = subTab === "masivo" || activeText.includes("masivo");
+
+      // 3 Elegir endpoint
+      const endpoint = isMasivo ? "/api/masiva" : "/api/muestra";
+      const action = "historial";
+
+      console.log("📤 Enviando al backend:", { endpoint, action, userId });
+      console.log("🧍 userId a enviar:", userId);
+      // 4️ Hacer la solicitud
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "list" }),
+        credentials: "include",
+        body: JSON.stringify({ action, userId }),
       });
-      if (!res.ok) {
+
+      const data = await res.json();
+      console.log("📜 Datos del backend:", data);
+
+      // 5️⃣ Manejar respuesta
+      if (!res.ok || !Array.isArray(data)) {
+        console.warn("⚠️ No se obtuvieron datos válidos");
         setHistorial([]);
         return;
       }
-      const data = await res.json();
-      setHistorial(Array.isArray(data) ? data : []);
-    } catch {
+
+      setHistorial(data);
+    } catch (err) {
+      console.error("❌ Error cargando historial:", err);
       setHistorial([]);
     }
   };
-
 
   // const openHistorial = () => {
   //   setActiveTab("historial");
@@ -957,6 +992,7 @@ export default function MuestraPage() {
               onClick={() => setSubTab("masivo")}
               className={`px-3 py-2 text-sm font-medium ${
                 subTab === "masivo"
+                
                   ? "border-b-2 border-red-600 text-red-600"
                   : "text-gray-500 hover:text-gray-700"
               }`}
@@ -997,12 +1033,18 @@ export default function MuestraPage() {
                 </div>
 
                 {/* Contenido del tab seleccionado */}
-                {tabs.length === 0 || !activeTab ? (
+                {activeTab === "historial" ? (
+                  historial.length === 0 ? (
+                    <div className="p-6 text-gray-500 text-center">
+                      No hay registros en el historial aún.
+                    </div>
+                  ) : (
+                    <TablaHistorial historial={historial} />
+                  )
+                ) : tabs.length === 0 || !activeTab ? (
                   <div className="p-6 text-gray-500 text-center">
                     No hay datos cargados. Usa <b>Cargar Datos</b>.
                   </div>
-                ) : activeTab === "historial" ? (
-                  <TablaHistorial historial={Array.isArray(historial) ? historial : []} />
                 ) : (
                   <TablaGenerica rows={currentRows} />
                 )}
@@ -1032,13 +1074,19 @@ export default function MuestraPage() {
                   ))}
                 </div>
 
-                {/* Contenido del tab masivo */}
-                {tabs.length === 0 || !activeTab ? (
+                {/* Contenido del tab masivo */}    
+                {activeTab === "historial" ? (
+                  historial.length === 0 ? (
+                    <div className="p-6 text-gray-500 text-center">
+                      No hay registros en el historial aún (Data Masivo).
+                    </div>
+                  ) : (
+                    <TablaHistorial historial={Array.isArray(historial) ? historial : []} />
+                  )
+                ) : tabs.length === 0 || !activeTab ? (
                   <div className="p-6 text-gray-500 text-center">
                     No hay datos cargados. Usa <b>Cargar Datos</b> (Data Masivo).
                   </div>
-                ) : activeTab === "historial" ? (
-                  <TablaHistorial historial={Array.isArray(historial) ? historial : []} />
                 ) : (
                   <TablaGenerica rows={currentRows} />
                 )}
@@ -1071,17 +1119,34 @@ export default function MuestraPage() {
             <button
               onClick={() => {
                 if (subTab === "estandar") {
+                  // === 🟦 MUESTREO ESTÁNDAR ===
                   setSampleParams((prev) => ({
                     ...prev,
                     fileName: "",
                   }));
-                  setShowModal(true); // modal estándar
+                  setShowModal(true);
                 } else {
-                  setSampleParamsMasivo((prev) => ({
-                    ...prev,
+                  // === MUESTREO MASIVO ===
+
+                  // Generar semilla aleatoria diferente cada vez
+                  const randomSeed = Math.floor(Math.random() * 9000) + 1000;
+
+                  // Detectar dataset activo y contar filas
+                  const activeTabData = tabs.find((t) => t.id === activeTab);
+                  const totalRows = activeTabData?.totalRows || activeTabData?.rows?.length || 0;
+                  
+                  // Asignar parámetros por defecto
+                  setSampleParamsMasivo({
+                    records: 0,
+                    seed: randomSeed,
+                    start: 1,
+                    end: totalRows,
+                    allowDuplicates: false,
                     fileName: "",
-                  }));
-                  setShowModalMasivo(true); // modal masivo
+                  });
+
+                  // Mostrar modal
+                  setShowModalMasivo(true);
                 }
               }}
               className="w-full flex items-center gap-2 bg-gray-400 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded shadow transition-colors"
@@ -1107,7 +1172,7 @@ export default function MuestraPage() {
 
             {/* Historial */}
             <button
-              onClick={openHistorial} 
+              onClick={() => openHistorial()} 
               className="w-full flex items-center gap-2 bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-2 px-4 rounded shadow transition-colors"
             >
               <History size={18} />
@@ -1410,7 +1475,18 @@ export default function MuestraPage() {
                       type="file"
                       accept=".xlsx,.xls,.csv,.txt,.json,.xml"
                       className="hidden"
-                      onChange={(e) => setUploadedFile(e.target.files?.[0] || null)}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          setUploadedFile(file);
+
+                          // 🔹 Extraer nombre base sin extensión
+                          const baseName = file.name.replace(/\.[^/.]+$/, "");
+                          setDatasetName(baseName);
+                        } else {
+                          setUploadedFile(null);
+                        }
+                      }}
                     />
                     {/* Botón abrir selector */}
                     <button
@@ -1503,7 +1579,18 @@ export default function MuestraPage() {
                       type="file"
                       accept=".csv,.json,.xml,.txt"
                       className="hidden"
-                      onChange={(e) => setUploadedFileMasivo(e.target.files?.[0] || null)}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          setUploadedFileMasivo(file);
+
+                          // 🔹 Quita la extensión del nombre del archivo
+                          const baseName = file.name.replace(/\.[^/.]+$/, "");
+                          setDatasetNameMasivo(baseName);
+                        } else {
+                          setUploadedFileMasivo(null);
+                        }
+                      }}
                     />
                     <button
                       type="button"
