@@ -9,9 +9,9 @@ import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/pages/api/auth/[...nextauth]";
 import type { Session } from "next-auth";
+import { datasetStore, datasetStoreMasivo, RowData } from "@/lib/datasetStore";
 
 // ---------- Tipos ----------
-type RowData = Record<string, any>;
 
 interface SampleOptions {
   datasetId: string;
@@ -26,12 +26,6 @@ interface SampleOptions {
 
 // ---------- Configuración ----------
 const DATASETS_DIR = "C:/datasets";
-
-if (!(globalThis as any).datasetStoreMasivo) {
-  (globalThis as any).datasetStoreMasivo = {};
-}
-const datasetStoreMasivo: Record<string, { fileName: string; format: string }> =
-  (globalThis as any).datasetStoreMasivo;
 
 // ---------- Utilidades ----------
 function mulberry32(a: number) {
@@ -70,7 +64,7 @@ export async function POST(req: Request) {
       }
 
       const datasetId = `msv_${Date.now()}`;
-      datasetStoreMasivo[datasetId] = { fileName, format };
+      datasetStoreMasivo[datasetId] = { fileName, format, rows: [] };
 
       // --- PREVISUALIZACIÓN (primeras 50 filas) ---
       const preview: RowData[] = [];
@@ -141,7 +135,7 @@ export async function POST(req: Request) {
 
       if (!meta) return NextResponse.json({ error: "Dataset no registrado" }, { status: 404 });
 
-      const filePath = path.join(DATASETS_DIR, meta.fileName);
+      const filePath = path.join(DATASETS_DIR, meta.fileName || "");
       if (!fs.existsSync(filePath)) return NextResponse.json({ error: "Archivo no encontrado" }, { status: 404 });
 
       if (start < 1 || end < start || n < 1) {
@@ -197,12 +191,12 @@ export async function POST(req: Request) {
         try {
           await prisma.historialMuestra.create({
             data: {
-              name: fileName || meta.fileName,
+              name: meta.fileName || "Archivo sin nombre",
               records: sample.length, 
               range: `${start}-${end}`,
               seed,
               allowDuplicates,
-              source: meta.fileName,
+              source: meta.fileName || "Desconocido",
               hash,
               tipo: "masivo",
               userId: effectiveUserId,

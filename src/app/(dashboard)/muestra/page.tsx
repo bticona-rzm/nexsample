@@ -327,7 +327,7 @@ export default function MuestraPage() {
     localStorage.setItem("sampleParams", JSON.stringify(sampleParams));
   }, [sampleParams]);
 
-  // 🔄 Recargar historial al cambiar entre Data Estándar / Masivo
+  // Recargar historial al cambiar entre Data Estándar / Masivo
   useEffect(() => {
     if (activeTab === "historial") {
       console.log("🔁 Cambio de subTab detectado. Recargando historial...");
