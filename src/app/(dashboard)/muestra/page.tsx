@@ -1,6 +1,5 @@
 "use client";
 import { useState, useEffect } from "react";
-import printJS from "print-js";
 import { ChevronLeft, ChevronRight ,  FileBarChart, Download, History, Upload, Printer, Trash2} from "lucide-react";
 import { useSession } from "next-auth/react";
 import { formatDate } from "@/lib/format";
@@ -215,74 +214,30 @@ export default function MuestraPage() {
   });
 
   // Función imprimir
-  // const printCurrentTab = () => {
-  //   const currentRows = tabs.find((t) => t.id === activeTab)?.rows || [];
-  //   if (!currentRows.length) {
-  //     alert("No hay datos para imprimir.");
-  //     return;
-  //   }
-
-  //   printJS({
-  //     printable: currentRows,
-  //     properties: Object.keys(currentRows[0]),
-  //     type: "json",
-  //     header: `Muestra: ${tabs.find((t) => t.id === activeTab)?.name || "Datos"}`,
-  //   });
-  // };
-
+  // === IMPRIMIR HISTORIAL COMPLETO (Estandar + Masivo) ===
   const exportPdf = async () => {
-  const res = await fetch("/api/export/pdf", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      rows: currentRows,
-      title: `Reporte de Muestra: ${tabs.find((t) => t.id === activeTab)?.name || "Datos"}`,
-    }),
-  });
+    try {
+      const res = await fetch("/api/export/pdfHistorial", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
 
-  if (!res.ok) {
-    alert("Error al generar PDF");
-    return;
-  }
+      if (!res.ok) {
+        alert("No hay registros en el historial para imprimir.");
+        return;
+      }
 
-  const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = "muestra.pdf";
-  link.click();
-  URL.revokeObjectURL(url);
-  };
-
-  // === PDF MASIVO ===
-  const exportPdfMasivo = async () => {
-    const currentRows = tabs.find((t) => t.id === activeTab)?.rows || [];
-    if (!currentRows.length) {
-      alert("No hay datos masivos para imprimir.");
-      return;
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "historial_general.pdf";
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("❌ Error al imprimir historial:", err);
+      alert("Error al generar el PDF del historial.");
     }
-
-    const res = await fetch("/api/export/pdf", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        rows: currentRows,
-        title: `Reporte de Muestra Masiva: ${tabs.find((t) => t.id === activeTab)?.name || "Datos"}`,
-      }),
-    });
-
-    if (!res.ok) {
-      alert("Error al generar PDF masivo");
-      return;
-    }
-
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "muestra_masiva.pdf";
-    link.click();
-    URL.revokeObjectURL(url);
   };
 
   // Función limpiar historial
@@ -1181,13 +1136,7 @@ export default function MuestraPage() {
 
             {/* Imprimir Historial */}
             <button
-              onClick={() => {
-                if (subTab === "estandar") {
-                  exportPdf();
-                } else {
-                  exportPdfMasivo();
-                }
-              }}
+              onClick={exportPdf}
               className="w-full flex items-center gap-2 bg-purple-600 hover:bg-purple-900 text-white font-semibold py-2 px-4 rounded shadow transition-colors"
             >
               <Printer size={18} />
