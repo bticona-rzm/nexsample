@@ -27,6 +27,10 @@ interface CellClassicalData {
     basicPrecision: number;
     mostLikelyError: number;
     upperErrorLimit: number;
+    understatementMLE?: number;
+    understatementUEL?: number;
+    understatementPrecision?: number;
+    netUnderstatementUEL?: number;
 }
 
 // Define the types for the props, including the new 'evaluationMethod' and 'onBack' handler
@@ -111,13 +115,17 @@ const Summary: React.FC<SummaryProps> = ({
         ? 'Tamaño de muestra combinado'
         : 'Tamaño de muestra';
 
-    const conclusionText = evaluationMethod === 'stringer-bound'
-        ? `Con base en la muestra combinada, la sobreestimación total más probable en la población combinada es de ${formatNumber(errorMasProbableNeto, 2)}, y la subestimación total más probable es de ${formatNumber(errorMasProbableBruto, 2)}. Se puede inferir con un nivel de confianza del ${formatNumber(confidenceLevel,2)}% que la sobreestimación total en la población combinada no excede ${formatNumber(limiteErrorSuperiorBruto, 2)}, y que la subestimación total no excede ${formatNumber(limiteErrorSuperiorNeto, 2)}.`
-        : `Con base en esta muestra, el error total más probable por sobrestimación en la población es de ${formatNumber(errorMasProbableNeto, 2)}, y el error total más probable por subestimación es de ${formatNumber(errorMasProbableBruto, 2)}. Se puede inferir con un nivel de confianza del ${formatNumber(confidenceLevel,2)}% que la sobrestimación total en la población no excede ${formatNumber(limiteErrorSuperiorBruto, 2)}, y que la subestimación total en la población no excede ${formatNumber(limiteErrorSuperiorNeto, 2)}.`;
+    // ✅ VERSIÓN MEJORADA - Similar a IDEA
+    const overstatementMLE = cellClassicalData?.mostLikelyError || errorMasProbableBruto;
+    const overstatementUEL = cellClassicalData?.upperErrorLimit || limiteErrorSuperiorBruto;
 
-    const highValueConclusionText = evaluationMethod === 'cell-classical'
-        ? `Además, se han identificado ${highValueCountResume ?? 0} elementos de valor alto que representan un total de ${formatNumber(highValueTotal, 2)}, los cuales fueron analizados por separado para asegurar una cobertura completa y confiable.`
-        : ''; 
+    const conclusionText = evaluationMethod === 'stringer-bound'
+    ? `Con base en la muestra combinada, la sobreestimación total más probable en la población combinada es de ${formatNumber(errorMasProbableNeto, 2)}. Se puede inferir con un nivel de confianza del ${formatNumber(confidenceLevel,2)}% que la sobreestimación total en la población combinada no excede ${formatNumber(limiteErrorSuperiorBruto, 2)}.`
+    : `Con base en esta muestra, el error total más probable por sobrestimación en la población es de ${formatNumber(overstatementMLE, 2)}. Se puede inferir con un nivel de confianza del ${formatNumber(confidenceLevel,2)}% que la sobrestimación total en la población no excede ${formatNumber(overstatementUEL, 2)}.`;
+
+    const highValueConclusionText = evaluationMethod === 'cell-classical' && (highValueCountResume ?? 0) > 0
+        ? `Además, se han identificado ${highValueCountResume} elementos de valor alto que representan un total de ${formatNumber(highValueTotal, 2)}, los cuales fueron analizados por separado para asegurar una cobertura completa y confiable.`
+        : '';
 
     // ✅ CORREGIDO - En Summary.tsx
     const calculatedPopulationExcludingHigh = populationExcludingHigh > 0 
@@ -136,22 +144,31 @@ const Summary: React.FC<SummaryProps> = ({
         calculatedPopulationIncludingHigh
     });
 
-    // ✅ CORRECCIÓN: Tabla específica para Cell & Classical PPS
-    const renderCellClassicalTable = () => {
-        const hasSpecificData = cellClassicalData;
-        const totalItemsExamined = (estimatedSampleSize ?? 0) + (highValueCountResume ?? 0);
+        // ✅ CORRECCIÓN: Tabla específica para Cell & Classical PPS
+        const renderCellClassicalTable = () => {
+            const totalItemsExamined = (estimatedSampleSize ?? 0) + (highValueCountResume ?? 0);
         
         // ✅ CALCULAR VALORES CORRECTOS PARA CADA COLUMNA
-        const overstatementErrors = cellClassicalData?.overstatements?.length || 0;
-        const understatementErrors = cellClassicalData?.understatements?.length || 0;
+        const overstatementErrors = cellClassicalData?.overstatements?.filter(s => s.tainting > 0).length || 0;
+        const understatementErrors = cellClassicalData?.understatements?.filter(s => s.tainting > 0).length || 0;
         
-        // Usar datos reales del cellClassicalData cuando estén disponibles
-        const overstatementMLE = cellClassicalData?.mostLikelyError || errorMasProbableBruto;
-        const understatementMLE = cellClassicalData?.mostLikelyError || errorMasProbableNeto;
+        // ✅ DATOS PARA OVERSTATEMENTS (vienen del backend)
+        const overstatementMLE = cellClassicalData?.mostLikelyError || 0;
+        const overstatementUEL = cellClassicalData?.upperErrorLimit || 0;
+        const overstatementPrecision = precisionTotal || 0;
         
-        const overstatementUEL = (cellClassicalData?.stageUEL || 0) * sampleInterval;
-        const understatementUEL = cellClassicalData?.upperErrorLimit || limiteErrorSuperiorNeto;
+        // ✅ DATOS PARA UNDERSTATEMENTS (usar los campos específicos del backend)
+        const understatementMLE = cellClassicalData?.understatementMLE ?? 0;
+        const understatementUEL = cellClassicalData?.understatementUEL ?? cellClassicalData?.basicPrecision ?? 0;
+        const understatementPrecision = cellClassicalData?.understatementPrecision ?? cellClassicalData?.basicPrecision ?? 0;
         
+        // ✅ NET CALCULATIONS CORRECTOS
+        const netOverstatementMLE = overstatementMLE - understatementMLE;
+        const netUnderstatementMLE = understatementMLE - overstatementMLE;
+        
+        const netOverstatementUEL = overstatementUEL - understatementMLE;
+        const netUnderstatementUEL = cellClassicalData?.netUnderstatementUEL ?? (understatementUEL - overstatementMLE);
+            
         return (
             <tbody className="bg-white divide-y divide-gray-200">
                 {/* Resultados Excluyendo Elementos de Valor Alto */}
@@ -172,13 +189,13 @@ const Summary: React.FC<SummaryProps> = ({
                 </tr>
                 <tr>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Error más probable neto</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(overstatementMLE, 2)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(-understatementMLE, 2)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(netOverstatementMLE, 2)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(netUnderstatementMLE    , 2)}</td>
                 </tr>
                 <tr>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Precisión total</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(precisionTotal, 2)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(precisionTotal, 2)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(overstatementPrecision, 2)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(understatementPrecision, 2)}</td>
                 </tr>
                 <tr>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Límite de error superior bruto</td>
@@ -187,8 +204,8 @@ const Summary: React.FC<SummaryProps> = ({
                 </tr>
                 <tr>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Límite de error superior neto</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(overstatementUEL, 2)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(understatementUEL, 2)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(netOverstatementUEL, 2)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(netUnderstatementUEL, 2)}</td>
                 </tr>
                 
                 {/* El resto de la tabla se mantiene igual... */}
@@ -255,8 +272,9 @@ const Summary: React.FC<SummaryProps> = ({
                 </tr>
                 <tr>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Error más probable neto</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(overstatementMLE, 2)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(understatementMLE, 2)}</td>
+                    {/* ✅ CORREGIDO: Mantener la misma lógica que en "Excluyendo Valores Altos" */}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(netOverstatementMLE, 2)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(netUnderstatementMLE, 2)}</td>
                 </tr>
                 <tr>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Límite de error superior bruto</td>
@@ -265,8 +283,8 @@ const Summary: React.FC<SummaryProps> = ({
                 </tr>
                 <tr>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Límite de error superior neto</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(overstatementUEL, 2)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(understatementUEL, 2)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(netOverstatementUEL, 2)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(netUnderstatementUEL, 2)}</td>
                 </tr>
             </tbody>
         );

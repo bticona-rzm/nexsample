@@ -236,66 +236,25 @@ export const mumApi = {
         }
     },
     summary: async (body: any): Promise<any> => {
-        // 1. Quitar el 'throw new Error()' para que el flujo no se detenga.
-        // console.log("MUM Summary route called with body:", body); 
-        
-        await new Promise(resolve => setTimeout(resolve, 500)); // Simular retraso de red
+        try {
+            const response = await fetch('/api/mum/summary', { // ✅ Cambiar ruta
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(body),
+            });
 
-        // Determinar el método de evaluación del body (asumiendo que viene en la solicitud)
-        const evaluationMethod = body.evaluationMethod || 'cell-classical'; 
-        const isCellClassical = evaluationMethod === 'cell-classical';
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Error en el resumen');
+            }
 
-        const baseResults = {
-            // Datos comunes a ambos métodos (con valores simulados)
-            isEvaluationDone: true,
-            confidenceLevel: body.confidenceLevel || 95.00, // Usar el valor enviado
-            sampleInterval: 50000.00,
-            precisionValue: 105510.51,
-            populationExcludingHigh: 990000.00,
-            populationIncludingHigh: 1500000.00,
-            estimatedSampleSize: body.sampleSize || 100, // Usar el valor enviado
-            numErrores: 2,
-            errorMasProbableBruto: 8550.00,
-            errorMasProbableNeto: -1500.00,
-            precisionTotal: 105000.00,
-            limiteErrorSuperiorBruto: 110000.00,
-            limiteErrorSuperiorNeto: -95000.00,
-            highValueCountResume: 5,
-            // Los props que no vienen de 'results' deben ser manejados en el componente padre
-            // Por eso, no se incluyen setActiveTab ni handleSummary aquí.
-        };
-        
-        // **NOTA CLAVE:** highValueLimit y highValueTotal son cruciales,
-        // pero son más relevantes en 'cell-classical'. Los simularemos.
-
-        const responseResults = {
-            isEvaluationDone: true,
-            confidenceLevel: body.confidenceLevel || 95.00,
-            sampleInterval: 50000.00,
-            precisionValue: 105510.51,
-            populationExcludingHigh: 990000.00,
-            populationIncludingHigh: 1500000.00,
-            estimatedSampleSize: body.sampleSize || 100,
-            numErrores: 2,
-            errorMasProbableBruto: 8550.00,
-            errorMasProbableNeto: -1500.00,
-            precisionTotal: 105000.00,
-            limiteErrorSuperiorBruto: 110000.00,
-            limiteErrorSuperiorNeto: -95000.00,
-
-            // Datos específicos de Valores Altos (CRUCIALES para el error actual)
-            // Se incluyen en ambos métodos por si el componente los usa en el Stringer Bound también, 
-            // aunque son más relevantes para Cell/PPS Clásico.
-            highValueLimit: 10000.00, 
-            highValueCountResume: isCellClassical ? 5 : 0, 
-            highValueTotal: isCellClassical ? 510000.00 : 0.00,
-        };
-
-        return {
-            status: "success",
-            method: evaluationMethod,
-            results: responseResults
-        };
+            return await response.json();
+        } catch (error) {
+            console.error('Error en API summary:', error);
+            throw error;
+        }
     },
         cellClassicalEvaluation: async (data: any): Promise<any> => {
         const response = await fetch('/api/mum/evaluation/cell-classical', {
