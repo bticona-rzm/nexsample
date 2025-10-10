@@ -51,12 +51,13 @@ interface CellClassicalResponse {
     };
 }
 
-// ✅ FACTORES CORRECTOS para 90% confianza (IDEA)
+// ✅ FACTORES EXACTOS DE IDEA para 90% confianza
 const getUELFactors = (confidenceLevel: number): number[] => {
     const factors: { [key: number]: number[] } = {
         80: [1.61, 1.27, 1.16, 1.10, 1.06, 1.03, 1.01, 0.99],
         85: [1.90, 1.45, 1.31, 1.24, 1.19, 1.16, 1.13, 1.11],
-        90: [2.31, 1.61, 1.42, 1.34, 1.28, 1.24, 1.21, 1.18],
+        // ✅ FACTORES EXACTOS DE IDEA para 90%
+        90: [2.2504, 3.7790, 5.3332, 6.8774, 8.4132, 9.9436, 11.4704, 12.9946],
         95: [3.00, 1.75, 1.55, 1.46, 1.40, 1.36, 1.33, 1.30],
         99: [4.61, 2.08, 1.78, 1.66, 1.58, 1.52, 1.48, 1.44]
     };
@@ -117,50 +118,35 @@ export async function POST(req: Request) {
         // ✅ FUNCIÓN CORREGIDA para calcular stages
         const calculateStages = (errors: CalculatedError[], uelFactors: number[]): StageData[] => {
             const stages: StageData[] = [];
-            let previousStageUEL = uelFactors[0]; // Empezar con Basic Precision
             
-            // Siempre incluir al menos Basic Precision
-            if (errors.length === 0) {
-                stages.push({
-                    stage: 0,
-                    uelFactor: uelFactors[0],
-                    tainting: 0,
-                    averageTainting: 0,
-                    previousUEL: 0,
-                    loadingPropagation: uelFactors[0],
-                    simplePropagation: uelFactors[0],
-                    maxStageUEL: uelFactors[0]
-                });
-                return stages;
-            }
+            // ✅ STAGE 0: Basic Precision (siempre existe)
+            stages.push({
+                stage: 0,
+                uelFactor: uelFactors[0],
+                tainting: 0,
+                averageTainting: 0,
+                previousUEL: 0,
+                loadingPropagation: uelFactors[0],
+                simplePropagation: uelFactors[0],
+                maxStageUEL: uelFactors[0]
+            });
 
-            for (let i = 0; i < uelFactors.length; i++) {
-                const currentError = i < errors.length ? errors[i] : null;
+            let previousStageUEL = uelFactors[0];
+
+            // ✅ STAGES 1 en adelante: Solo si hay errores
+            for (let i = 1; i < uelFactors.length; i++) {
+                const currentError = i - 1 < errors.length ? errors[i - 1] : null;
                 
-                if (i === 0) {
-                    // Stage 0: Basic Precision
-                    stages.push({
-                        stage: 0,
-                        uelFactor: uelFactors[0],
-                        tainting: 0,
-                        averageTainting: 0,
-                        previousUEL: 0,
-                        loadingPropagation: uelFactors[0],
-                        simplePropagation: uelFactors[0],
-                        maxStageUEL: uelFactors[0]
-                    });
-                    previousStageUEL = uelFactors[0];
-                    continue;
-                }
-
                 if (!currentError) break;
 
                 const tainting = currentError.tainting;
                 const currentFactor = uelFactors[i];
                 
-                // Calcular average tainting hasta este stage
+                // Calcular average tainting hasta este stage (incluyendo stage 0)
                 const errorsUpToStage = errors.slice(0, i);
-                const averageTainting = errorsUpToStage.reduce((sum, e) => sum + e.tainting, 0) / errorsUpToStage.length;
+                const averageTainting = errorsUpToStage.length > 0 
+                    ? errorsUpToStage.reduce((sum, e) => sum + e.tainting, 0) / errorsUpToStage.length
+                    : 0;
 
                 // ✅ "Load and Spread": Previous UEL + Current Tainting
                 const loadingPropagation = previousStageUEL + tainting;

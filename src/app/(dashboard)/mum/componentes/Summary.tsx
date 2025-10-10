@@ -293,11 +293,30 @@ const Summary: React.FC<SummaryProps> = ({
     // ✅ CORRECCIÓN: Tablas detalladas con datos REALES para Cell & Classical PPS
     // Componente para la tabla detallada de Understatements
     const UnderstatementsTable = () => {
-        const hasSpecificData = cellClassicalData && cellClassicalData.understatements.length > 0;
+        const hasUnderstatements = cellClassicalData?.understatements && cellClassicalData.understatements.length > 0;
+        const understatementStages = cellClassicalData?.understatements || [];
         
+        // ✅ SI NO HAY UNDERSTATEMENTS, MOSTRAR SOLO STAGE 0
+        const displayStages = hasUnderstatements ? understatementStages : [{
+            stage: 0,
+            uelFactor: 2.2504, // Factor exacto de IDEA
+            tainting: 0,
+            averageTainting: 0,
+            previousUEL: 0,
+            loadingPropagation: 2.2504,
+            simplePropagation: 2.2504,
+            maxStageUEL: 2.2504
+        }];
+
+        // ✅ CALCULAR DATOS ESPECÍFICOS PARA UNDERSTATEMENTS
+        const totalUnderTaintings = cellClassicalData?.understatementMLE ? cellClassicalData.understatementMLE / sampleInterval : 0;
+        const understatementMLE = cellClassicalData?.understatementMLE ?? 0;
+        const understatementUEL = cellClassicalData?.understatementUEL ?? cellClassicalData?.basicPrecision ?? 0;
+        const understatementStageUEL = understatementUEL / sampleInterval;
+
         return (
             <div className="mt-8">
-                <h4 className="text-xl font-semibold text-gray-600 mb-2">Understanding</h4>
+                <h4 className="text-xl font-semibold text-gray-600 mb-2">Understatements</h4>
                 <div className="overflow-x-auto">
                     <table className="min-w-full divide-y divide-gray-200 border border-gray-300">
                         <thead className="bg-gray-50">
@@ -305,51 +324,37 @@ const Summary: React.FC<SummaryProps> = ({
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">A<br/>Error Stage</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">B<br/>UEL Factor</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">C<br/>Tainting</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">D<br/>Average Tainting</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">E<br/>UEL of Previous Stage (H)</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">F<br/>Load & Spread (E+C)</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">G<br/>Simple Spread (BxD)</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">H<br/>Stage UEL Max (F,G)</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">D<br/>Average<br/>Tainting</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">E<br/>UEL of Previous<br/>Stage (H)</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">F<br/>Load & Spread<br/>(E+C)</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">G<br/>Simple Spread<br/>(BxD)</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">H<br/>Stage UEL Max<br/>(F,G)</th>
                             </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
-                            {hasSpecificData ? (
-                                // ✅ MOSTRAR DATOS REALES
-                                cellClassicalData.understatements.map((item, index) => (
-                                    <tr key={index}>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 text-center">{item.stage}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(item.uelFactor,2)}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(item.tainting,2)}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(item.averageTainting,2)}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(item.previousUEL,2)}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(item.loadingPropagation,2)}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(item.simplePropagation,2)}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(item.maxStageUEL,2)}</td>
-                                    </tr>
-                                ))
-                            ) : (
-                                // ✅ DATOS DEL PDF (0 errores encontrados)
-                                <tr>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 text-center">0</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">0</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">0</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">0</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">0</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">0</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">0</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">0</td>
+                            {displayStages.map((item, index) => (
+                                <tr key={index}>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 text-center">{item.stage}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(item.uelFactor, 4)}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(item.tainting, 4)}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(item.averageTainting, 4)}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(item.previousUEL, 4)}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(item.loadingPropagation, 4)}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(item.simplePropagation, 4)}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(item.maxStageUEL, 4)}</td>
                                 </tr>
-                            )}
+                            ))}
                         </tbody>
                     </table>
                 </div>
-                {/* ✅ CONTENIDO MEJORADO - IDÉNTICO AL PDF */}
+                
+                {/* ✅ CONTENIDO MEJORADO - IDÉNTICO A IDEA */}
                 <div className="mt-4 p-4 bg-gray-50 rounded-lg">
                     <div className="space-y-3">
                         <div className="flex justify-between items-center">
                             <span className="text-sm font-medium text-gray-700">Total Taintings:</span>
                             <span className="text-sm text-gray-900">
-                                {hasSpecificData ? formatNumber(cellClassicalData.totalTaintings,2) : '0.0'}
+                                {formatNumber(totalUnderTaintings, 4)}
                             </span>
                         </div>
                         <div className="flex justify-between items-center">
@@ -362,25 +367,25 @@ const Summary: React.FC<SummaryProps> = ({
                             </div>
                             <div className="flex items-center space-x-2">
                                 <span className="text-sm text-gray-900">
-                                    {hasSpecificData ? formatNumber(cellClassicalData.totalTaintings,2) : '0.00'}
+                                    {formatNumber(totalUnderTaintings, 4)}
                                 </span>
                                 <span className="text-sm text-gray-700">X</span>
-                                <span className="text-sm text-gray-900">{formatNumber(sampleInterval,2) || '0.00'}</span>
+                                <span className="text-sm text-gray-900">{formatNumber(sampleInterval, 4)}</span>
                                 <span className="text-sm text-gray-700">=</span>
                                 <span className="text-sm text-gray-900">
-                                    {hasSpecificData ? formatNumber(cellClassicalData.mostLikelyError, 2) : '0.00'}
+                                    {formatNumber(understatementMLE, 4)}
                                 </span>
                             </div>
                         </div>
                         <div className="flex justify-between items-center">
                             <span className="text-sm font-medium text-gray-700">Basic Precision:</span>
                             <span className="text-sm text-gray-900">
-                                {hasSpecificData ? formatNumber(cellClassicalData.basicPrecision, 2) : '0.00'}
+                                {formatNumber(cellClassicalData?.basicPrecision || 0, 4)}
                             </span>
                         </div>
                         <div className="flex justify-between items-center">
                             <span className="text-sm font-medium text-gray-700">Precision Gap Widening:</span>
-                            <span className="text-sm text-gray-900">0.00</span>
+                            <span className="text-sm text-gray-900">0.0000</span>
                         </div>
                         <div className="flex justify-between items-center">
                             <div className="flex items-center space-x-2">
@@ -392,13 +397,13 @@ const Summary: React.FC<SummaryProps> = ({
                             </div>
                             <div className="flex items-center space-x-2">
                                 <span className="text-sm text-gray-900">
-                                    {hasSpecificData ? formatNumber(cellClassicalData.stageUEL,2) : '0.00'}
+                                    {formatNumber(understatementStageUEL, 4)}
                                 </span>
                                 <span className="text-sm text-gray-700">X</span>
-                                <span className="text-sm text-gray-900">{formatNumber(sampleInterval,2) || '0.00'}</span>
+                                <span className="text-sm text-gray-900">{formatNumber(sampleInterval, 4)}</span>
                                 <span className="text-sm text-gray-700">=</span>
                                 <span className="text-sm text-gray-900">
-                                    {hasSpecificData ? formatNumber(cellClassicalData.upperErrorLimit, 2) : '0.00'}
+                                    {formatNumber(understatementUEL, 4)}
                                 </span>
                             </div>
                         </div>
@@ -409,12 +414,32 @@ const Summary: React.FC<SummaryProps> = ({
     };
 
     // Componente para la tabla detallada de Overstatements
+    // En Summary.tsx - CORREGIR OverstatementsTable también
     const OverstatementsTable = () => {
-        const hasSpecificData = cellClassicalData && cellClassicalData.overstatements.length > 0;
+        const hasOverstatements = cellClassicalData?.overstatements && cellClassicalData.overstatements.length > 0;
+        const overstatementStages = cellClassicalData?.overstatements || [];
         
+        // ✅ SI NO HAY OVERSTATEMENTS, MOSTRAR SOLO STAGE 0
+        const displayStages = hasOverstatements ? overstatementStages : [{
+            stage: 0,
+            uelFactor: 2.2504, // Factor exacto de IDEA
+            tainting: 0,
+            averageTainting: 0,
+            previousUEL: 0,
+            loadingPropagation: 2.2504,
+            simplePropagation: 2.2504,
+            maxStageUEL: 2.2504
+        }];
+
+        // ✅ CALCULAR DATOS ESPECÍFICOS PARA OVERSTATEMENTS
+        const totalOverTaintings = cellClassicalData?.totalTaintings || 0;
+        const overstatementMLE = cellClassicalData?.mostLikelyError || 0;
+        const overstatementUEL = cellClassicalData?.upperErrorLimit || 0;
+        const overstatementStageUEL = cellClassicalData?.stageUEL || 0;
+
         return (
             <div className="mt-8">
-                <h4 className="text-xl font-semibold text-gray-600 mb-2">Understanding</h4>
+                <h4 className="text-xl font-semibold text-gray-600 mb-2">Overstatements</h4>
                 <div className="overflow-x-auto">
                     <table className="min-w-full divide-y divide-gray-200 border border-gray-300">
                         <thead className="bg-gray-50">
@@ -422,51 +447,37 @@ const Summary: React.FC<SummaryProps> = ({
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">A<br/>Error Stage</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">B<br/>UEL Factor</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">C<br/>Tainting</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">D<br/>Average Tainting</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">E<br/>UEL of Previous Stage (H)</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">F<br/>Load & Spread (E+C)</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">G<br/>Simple Spread (BxD)</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">H<br/>Stage UEL Max (F,G)</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">D<br/>Average<br/>Tainting</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">E<br/>UEL of Previous<br/>Stage (H)</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">F<br/>Load & Spread<br/>(E+C)</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">G<br/>Simple Spread<br/>(BxD)</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">H<br/>Stage UEL Max<br/>(F,G)</th>
                             </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
-                            {hasSpecificData ? (
-                                // ✅ MOSTRAR DATOS REALES
-                                cellClassicalData.overstatements.map((item: any, index: number) => (
-                                    <tr key={index}>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 text-center">{item.stage}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(item.uelFactor,2)}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(item.tainting,2)}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(item.averageTainting,2)}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(item.previousUEL,2)}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(item.loadingPropagation,2)}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(item.simplePropagation,2)}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(item.maxStageUEL,2)}</td>
-                                    </tr>
-                                ))
-                            ) : (
-                                // ✅ DATOS DEL PDF (0 errores encontrados)
-                                <tr>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 text-center">0</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">0</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">0</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">0</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">0</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">0</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">0</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">0</td>
+                            {displayStages.map((item, index) => (
+                                <tr key={index}>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 text-center">{item.stage}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(item.uelFactor, 4)}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(item.tainting, 4)}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(item.averageTainting, 4)}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(item.previousUEL, 4)}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(item.loadingPropagation, 4)}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(item.simplePropagation, 4)}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{formatNumber(item.maxStageUEL, 4)}</td>
                                 </tr>
-                            )}
+                            ))}
                         </tbody>
                     </table>
                 </div>
-                {/* ✅ CONTENIDO MEJORADO - IDÉNTICO AL PDF */}
+                
+                {/* El resto del código se mantiene igual */}
                 <div className="mt-4 p-4 bg-gray-50 rounded-lg">
                     <div className="space-y-3">
                         <div className="flex justify-between items-center">
                             <span className="text-sm font-medium text-gray-700">Total Taintings:</span>
                             <span className="text-sm text-gray-900">
-                                {hasSpecificData ? formatNumber(cellClassicalData.totalTaintings,2) : '0.00'}
+                                {formatNumber(totalOverTaintings, 4)}
                             </span>
                         </div>
                         <div className="flex justify-between items-center">
@@ -479,25 +490,25 @@ const Summary: React.FC<SummaryProps> = ({
                             </div>
                             <div className="flex items-center space-x-2">
                                 <span className="text-sm text-gray-900">
-                                    {hasSpecificData ? formatNumber(cellClassicalData.totalTaintings,2) : '0.00'}
+                                    {formatNumber(totalOverTaintings, 4)}
                                 </span>
                                 <span className="text-sm text-gray-700">X</span>
-                                <span className="text-sm text-gray-900">{formatNumber(sampleInterval,2) || '0.00'}</span>
+                                <span className="text-sm text-gray-900">{formatNumber(sampleInterval, 4)}</span>
                                 <span className="text-sm text-gray-700">=</span>
                                 <span className="text-sm text-gray-900">
-                                    {hasSpecificData ? formatNumber(cellClassicalData.mostLikelyError, 2) : '0.00'}
+                                    {formatNumber(overstatementMLE, 4)}
                                 </span>
                             </div>
                         </div>
                         <div className="flex justify-between items-center">
                             <span className="text-sm font-medium text-gray-700">Basic Precision:</span>
                             <span className="text-sm text-gray-900">
-                                {hasSpecificData ? formatNumber(cellClassicalData.basicPrecision, 2) : '0.00'}
+                                {formatNumber(cellClassicalData?.basicPrecision || 0, 4)}
                             </span>
                         </div>
                         <div className="flex justify-between items-center">
                             <span className="text-sm font-medium text-gray-700">Precision Gap Widening:</span>
-                            <span className="text-sm text-gray-900">0.00</span>
+                            <span className="text-sm text-gray-900">0.0000</span>
                         </div>
                         <div className="flex justify-between items-center">
                             <div className="flex items-center space-x-2">
@@ -509,13 +520,13 @@ const Summary: React.FC<SummaryProps> = ({
                             </div>
                             <div className="flex items-center space-x-2">
                                 <span className="text-sm text-gray-900">
-                                    {hasSpecificData ? formatNumber(cellClassicalData.stageUEL,2) : '0.00'}
+                                    {formatNumber(overstatementStageUEL, 4)}
                                 </span>
                                 <span className="text-sm text-gray-700">X</span>
-                                <span className="text-sm text-gray-900">{formatNumber(sampleInterval,2) || '0.00'}</span>
+                                <span className="text-sm text-gray-900">{formatNumber(sampleInterval, 4)}</span>
                                 <span className="text-sm text-gray-700">=</span>
                                 <span className="text-sm text-gray-900">
-                                    {hasSpecificData ? formatNumber(cellClassicalData.upperErrorLimit, 2) : '0.00'}
+                                    {formatNumber(overstatementUEL, 4)}
                                 </span>
                             </div>
                         </div>
@@ -837,8 +848,8 @@ const Summary: React.FC<SummaryProps> = ({
                             {/* Renderizar tablas detalladas solo para Cell and PPS Classic */}
                             {evaluationMethod === 'cell-classical' && (
                                 <>
-                                    <OverstatementsTable />
                                     <UnderstatementsTable />
+                                    <OverstatementsTable />
                                 </>
                             )}
                         </div>
