@@ -230,29 +230,51 @@ export async function POST(req: Request) {
 
     // === SAMPLE ===
     if (action === "sample") {
-      const { datasetId, n, seed, start, end, allowDuplicates } = options as SampleOptions;
-      const meta = datasetStore[datasetId] || datasetStoreMasivo?.[datasetId];
-      if (!meta) return NextResponse.json({ error: "Dataset no registrado" }, { status: 404 });
+      const {
+        datasetId,
+        n,
+        seed,
+        start,
+        end,
+        allowDuplicates,
+        fileName: customName, // ← nombre opcional que viene desde el modal de muestreo
+      } = options as SampleOptions;
 
+      // Buscar dataset tanto en estándar como en masivo
+      const meta = datasetStore[datasetId] || datasetStoreMasivo?.[datasetId];
+      if (!meta) {
+        return NextResponse.json({ error: "Dataset no registrado" }, { status: 404 });
+      }
+
+      // Generar la muestra
       const sample = randomSample(meta.rows, n, seed, start, end, allowDuplicates);
       const hash = generateHash({ n, seed, start, end, allowDuplicates });
 
+      // Sesión de usuario
       const session = (await getServerSession(authOptions)) as Session | null;
       const userId = session?.user?.id;
 
+      // 🟢 Nombre del muestreo y fuente real del dataset
+      const nameForHistory =
+        (customName?.trim() || meta.displayName?.trim() || `Muestra-${datasetId}`);
+
+      const sourceForHistory =
+        meta.fileName?.trim() || "dataset local";
+
+      // Registrar en historial (solo si hay usuario)
       if (userId) {
         try {
           await prisma.historialMuestra.create({
             data: {
-              name: `Muestra-${datasetId}`,
-              records: sample.length,
-              range: `${start}-${end}`,
-              seed,
-              allowDuplicates,
-              source: "dataset local",
-              hash,
-              tipo: "estandar",
-              userId,
+              name: nameForHistory,        // nombre del muestreo personalizado
+              records: sample.length,      // cantidad de registros seleccionados
+              range: `${start}-${end}`,    // rango utilizado
+              seed,                        // semilla
+              allowDuplicates,             // duplicados
+              source: sourceForHistory,    // archivo fuente real o dataset local
+              hash,                        // hash único
+              tipo: "estandar",            // tipo de muestra
+              userId,                      // id de usuario
             },
           });
         } catch (err) {
@@ -260,8 +282,14 @@ export async function POST(req: Request) {
         }
       }
 
-      return NextResponse.json({ sample, hash, totalRows: meta.rows.length });
+      // Respuesta al frontend
+      return NextResponse.json({
+        sample,
+        hash,
+        totalRows: meta.rows.length,
+      });
     }
+
 
     // === EXPORT ===
     if (action === "export") {
