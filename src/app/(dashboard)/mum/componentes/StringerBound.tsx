@@ -11,7 +11,7 @@ interface StringerBoundFormProps {
     highValueLimit: number;
     precisionValue: number;
     setPrecisionValue: (value: number) => void;
-    selectedField: string | null; // ✅ NUEVA PROP: campo seleccionado en planificación
+    selectedField: string | null;
 }
 
 const StringerBoundForm: React.FC<StringerBoundFormProps> = ({ 
@@ -24,7 +24,7 @@ const StringerBoundForm: React.FC<StringerBoundFormProps> = ({
     highValueLimit, 
     precisionValue, 
     setPrecisionValue,
-    selectedField // ✅ RECIBIR el campo seleccionado
+    selectedField 
 }) => {
     const [initialFile, setInitialFile] = useState<File | null>(null);
     const [files, setFiles] = useState<File[]>([]);
@@ -33,25 +33,25 @@ const StringerBoundForm: React.FC<StringerBoundFormProps> = ({
     const [resultName, setResultName] = useState("Monetary Unit Sampling - Stringer Bound Evaluation");
     const [isLoading, setIsLoading] = useState(false);
     
-    // CAMPOS DE COLUMNA PARA EL ARCHIVO PRINCIPAL
-    const [bookValueField, setBookValueField] = useState('');
-    const [auditedValueField, setAuditedValueField] = useState('');
-    const [referenceField, setReferenceField] = useState('');
+    // ✅ CAMPOS DE COLUMNA - EXACTO COMO CELL CLASSICAL
+    const [bookValueField, setBookValueField] = useState<string>('');
+    const [auditedValueField, setAuditedValueField] = useState<string>('');
+    const [referenceField, setReferenceField] = useState<string>('');
     
-    // ESTADO PARA ARCHIVOS DE ALTO VALOR
     const [useHighValueFile, setUseHighValueFile] = useState(false);
-    const [highValueFileName, setHighValueFileName] = useState<string | null>(null);
     
-    // CORRECCIÓN: CAMPOS DE COLUMNA SEPARADOS PARA EL ARCHIVO DE ALTO VALOR
-    const [highValueBookValueField, setHighValueBookValueField] = useState<string>('');
-    const [highValueAuditedValueField, setHighValueAuditedValueField] = useState<string>('');
-    const [highValueReferenceField, setHighValueReferenceField] = useState<string>('');
-    
-    // Nuevo estado para los encabezados
+    // ✅ HEADERS - EXACTO COMO CELL CLASSICAL
     const [headers, setHeaders] = useState<string[]>([]);
     const [basicPrecision, setBasicPrecision] = useState(0);
 
-    // Cálculo de precisión básica usando el servicio
+    // ✅ ESTADOS PARA VALORES ALTOS - EXACTO COMO CELL CLASSICAL
+    const [highValueHeaders, setHighValueHeaders] = useState<string[]>([]);
+    const [highValueBookField, setHighValueBookField] = useState<string>('');
+    const [highValueAuditedField, setHighValueAuditedField] = useState<string>('');
+    const [highValueReferenceField, setHighValueReferenceField] = useState<string>('');
+    const [highValueItems, setHighValueItems] = useState<any[]>([]);
+
+    // Cálculo de precisión básica
     useEffect(() => {
         if (estimatedPopulationValue && confidenceLevel) {
             const precision = StringerBoundService.calculateBasicPrecision(
@@ -62,77 +62,60 @@ const StringerBoundForm: React.FC<StringerBoundFormProps> = ({
         }
     }, [estimatedPopulationValue, confidenceLevel, sampleInterval]);
 
-    const handleOkClick = async () => {
-        if (!initialFile || !bookValueField || !auditedValueField) {
-            alert("Por favor, complete todos los campos requeridos");
-            return;
-        }
-
-        setIsLoading(true);
-
-        try {
-            // 1. LEER ARCHIVO (UI responsibility)
-            const fileData = await readExcelFile(initialFile);
-            
-            // 2. PROCESAR DATOS (UI - preparación para backend)
-            const sampleData = fileData.map((row: any) => ({
-                reference: row[referenceField]?.toString() || `item-${Math.random()}`,
-                bookValue: parseFloat(row[bookValueField]) || 0,
-                auditedValue: parseFloat(row[auditedValueField]) || 0
-            }));
-
-            // 3. ENVIAR AL BACKEND usando el cliente
-            const results = await StringerBoundClient.evaluate({
-                sampleData,                    // ✅ Datos procesados
-                sampleInterval,               // ✅
-                confidenceLevel,              // ✅
-                populationValue: estimatedPopulationValue, // ✅
-                tolerableError,               // ✅
-                highValueLimit,
-            });
-
-            console.log("Resultados Stringer Bound:", results);
-            
-            await onOk('stringer-bound');
-
-        } catch (error: any) {
-            console.error("Error en evaluación:", error);
-            alert(`Error: ${error.message}`);
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-        // 1. Obtener los archivos seleccionados ANTES de limpiar el valor del input
+    // ✅ FUNCIÓN PARA ARCHIVO PRINCIPAL - IDÉNTICA A CELL CLASSICAL
+    const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const newFiles = Array.from(event.target.files || []);
 
         if (!initialFile && newFiles.length > 0) {
-            setInitialFile(newFiles[0]);
-            setSelectedFileName(newFiles[0].name);
+            const firstFile = newFiles[0];
+            setInitialFile(firstFile);
+            setSelectedFileName(firstFile.name);
             setFiles(newFiles.slice(1));
             
-            // ✅ CORREGIDO: Usar selectedField en lugar de 'TOTAL'
-            const fileHeaders = selectedField ? [selectedField, 'AUDIT_AMT', 'REFERENCE'] : ['AUDIT_AMT', 'REFERENCE'];
-            setHeaders(fileHeaders);
-            
-            // ✅ CORREGIDO: Usar selectedField para bookValueField
-            if (selectedField && fileHeaders.includes(selectedField)) {
-                setBookValueField(selectedField);
-            } else if (fileHeaders.includes('AUDIT_AMT')) {
-                setBookValueField(fileHeaders[0]); // Usar primer header disponible
-            }
-            
-            if (fileHeaders.includes('AUDIT_AMT')) setAuditedValueField('AUDIT_AMT');
-            if (fileHeaders.includes('REFERENCE')) setReferenceField('REFERENCE');
+            try {
+                // Leer el archivo para obtener headers reales
+                const fileData = await readExcelFile(firstFile);
+                
+                if (fileData.length > 0) {
+                    const realHeaders = Object.keys(fileData[0]);
+                    setHeaders(realHeaders);
+                    
+                    console.log("📋 HEADERS REALES DEL ARCHIVO:", realHeaders);
+                    
+                    // ✅ SELECCIÓN AUTOMÁTICA - EXACTA COMO CELL CLASSICAL
+                    if (selectedField && realHeaders.includes(selectedField)) {
+                        setBookValueField(selectedField);
+                    } else if (realHeaders.includes('AUDIT_AMT')) {
+                        setBookValueField(realHeaders[0]); // Usar primer header disponible
+                    }
+                    
+                    if (realHeaders.includes('AUDIT_AMT')) setAuditedValueField('AUDIT_AMT');
+                    if (realHeaders.includes('REFERENCE')) setReferenceField('REFERENCE');
 
-            // Si no hay selectedField o no existe en los headers, usar el primero disponible
-            if ((!selectedField || !fileHeaders.includes(selectedField)) && fileHeaders.length > 0) {
-                setBookValueField(fileHeaders[0]);
-                console.warn(selectedField ? 
-                    `El campo seleccionado "${selectedField}" no se encontró en el archivo. Usando "${fileHeaders[0]}" en su lugar.` :
-                    `No se especificó un campo seleccionado. Usando "${fileHeaders[0]}" como Book Value Field.`
-                );
+                    // Si no hay selectedField o no existe en los headers, usar el primero disponible
+                    if ((!selectedField || !realHeaders.includes(selectedField)) && realHeaders.length > 0) {
+                        setBookValueField(realHeaders[0]);
+                        console.warn(selectedField ? 
+                            `El campo seleccionado "${selectedField}" no se encontró en el archivo. Usando "${realHeaders[0]}" en su lugar.` :
+                            `No se especificó un campo seleccionado. Usando "${realHeaders[0]}" como Book Value Field.`
+                        );
+                    }
+
+                }
+            } catch (error) {
+                console.error("Error leyendo archivo:", error);
+                // Fallback exacto como Cell Classical
+                const defaultHeaders = selectedField ? [selectedField, 'AUDIT_AMT', 'REFERENCE'] : ['AUDIT_AMT', 'REFERENCE'];
+                setHeaders(defaultHeaders);
+                
+                if (selectedField && defaultHeaders.includes(selectedField)) {
+                    setBookValueField(selectedField);
+                } else if (defaultHeaders.includes('AUDIT_AMT')) {
+                    setBookValueField(defaultHeaders[0]);
+                }
+                
+                if (defaultHeaders.includes('AUDIT_AMT')) setAuditedValueField('AUDIT_AMT');
+                if (defaultHeaders.includes('REFERENCE')) setReferenceField('REFERENCE');
             }
 
         } else {
@@ -144,36 +127,152 @@ const StringerBoundForm: React.FC<StringerBoundFormProps> = ({
             setFiles([...files, ...uniqueNewFiles]);
         }
 
-        // 2. Limpiar el valor del input AL FINAL
         event.target.value = ''; 
     };
 
-    const handleHighValueFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    // ✅ FUNCIÓN PARA ARCHIVO DE VALORES ALTOS - IDÉNTICA A CELL CLASSICAL
+    const handleHighValueFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
-        
         if (file) {
             setHighValueFile(file);
-            setHighValueFileName(file.name); 
             
-            // **CORRECCIÓN 2: Lógica de pre-selección si se sube el archivo de alto valor.**
-            // Asume que el archivo de Alto Valor tiene los mismos encabezados (headers) y copia la selección del principal.
-            if (headers.length > 0) {
-                 if (bookValueField) setHighValueBookValueField(bookValueField);
-                 if (auditedValueField) setHighValueAuditedValueField(auditedValueField);
-                 if (referenceField) setHighValueReferenceField(referenceField);
-            } else {
-                // Fallback o lógica si el archivo de alto valor tiene encabezados únicos y el principal no tiene
-                const highValueHeaders = ['MONTO', 'VALOR_AUDITADO', 'ID_TRANSACCION'];
-                if (highValueHeaders.includes('MONTO')) setHighValueBookValueField('MONTO');
-                if (highValueHeaders.includes('VALOR_AUDITADO')) setHighValueAuditedValueField('VALOR_AUDITADO');
-            }
+            try {
+                // Leer y procesar el archivo de valores altos
+                const fileData = await readExcelFile(file);
+                
+                // Extraer headers del archivo de valores altos
+                if (fileData.length > 0) {
+                    const headers = Object.keys(fileData[0]);
+                    setHighValueHeaders(headers);
+                    
+                    console.log("📋 HEADERS REALES DE VALORES ALTOS:", headers);
+                    
+                    // ✅ AUTO-SELECCIÓN - EXACTA COMO CELL CLASSICAL
+                    if (headers.includes('BOOK_VALUE') || headers.includes('BOOK_VAL')) {
+                        setHighValueBookField(headers.find(h => h.includes('BOOK')) || headers[0]);
+                    } else if (headers.length > 0) {
+                        setHighValueBookField(headers[0]);
+                    }
+                    
+                    if (headers.includes('AUDITED_VALUE') || headers.includes('AUDIT_AMT')) {
+                        setHighValueAuditedField(headers.find(h => h.includes('AUDIT')) || '');
+                    }
+                    
+                    setHighValueReferenceField('REFERENCE')
 
+                    // ✅ GUARDAR LOS DATOS PARA ENVIAR AL BACKEND
+                    setHighValueItems(fileData);
+                }
+                
+            } catch (error) {
+                console.error("Error procesando archivo de valores altos:", error);
+                alert("Error al procesar el archivo de valores altos");
+            }
         } else {
             setHighValueFile(null);
-            setHighValueFileName(null);
+            setHighValueHeaders([]);
+            setHighValueBookField('');
+            setHighValueAuditedField('');
+            setHighValueReferenceField('');
+            setHighValueItems([]);
         }
-        
-        event.target.value = '';
+    };
+
+    // ✅ FUNCIÓN PARA CALCULAR ESTADÍSTICAS DE VALORES ALTOS - IDÉNTICA A CELL CLASSICAL
+    const calculateHighValueStats = (items: any[]) => {
+        if (!items || items.length === 0) {
+            return { total: 0, count: 0 };
+        }
+
+        const total = items.reduce((sum, item) => {
+            const bookValue = parseFloat(item[highValueBookField]) || 0;
+            return sum + bookValue;
+        }, 0);
+
+        return {
+            total: Math.round(total * 100) / 100,
+            count: items.length
+        };
+    };
+
+    // ✅ FUNCIÓN handleOkClick - IDÉNTICA A CELL CLASSICAL
+    const handleOkClick = async () => {
+        if (!initialFile || !bookValueField || !auditedValueField) {
+            alert("Por favor, complete todos los campos requeridos");
+            return;
+        }
+
+        // ✅ VALIDACIÓN PARA VALORES ALTOS - EXACTA COMO CELL CLASSICAL
+        if (useHighValueFile && (!highValueBookField || !highValueAuditedField)) {
+            alert("Por favor, complete los campos para el archivo de valores altos");
+            return;
+        }
+
+        setIsLoading(true);
+
+        try {
+            // 1. LEER Y PROCESAR ARCHIVO PRINCIPAL
+            const fileData = await readExcelFile(initialFile);
+            
+            // 2. PREPARAR DATOS REALES DE MUESTRA
+            const sampleData = fileData.map((row: any) => ({
+                reference: row[referenceField]?.toString() || `item-${Math.random()}`,
+                bookValue: parseFloat(row[bookValueField]) || 0,
+                auditedValue: parseFloat(row[auditedValueField]) || 0
+            }));
+
+            // 3. ✅ PREPARAR DATOS DE VALORES ALTOS - EXACTO COMO CELL CLASSICAL
+            let highValueData: any[] = [];
+            let highValueStats = { total: 0, count: 0 };
+
+            if (useHighValueFile && highValueItems.length > 0) {
+                highValueData = highValueItems.map((row: any) => ({
+                    reference: row[highValueReferenceField]?.toString() || `high-value-${Math.random()}`,
+                    bookValue: parseFloat(row[highValueBookField]) || 0,
+                    auditedValue: parseFloat(row[highValueAuditedField]) || 0
+                }));
+
+                highValueStats = calculateHighValueStats(highValueItems);
+            }
+
+            // ✅ DEBUG
+            console.log("📤 ENVIANDO AL BACKEND STRINGER BOUND:", {
+                sampleDataCount: sampleData.length,
+                highValueItemsCount: highValueData.length,
+                bookValueField,
+                auditedValueField, 
+                referenceField,
+                highValueBookField,
+                highValueAuditedField,
+                highValueReferenceField
+            });
+
+            // 4. ENVIAR AL BACKEND
+            const results = await StringerBoundClient.evaluate({
+                sampleData: sampleData,
+                sampleInterval: sampleInterval,
+                confidenceLevel: confidenceLevel,  
+                populationValue: estimatedPopulationValue,
+                tolerableError: tolerableError,
+                highValueLimit: highValueLimit,
+                
+                // ✅ DATOS DE VALORES ALTOS - EXACTO COMO CELL CLASSICAL
+                highValueItems: highValueData,
+                highValueTotal: highValueStats.total,
+                highValueCountResume: highValueStats.count,
+                populationExcludingHigh: estimatedPopulationValue - highValueStats.total
+            });
+
+            console.log("✅ RESULTADOS STRINGER BOUND:", results);
+            
+            await onOk('stringer-bound');
+
+        } catch (error: any) {
+            console.error("❌ Error en evaluación:", error);
+            alert(`Error: ${error.message}`);
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     const handleRemoveFile = (fileName: string) => {
@@ -201,32 +300,12 @@ const StringerBoundForm: React.FC<StringerBoundFormProps> = ({
         setBasicPrecision(result);
     };
 
-    // 1. Efecto para calcular la Precisión Básica
+    // Efecto para calcular la Precisión Básica
     useEffect(() => {
         if (estimatedPopulationValue && confidenceLevel) {
             calculateBasicPrecision();
         }
     }, [estimatedPopulationValue, confidenceLevel]);
-
-    // 2. NUEVO EFECTO: Auto-seleccionar los campos del archivo de Alto Valor
-    useEffect(() => {
-        // Solo pre-selecciona si la opción está activa Y ya tenemos encabezados cargados
-        if (useHighValueFile && headers.length > 0) {
-            // ✅ CORREGIDO: Usar lógica similar con selectedField
-            if (selectedField && headers.includes(selectedField)) {
-                setHighValueBookValueField(selectedField);
-            } else if (headers.includes('AUDIT_AMT')) {
-                setHighValueBookValueField(headers[0]);
-            }
-            if (headers.includes('AUDIT_AMT')) setHighValueAuditedValueField('AUDIT_AMT');
-            if (headers.includes('REFERENCE')) setHighValueReferenceField('REFERENCE');
-        } else if (!useHighValueFile) {
-            // Opcional: Limpiar los campos si el usuario desactiva la opción
-            setHighValueBookValueField('');
-            setHighValueAuditedValueField('');
-            setHighValueReferenceField('');
-        }
-    }, [useHighValueFile, headers, selectedField]);
 
     const allFiles = initialFile ? [initialFile, ...files] : [...files];
 
@@ -383,6 +462,7 @@ const StringerBoundForm: React.FC<StringerBoundFormProps> = ({
                         </div>
                     </div>
 
+                    {/* ✅ MANEJO DE VALORES ALTOS - EXACTO COMO CELL CLASSICAL */}
                     <div className="bg-gray-50 p-6 rounded-lg shadow-inner">
                         <h3 className="text-lg font-bold text-gray-800">Manejo de Valores Altos</h3>
                         <div className="flex items-center space-x-4 mt-2">
@@ -396,7 +476,9 @@ const StringerBoundForm: React.FC<StringerBoundFormProps> = ({
                             <button
                                 onClick={() => document.getElementById('high-value-file-input')?.click()}
                                 disabled={!useHighValueFile}
-                                className={`bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-6 rounded-md shadow ${!useHighValueFile ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                className={`bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-6 rounded-md shadow ${
+                                    !useHighValueFile ? 'opacity-50 cursor-not-allowed' : ''
+                                }`}
                             >
                                 Seleccionar archivo de valores altos
                             </button>
@@ -409,48 +491,50 @@ const StringerBoundForm: React.FC<StringerBoundFormProps> = ({
                         </div>
                         <p className="text-sm text-gray-500 mt-2">
                             Archivo de valores altos: {highValueFile ? highValueFile.name : "(Ningún archivo seleccionado)"}
+                            {highValueItems.length > 0 && ` - ${highValueItems.length} elementos cargados`}
                         </p>
-                        <div className="space-y-4 mt-4">
-                            <div className="flex items-center space-x-4">
-                                <label className="text-sm font-medium text-gray-700 w-48">Book value field:</label>
-                                <select className="block w-48 rounded-md border-gray-300 shadow-sm sm:text-sm"
-                                    value={highValueBookValueField}
-                                    onChange={(e) => setHighValueBookValueField(e.target.value)}
-                                    disabled={!useHighValueFile}
-                                >
-                                    <option value="">Selecciona una columna</option>
-                                    {headers.map(header => (
-                                        <option key={header} value={header}>{header}</option>
-                                    ))}
-                                </select>
+                        
+                        <div className="space-y-4 mt-4 p-4 ">
+                                <div className="flex items-center space-x-4">
+                                    <label className="text-sm font-medium text-gray-700 w-48">Book value field:</label>
+                                    <select 
+                                        value={highValueBookField}
+                                        onChange={(e) => setHighValueBookField(e.target.value)}
+                                        className="block w-48 rounded-md border-gray-300 shadow-sm sm:text-sm"
+                                    >
+                                        <option value="">Selecciona una columna</option>
+                                        {highValueHeaders.map(header => (
+                                            <option key={header} value={header}>{header}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="flex items-center space-x-4">
+                                    <label className="text-sm font-medium text-gray-700 w-48">Audited value field:</label>
+                                    <select 
+                                        value={highValueAuditedField}
+                                        onChange={(e) => setHighValueAuditedField(e.target.value)}
+                                        className="block w-48 rounded-md border-gray-300 shadow-sm sm:text-sm"
+                                    >
+                                        <option value="">Selecciona una columna</option>
+                                        {highValueHeaders.map(header => (
+                                            <option key={header} value={header}>{header}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="flex items-center space-x-4">
+                                    <label className="text-sm font-medium text-gray-700 w-48">Reference (optional):</label>
+                                    <select 
+                                        value={highValueReferenceField}
+                                        onChange={(e) => setHighValueReferenceField(e.target.value)}
+                                        className="block w-48 rounded-md border-gray-300 shadow-sm sm:text-sm"
+                                    >
+                                        <option value="">Selecciona una columna</option>
+                                        {highValueHeaders.map(header => (
+                                            <option key={header} value={header}>{header}</option>
+                                        ))}
+                                    </select>
+                                </div>
                             </div>
-                            <div className="flex items-center space-x-4">
-                                <label className="text-sm font-medium text-gray-700 w-48">Audited value field:</label>
-                                <select className="block w-48 rounded-md border-gray-300 shadow-sm sm:text-sm"
-                                    value={highValueAuditedValueField}
-                                    onChange={(e) => setHighValueAuditedValueField(e.target.value)}
-                                    disabled={!useHighValueFile}
-                                >
-                                    <option value="">Selecciona una columna</option>
-                                    {headers.map(header => (
-                                        <option key={header} value={header}>{header}</option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div className="flex items-center space-x-4">
-                                <label className="text-sm font-medium text-gray-700 w-48">Reference (optional):</label>
-                                <select className="block w-48 rounded-md border-gray-300 shadow-sm sm:text-sm"
-                                    value={highValueReferenceField}
-                                    onChange={(e) => setHighValueReferenceField(e.target.value)}
-                                    disabled={!useHighValueFile}
-                                >
-                                    <option value="">Selecciona una columna</option>
-                                    {headers.map(header => (
-                                        <option key={header} value={header}>{header}</option>
-                                    ))}
-                                </select>
-                            </div>
-                        </div>
                     </div>
                 </div>
 
