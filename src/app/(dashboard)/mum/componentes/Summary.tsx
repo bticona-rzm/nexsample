@@ -31,6 +31,8 @@ interface CellClassicalData {
     understatementUEL?: number;
     understatementPrecision?: number;
     netUnderstatementUEL?: number;
+    precisionGapWideningOver?: number;
+    precisionGapWideningUnder?: number;
 }
 
 // Define the types for the props, including the new 'evaluationMethod' and 'onBack' handler
@@ -56,6 +58,14 @@ interface SummaryProps {
     evaluationMethod: 'cell-classical' | 'stringer-bound'; // <-- Prop de tipo de evaluación
     onBack: () => void; // <-- Nuevo prop para la función de retroceso
     cellClassicalData?: CellClassicalData;
+    highValueErrors?: { // ✅ NUEVO: Datos de errores en valor alto
+        totalCount: number;
+        overstatementCount: number;
+        understatementCount: number;
+        overstatementAmount: number;
+        understatementAmount: number;
+        totalErrorAmount: number;
+    };
 }
 
 const Summary: React.FC<SummaryProps> = ({
@@ -78,6 +88,7 @@ const Summary: React.FC<SummaryProps> = ({
     evaluationMethod,
     onBack, // <-- Se recibe el nuevo prop
     cellClassicalData,
+    highValueErrors,
 }) => {
     // ELIMINADA la función formatNumber local - ahora usamos la importada
 
@@ -91,21 +102,6 @@ const Summary: React.FC<SummaryProps> = ({
         window.print();
     };
 
-    const calculateBasicPrecision = () => {
-        const reliabilityFactors = {
-            80: 1.61,
-            85: 1.90,
-            90: 2.31,
-            95: 3.00,
-            99: 4.61,
-        };
-        
-        const factor = reliabilityFactors[confidenceLevel as keyof typeof reliabilityFactors] || 3.00;
-        return factor * sampleInterval;
-    };
-
-    const basicPrecision = calculateBasicPrecision();
-
     // Determine the titles and conclusion based on the evaluation method
     const mainTitle = evaluationMethod === 'stringer-bound'
         ? 'Muestreo por Unidad Monetaria - Evaluación Stringer Bound'
@@ -114,6 +110,19 @@ const Summary: React.FC<SummaryProps> = ({
     const sampleSizeLabel = evaluationMethod === 'stringer-bound'
         ? 'Tamaño de muestra combinado'
         : 'Tamaño de muestra';
+
+    // ✅ FUNCIÓN PARA CALCULAR FACTORES EN FRONTEND (solo para display)
+    const calculateReliabilityFactors = (confidenceLevel: number): number[] => {
+        const factorsMap: { [key: number]: number[] } = {
+            80: [1.61, 3.00, 4.28, 5.52, 6.73, 7.91, 9.08, 10.24, 11.38, 12.52],
+            85: [1.90, 3.38, 4.72, 5.99, 7.22, 8.43, 9.62, 10.80, 11.97, 13.13],
+            90: [2.2504, 3.7790, 5.3332, 6.8774, 8.4164, 9.9151, 11.4279, 12.9302, 14.4330, 15.9344],
+            95: [3.00, 4.75, 6.30, 7.76, 9.16, 10.52, 11.85, 13.15, 14.44, 15.71],
+            99: [4.61, 6.64, 8.41, 10.05, 11.61, 13.11, 14.57, 16.00, 17.40, 18.78]
+        };
+        
+        return factorsMap[confidenceLevel] || factorsMap[90];
+    };
 
     // ✅ VERSIÓN MEJORADA - Similar a IDEA
     const overstatementMLE = cellClassicalData?.mostLikelyError || errorMasProbableBruto;
@@ -145,9 +154,9 @@ const Summary: React.FC<SummaryProps> = ({
     });
 
         // ✅ CORRECCIÓN: Tabla específica para Cell & Classical PPS
-        const renderCellClassicalTable = () => {
-            const totalItemsExamined = (estimatedSampleSize ?? 0) + (highValueCountResume ?? 0);
-        
+    const renderCellClassicalTable = () => {
+        const totalItemsExamined = (estimatedSampleSize ?? 0) + (highValueCountResume ?? 0);
+    
         // ✅ CALCULAR VALORES CORRECTOS PARA CADA COLUMNA
         const overstatementErrors = cellClassicalData?.overstatements?.filter(s => s.tainting > 0).length || 0;
         const understatementErrors = cellClassicalData?.understatements?.filter(s => s.tainting > 0).length || 0;
@@ -168,6 +177,12 @@ const Summary: React.FC<SummaryProps> = ({
         
         const netOverstatementUEL = overstatementUEL - understatementMLE;
         const netUnderstatementUEL = cellClassicalData?.netUnderstatementUEL ?? (understatementUEL - overstatementMLE);
+
+        // ✅ USAR DATOS REALES DE ERRORES EN VALOR ALTO (NO MÁS HARDCODEO)
+        const highValueOverstatementErrors = highValueErrors?.overstatementCount || 0;
+        const highValueUnderstatementErrors = highValueErrors?.understatementCount || 0;
+        const highValueOverstatementAmount = highValueErrors?.overstatementAmount || 0;
+        const highValueUnderstatementAmount = highValueErrors?.understatementAmount || 0;
             
         return (
             <tbody className="bg-white divide-y divide-gray-200">
@@ -231,10 +246,10 @@ const Summary: React.FC<SummaryProps> = ({
                         Número de errores
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
-                        {formatNumber(highValueCountResume > 0 ? Math.floor(highValueCountResume * 0.1) : 0)}
+                        {formatNumber(highValueOverstatementErrors, 2)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
-                        {formatNumber(highValueCountResume > 0 ? Math.floor(highValueCountResume * 0.1) : 0)}
+                        {formatNumber(highValueUnderstatementErrors, 2)}
                     </td>
                 </tr>
                 <tr>
@@ -242,10 +257,10 @@ const Summary: React.FC<SummaryProps> = ({
                         Valor de errores
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
-                        {highValueCountResume > 0 ? formatNumber(highValueTotal * 0.05, 2) : '0.00'}
+                        {formatNumber(highValueOverstatementAmount, 2)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
-                        {highValueCountResume > 0 ? formatNumber(highValueTotal * 0.05, 2) : '0.00'}
+                        {formatNumber(highValueUnderstatementAmount, 2)}
                     </td>
                 </tr>
                 
@@ -296,16 +311,20 @@ const Summary: React.FC<SummaryProps> = ({
         const hasUnderstatements = cellClassicalData?.understatements && cellClassicalData.understatements.length > 0;
         const understatementStages = cellClassicalData?.understatements || [];
         
-        // ✅ SI NO HAY UNDERSTATEMENTS, MOSTRAR SOLO STAGE 0
+        // ✅ ELIMINAR HARDCODEO - Usar el primer factor del nivel de confianza
+        const factors = calculateReliabilityFactors(confidenceLevel);
+        const basicFactor = factors[0];
+        
+        // ✅ SI NO HAY UNDERSTATEMENTS, MOSTRAR SOLO STAGE 0 CON FACTOR CALCULADO
         const displayStages = hasUnderstatements ? understatementStages : [{
             stage: 0,
-            uelFactor: 2.2504, // Factor exacto de IDEA
+            uelFactor: basicFactor, // ✅ USAR FACTOR CALCULADO
             tainting: 0,
             averageTainting: 0,
             previousUEL: 0,
-            loadingPropagation: 2.2504,
-            simplePropagation: 2.2504,
-            maxStageUEL: 2.2504
+            loadingPropagation: basicFactor, // ✅ USAR FACTOR CALCULADO
+            simplePropagation: basicFactor, // ✅ USAR FACTOR CALCULADO
+            maxStageUEL: basicFactor // ✅ USAR FACTOR CALCULADO
         }];
 
         // ✅ CALCULAR DATOS ESPECÍFICOS PARA UNDERSTATEMENTS
@@ -348,7 +367,6 @@ const Summary: React.FC<SummaryProps> = ({
                     </table>
                 </div>
                 
-                {/* ✅ CONTENIDO MEJORADO - IDÉNTICO A IDEA */}
                 <div className="mt-4 p-4 bg-gray-50 rounded-lg">
                     <div className="space-y-3">
                         <div className="flex justify-between items-center">
@@ -385,7 +403,9 @@ const Summary: React.FC<SummaryProps> = ({
                         </div>
                         <div className="flex justify-between items-center">
                             <span className="text-sm font-medium text-gray-700">Precision Gap Widening:</span>
-                            <span className="text-sm text-gray-900">0.0000</span>
+                            <span className="text-sm text-gray-900">
+                                {formatNumber(cellClassicalData?.precisionGapWideningUnder || 0, 4)}
+                            </span>
                         </div>
                         <div className="flex justify-between items-center">
                             <div className="flex items-center space-x-2">
@@ -419,16 +439,20 @@ const Summary: React.FC<SummaryProps> = ({
         const hasOverstatements = cellClassicalData?.overstatements && cellClassicalData.overstatements.length > 0;
         const overstatementStages = cellClassicalData?.overstatements || [];
         
-        // ✅ SI NO HAY OVERSTATEMENTS, MOSTRAR SOLO STAGE 0
+        // ✅ ELIMINAR HARDCODEO - Usar el primer factor del nivel de confianza
+        const factors = calculateReliabilityFactors(confidenceLevel);
+        const basicFactor = factors[0];
+        
+        // ✅ SI NO HAY OVERSTATEMENTS, MOSTRAR SOLO STAGE 0 CON FACTOR CALCULADO
         const displayStages = hasOverstatements ? overstatementStages : [{
             stage: 0,
-            uelFactor: 2.2504, // Factor exacto de IDEA
+            uelFactor: basicFactor, // ✅ USAR FACTOR CALCULADO
             tainting: 0,
             averageTainting: 0,
             previousUEL: 0,
-            loadingPropagation: 2.2504,
-            simplePropagation: 2.2504,
-            maxStageUEL: 2.2504
+            loadingPropagation: basicFactor, // ✅ USAR FACTOR CALCULADO
+            simplePropagation: basicFactor, // ✅ USAR FACTOR CALCULADO
+            maxStageUEL: basicFactor // ✅ USAR FACTOR CALCULADO
         }];
 
         // ✅ CALCULAR DATOS ESPECÍFICOS PARA OVERSTATEMENTS
@@ -471,7 +495,6 @@ const Summary: React.FC<SummaryProps> = ({
                     </table>
                 </div>
                 
-                {/* El resto del código se mantiene igual */}
                 <div className="mt-4 p-4 bg-gray-50 rounded-lg">
                     <div className="space-y-3">
                         <div className="flex justify-between items-center">
@@ -508,7 +531,9 @@ const Summary: React.FC<SummaryProps> = ({
                         </div>
                         <div className="flex justify-between items-center">
                             <span className="text-sm font-medium text-gray-700">Precision Gap Widening:</span>
-                            <span className="text-sm text-gray-900">0.0000</span>
+                            <span className="text-sm text-gray-900">
+                                {formatNumber(cellClassicalData?.precisionGapWideningOver || 0, 4)}
+                            </span>
                         </div>
                         <div className="flex justify-between items-center">
                             <div className="flex items-center space-x-2">
