@@ -50,6 +50,13 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({
     const [populationValue, setPopulationValue] = useState<number | null>(null);
     const [sampleSize, setSampleSize] = useState<number | null>(null);
 
+    // ✅ NUEVOS ESTADOS PARA VALORES ALTOS
+    const [highValueHeaders, setHighValueHeaders] = useState<string[]>([]);
+    const [highValueBookField, setHighValueBookField] = useState<string>('');
+    const [highValueAuditedField, setHighValueAuditedField] = useState<string>('');
+    const [highValueReferenceField, setHighValueReferenceField] = useState<string>('');
+    const [highValueItems, setHighValueItems] = useState<any[]>([]);
+
     // Efecto para la lógica del método y para el manejo de archivos
     useEffect(() => {
         if (!isClassical) {
@@ -98,14 +105,69 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({
         }
     };
     
-    // Función para procesar el archivo de valores altos
+    // ✅ FUNCIÓN MEJORADA PARA PROCESAR ARCHIVO DE VALORES ALTOS
     const handleHighValueFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (file) {
             setHighValueFile(file);
+            
+            try {
+                // Leer y procesar el archivo de valores altos
+                const fileData = await readExcelFile(file);
+                
+                // Extraer headers del archivo de valores altos
+                if (fileData.length > 0) {
+                    const headers = Object.keys(fileData[0]);
+                    setHighValueHeaders(headers);
+                    
+                    // Auto-seleccionar campos probables
+                    if (headers.includes('BOOK_VALUE') || headers.includes('BOOK_VAL')) {
+                        setHighValueBookField(headers.find(h => h.includes('BOOK')) || headers[0]);
+                    } else if (headers.length > 0) {
+                        setHighValueBookField(headers[0]);
+                    }
+                    
+                    if (headers.includes('AUDITED_VALUE') || headers.includes('AUDIT_AMT')) {
+                        setHighValueAuditedField(headers.find(h => h.includes('AUDIT')) || '');
+                    }
+                    
+                    if (headers.includes('REFERENCE') || headers.includes('ID')) {
+                        setHighValueReferenceField(headers.find(h => h.includes('REF') || h.includes('ID')) || '');
+                    }
+
+                    // ✅ GUARDAR LOS DATOS PARA ENVIAR AL BACKEND
+                    setHighValueItems(fileData);
+                }
+                
+            } catch (error) {
+                console.error("Error procesando archivo de valores altos:", error);
+                alert("Error al procesar el archivo de valores altos");
+            }
         } else {
             setHighValueFile(null);
+            setHighValueHeaders([]);
+            setHighValueBookField('');
+            setHighValueAuditedField('');
+            setHighValueReferenceField('');
+            setHighValueItems([]);
         }
+    };
+
+    // ✅ FUNCIÓN PARA CALCULAR ESTADÍSTICAS DE VALORES ALTOS
+    const calculateHighValueStats = (items: any[]) => {
+        if (!items || items.length === 0) {
+            return { total: 0, count: 0 };
+        }
+
+        const total = items.reduce((sum, item) => {
+            const bookValue = parseFloat(item[highValueBookField]) || 0;
+            return sum + bookValue;
+        }, 0);
+
+        return {
+            total: Math.round(total * 100) / 100,
+            count: items.length
+        };
     };
 
     /**
@@ -118,10 +180,16 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({
             return;
         }
 
+        // ✅ VALIDACIÓN PARA VALORES ALTOS SI SE USA ARCHIVO
+        if (useHighValueFile && (!highValueBookField || !highValueAuditedField)) {
+            alert("Por favor, complete los campos para el archivo de valores altos");
+            return;
+        }
+
         setIsLoading(true);
 
         try {
-            // 1. LEER Y PROCESAR ARCHIVO REAL
+            // 1. LEER Y PROCESAR ARCHIVO PRINCIPAL
             const fileData = await readExcelFile(mainFile);
             
             // 2. PREPARAR DATOS REALES DE MUESTRA
@@ -131,7 +199,21 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({
                 auditedValue: parseFloat(row[auditedValueField]) || 0
             }));
 
-            // 3. ENVIAR AL BACKEND REAL
+            // 3. ✅ PREPARAR DATOS DE VALORES ALTOS
+            let highValueData: any[] = [];
+            let highValueStats = { total: 0, count: 0 };
+
+            if (useHighValueFile && highValueItems.length > 0) {
+                highValueData = highValueItems.map((row: any) => ({
+                    reference: row[highValueReferenceField]?.toString() || `high-value-${Math.random()}`,
+                    bookValue: parseFloat(row[highValueBookField]) || 0,
+                    auditedValue: parseFloat(row[highValueAuditedField]) || 0
+                }));
+
+                highValueStats = calculateHighValueStats(highValueItems);
+            }
+
+            // 4. ✅ ENVIAR AL BACKEND CON VALORES ALTOS
             const response = await fetch('/api/mum/evaluation/cell-classical', {
                 method: 'POST',
                 headers: {
@@ -143,12 +225,17 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({
                     confidenceLevel: confidenceLevel,  
                     populationValue: estimatedPopulationValue,
                     tolerableError: tolerableError,
-                    bookValueField: bookValueField, // ✅ Enviar el campo usado
+                    bookValueField: bookValueField,
                     auditedValueField: auditedValueField,
-                    selectedFieldFromPlanning: selectedField, // ✅ Para debugging en backend
-                    populationExcludingHigh: estimatedPopulationValue,
-                    highValueTotal: 0,
-                    highValueCountResume: 0
+                    selectedFieldFromPlanning: selectedField,
+                    
+                    // ✅ DATOS DE VALORES ALTOS
+                    highValueItems: highValueData, // ENVIAR ELEMENTOS DE VALOR ALTO PROCESADOS
+                    highValueTotal: highValueStats.total,
+                    highValueCountResume: highValueStats.count,
+                    
+                    // Población excluyendo valores altos
+                    populationExcludingHigh: estimatedPopulationValue - highValueStats.total
                 }),
             });
 
@@ -158,8 +245,12 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({
 
             const results = await response.json();
 
-            // 4. MANEJAR RESULTADOS REALES
-            console.log("Resultados evaluación REALES:", results);
+            // 5. MANEJAR RESULTADOS
+            console.log("Resultados evaluación CON VALORES ALTOS:", {
+                highValueItems: highValueData.length,
+                highValueTotal: highValueStats.total,
+                highValueCount: highValueStats.count
+            });
             
             await onOk('cell-classical', {
                 cellClassicalData: results.cellClassicalData,
@@ -169,7 +260,10 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({
                 precisionTotal: results.precisionTotal,
                 limiteErrorSuperiorBruto: results.limiteErrorSuperiorBruto,
                 limiteErrorSuperiorNeto: results.limiteErrorSuperiorNeto,
-                highValueCountResume: results.highValueCountResume
+                highValueCountResume: results.highValueCountResume,
+                highValueTotal: results.highValueTotal,
+                // ✅ INCLUIR DATOS DE ERRORES EN VALOR ALTO
+                highValueErrors: results.highValueErrors
             }); 
 
         } catch (error: any) {
@@ -346,7 +440,9 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({
                             <button
                                 onClick={() => document.getElementById('high-value-file-input')?.click()}
                                 disabled={!useHighValueFile}
-                                className={`bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-6 rounded-md shadow ${!useHighValueFile ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                className={`bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-6 rounded-md shadow ${
+                                    !useHighValueFile ? 'opacity-50 cursor-not-allowed' : ''
+                                }`}
                             >
                                 Seleccionar archivo de valores altos
                             </button>
@@ -359,6 +455,7 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({
                         </div>
                         <p className="text-sm text-gray-500 mt-2">
                             Archivo de valores altos: {highValueFile ? highValueFile.name : "(Ningún archivo seleccionado)"}
+                            {highValueItems.length > 0 && ` - ${highValueItems.length} elementos cargados`}
                         </p>
                         <div className="space-y-4 mt-4">
                             <div className="flex items-center space-x-4">
