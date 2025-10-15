@@ -9,9 +9,10 @@ export type RowData = Record<string, any>;
 
 // Metadatos del dataset (tanto estándar como masivo)
 export interface DatasetMeta {
-  rows: RowData[];         // Contenido de las filas
-  fileName?: string;       // Nombre original del archivo
-  format?: string;         // Tipo de formato (csv, xlsx, json, xml, etc.)
+  rows: RowData[];
+  fileName?: string;
+  format?: string;
+  displayName?: string; // opcional si quieres usarlo más adelante
 }
 
 // ========================================================

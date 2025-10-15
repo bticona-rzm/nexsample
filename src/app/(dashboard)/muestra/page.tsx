@@ -414,13 +414,13 @@ export default function MuestraPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "sample",
-          datasetId: currentTab.datasetId,   // 🔑 solo enviamos el ID
+          datasetId: currentTab.datasetId,
           n: sampleParams.records,
           seed: sampleParams.seed,
           start: sampleParams.start,
           end: sampleParams.end,
           allowDuplicates: sampleParams.allowDuplicates,
-          nombreMuestra: sampleParams.fileName || currentTab.name,
+          fileName: sampleParams.fileName || currentTab.name, // CAMBIO AQUÍ
           datasetLabel: currentTab.datasetLabel,
           sourceFile: currentTab.sourceFile,
         }),
@@ -574,7 +574,8 @@ export default function MuestraPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "export",
-          rows: tab.rows, // 👈 solo filas de la pestaña seleccionada
+          rows: tab.rows, // opcional, no se usa en backend pero no molesta
+          datasetId: tab.datasetId, //  CORREGIDO: usar tab en lugar de currentTab
           format,
           fileName: sampleParams.fileName || tab.name,
         }),

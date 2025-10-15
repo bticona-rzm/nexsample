@@ -10,8 +10,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/pages/api/auth/[...nextauth]";
 import type { Session } from "next-auth";
 import * as XLSX from "xlsx";
-import { datasetStore, datasetStoreMasivo, RowData } from "@/lib/datasetStore";
-
+import { datasetStore, datasetStoreMasivo, RowData, DatasetMeta } from "@/lib/datasetStore";
 
 // ---------- Tipos ----------
 interface SampleOptions {
@@ -21,16 +20,11 @@ interface SampleOptions {
   start: number;
   end: number;
   allowDuplicates: boolean;
+  fileName?: string;
 }
 
 // ---------- Configuración ----------
 const DATASETS_DIR = path.join(process.cwd(), "datasets");
-
-// // Un solo store global
-// if (!(globalThis as any).datasetStore) {
-//   (globalThis as any).datasetStore = {};
-// }
-// const datasetStore: Record<string, { rows: RowData[] }> = (globalThis as any).datasetStore;
 
 
 // ---------- Utilidades ----------
@@ -90,8 +84,8 @@ export async function POST(req: Request) {
   try {
     const contentType = req.headers.get("content-type") || "";
 
-    // 🟢 1) SUBIDA DESDE EL MODAL
-    if (contentType.includes("multipart/form-data")) {
+    //  1) SUBIDA DESDE EL MODAL
+    if (contentType?.includes("multipart/form-data")) {
       const formData = await req.formData();
       const file = formData.get("file") as File | null;
       const datasetName = formData.get("datasetName")?.toString() || file?.name || "dataset";
@@ -108,18 +102,18 @@ export async function POST(req: Request) {
       const isJson = lower.endsWith(".json");
       const isXml = lower.endsWith(".xml");
 
-      // 🧩 Buffer
+      // Buffer
       const bytes = await file.arrayBuffer();
       const buffer = Buffer.from(bytes);
 
-      // 🧩 Crear carpeta datasets si no existe
+      // Crear carpeta datasets si no existe
       fs.mkdirSync(DATASETS_DIR, { recursive: true });
 
-      // 🧩 Limpiar nombre del archivo (sin espacios ni caracteres raros)
+      // Limpiar nombre del archivo (sin espacios ni caracteres raros)
       const safeName = file.name.replace(/\s+/g, "_").replace(/[^\w.-]/g, "");
       const savePath = path.join(DATASETS_DIR, safeName);
 
-      // 🧩 Guardar archivo en disco
+      // Guardar archivo en disco
       fs.writeFileSync(savePath, buffer);
       console.log("✅ Archivo guardado en:", savePath);
 
@@ -159,11 +153,17 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "Formato de archivo no soportado" }, { status: 400 });
       }
 
-      // Registrar en memoria global
+      // Registrar en memoria global    
       (globalThis as any).datasetStore = (globalThis as any).datasetStore || {};
-      const datasetStore: Record<string, { rows: RowData[] }> = (globalThis as any).datasetStore;
+      const datasetStore: Record<string, DatasetMeta> = (globalThis as any).datasetStore;
       const datasetId = `std_${Date.now()}`;
 
+        // 🔹 REGISTRAR DATASET EN MEMORIA GLOBAL
+      datasetStore[datasetId] = {
+        rows,
+        fileName: file.name,
+        format: "csv", // o el formato real según detectes
+      };
       console.log(`Dataset '${datasetName}' cargado con ${rows.length} filas`);
 
       // Respuesta final
@@ -254,7 +254,7 @@ export async function POST(req: Request) {
       const session = (await getServerSession(authOptions)) as Session | null;
       const userId = session?.user?.id;
 
-      // 🟢 Nombre del muestreo y fuente real del dataset
+      // Nombre del muestreo y fuente real del dataset
       const nameForHistory =
         (customName?.trim() || meta.displayName?.trim() || `Muestra-${datasetId}`);
 
