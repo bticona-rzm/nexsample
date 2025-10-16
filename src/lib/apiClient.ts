@@ -576,23 +576,49 @@ export class StringerBoundService {
 }
 
 // Cliente específico para Stringer Bound
-export class StringerBoundClient {
-    static async evaluate(params: StringerBoundRequest): Promise<StringerBoundResult> {
+export const StringerBoundClient = {
+    async evaluate(data: {
+        sampleData: any[];
+        sampleInterval: number;
+        confidenceLevel: number;
+        populationValue: number;
+        tolerableError: number;
+        highValueLimit: number;
+        highValueItems?: any[]; // ✅ NUEVO: soporte para valores altos
+        populationExcludingHigh?: number;
+        highValueTotal?: number;
+        highValueCountResume?: number;
+    }) {
         try {
             const response = await fetch('/api/mum/evaluation/stringer-bound', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(params),
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    sampleData: data.sampleData,
+                    sampleInterval: data.sampleInterval,
+                    confidenceLevel: data.confidenceLevel,
+                    populationValue: data.populationValue,
+                    tolerableError: data.tolerableError,
+                    highValueLimit: data.highValueLimit,
+                    // ✅ INCLUIR DATOS DE VALORES ALTOS
+                    highValueItems: data.highValueItems || [],
+                    populationExcludingHigh: data.populationExcludingHigh || data.populationValue,
+                    highValueTotal: data.highValueTotal || 0,
+                    highValueCountResume: data.highValueCountResume || 0
+                }),
             });
 
             if (!response.ok) {
-                throw new Error('Error en evaluación Stringer Bound');
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Error en evaluación Stringer Bound');
             }
 
             return await response.json();
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error en StringerBoundClient:', error);
-            throw error;
+            throw new Error(error.message || 'Error de conexión');
         }
     }
-}
+};
