@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { formatNumber, readExcelFile, StringerBoundService, StringerBoundClient } from '@/lib/apiClient';
+import { formatNumber, readExcelFile, StringerBoundClient } from '@/lib/apiClient';
 
 interface StringerBoundFormProps {
     onOk: (method: 'stringer-bound') => Promise<void>; 
@@ -54,10 +54,16 @@ const StringerBoundForm: React.FC<StringerBoundFormProps> = ({
     // Cálculo de precisión básica
     useEffect(() => {
         if (estimatedPopulationValue && confidenceLevel) {
-            const precision = StringerBoundService.calculateBasicPrecision(
-                confidenceLevel, 
-                sampleInterval
-            );
+            const reliabilityFactors = {
+                80: 1.61,
+                85: 1.90,
+                90: 2.31,
+                95: 3.00,
+                99: 4.61,
+            };
+            
+            const factor = reliabilityFactors[confidenceLevel as keyof typeof reliabilityFactors] || 3.00;
+            const precision = factor * sampleInterval;
             setBasicPrecision(precision);
         }
     }, [estimatedPopulationValue, confidenceLevel, sampleInterval]);

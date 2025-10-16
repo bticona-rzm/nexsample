@@ -274,15 +274,15 @@ export const mumApi = {
   
     stringerBoundEvaluation: async (data: any): Promise<any> => {
         const response = await fetch('/api/mum/evaluation/stringer-bound', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data),
         });
         
         if (!response.ok) {
-        throw new Error('Error en evaluación Stringer Bound');
+            throw new Error('Error en evaluación Stringer Bound');
         }
         
         return await response.json();
@@ -428,197 +428,20 @@ export const handleErrorChange = (value: string, setter: (value: number) => void
     }
 };
 
-
-// /lib/services/stringerBoundService.ts
-
-export interface SampleItem {
-    reference: string;
-    bookValue: number;
-    auditedValue: number;
-}
-
-export interface StringerBoundRequest {
-    sampleData: SampleItem[];
-    sampleInterval: number;
-    confidenceLevel: number;
-    populationValue: number;
-    tolerableError: number;
-    highValueLimit: number;
-}
-
-export interface StringerBoundResult {
-    numErrores: number;
-    errorMasProbableBruto: number;
-    errorMasProbableNeto: number;
-    precisionTotal: number;
-    limiteErrorSuperiorBruto: number;
-    limiteErrorSuperiorNeto: number;
-    isAccepted: boolean;
-    conclusion: string;
-    stringerBoundData: {
-        basicPrecision: number;
-        incrementalAllowance: number;
-        upperErrorLimit: number;
-        mostLikelyError: number;
-        errorDetails: Array<{
-            reference: string;
-            tainting: number;
-            rank: number;
-            reliabilityFactor: number;
-            incrementalFactor: number;
-            contribution: number;
-        }>;
-    };
-}
-
-// Factores de Confiabilidad para Stringer Bound
-const RELIABILITY_FACTORS = {
-    90: [2.31, 1.90, 1.61, 1.44, 1.33, 1.25, 1.19, 1.14],
-    95: [3.00, 1.75, 1.55, 1.46, 1.40, 1.36, 1.33, 1.30],
-    99: [4.61, 2.89, 2.36, 2.11, 1.97, 1.87, 1.80, 1.74]
-};
-
-export class StringerBoundService {
-    static calculateBasicPrecision(confidenceLevel: number, sampleInterval: number): number {
-        const reliabilityFactors = {
-            80: 1.61,
-            85: 1.90,
-            90: 2.31,
-            95: 3.00,
-            99: 4.61,
-        };
-        
-        const factor = reliabilityFactors[confidenceLevel as keyof typeof reliabilityFactors] || 3.00;
-        return factor * sampleInterval;
-    }
-
-    static async evaluateStringerBound(params: StringerBoundRequest): Promise<StringerBoundResult> {
-        const { sampleData, sampleInterval, confidenceLevel, populationValue, tolerableError } = params;
-
-        // 1. CALCULAR ERRORES Y TAINTINGS
-        const errors = sampleData
-            .filter(item => {
-                const hasBookValue = !isNaN(item.bookValue) && item.bookValue !== 0;
-                const hasAuditedValue = !isNaN(item.auditedValue);
-                return hasBookValue && hasAuditedValue && item.bookValue !== item.auditedValue;
-            })
-            .map(item => {
-                const error = item.bookValue - item.auditedValue;
-                const absoluteBookValue = Math.abs(item.bookValue);
-                const tainting = absoluteBookValue > 0 ? Math.abs(error) / absoluteBookValue : 0;
-                
-                return {
-                    reference: item.reference,
-                    bookValue: item.bookValue,
-                    auditedValue: item.auditedValue,
-                    error,
-                    tainting,
-                    isOverstatement: error > 0,
-                    isUnderstatement: error < 0,
-                    projectedError: tainting * sampleInterval
-                };
-            });
-
-        // 2. ORDENAR POR TAINTING DESCENDENTE
-        const sortedErrors = errors
-            .filter(e => e.isOverstatement) // Stringer Bound solo para sobrestimaciones
-            .sort((a, b) => b.tainting - a.tainting);
-
-        // 3. OBTENER FACTORES
-        const factors = RELIABILITY_FACTORS[confidenceLevel as keyof typeof RELIABILITY_FACTORS] || RELIABILITY_FACTORS[95];
-
-        // 4. CALCULAR STRINGER BOUND
-        let incrementalAllowance = 0;
-        const basicPrecision = factors[0] * sampleInterval;
-        
-        sortedErrors.forEach((error, index) => {
-            if (index < factors.length - 1) {
-                const incrementalFactor = factors[index + 1] - factors[index];
-                incrementalAllowance += incrementalFactor * error.tainting * sampleInterval;
-            }
-        });
-
-        const upperErrorLimit = basicPrecision + incrementalAllowance;
-        const mostLikelyError = sortedErrors.reduce((sum, error) => sum + error.projectedError, 0);
-
-        // 5. VALIDACIÓN
-        const isAccepted = upperErrorLimit <= tolerableError;
-
-        return {
-            numErrores: errors.length,
-            errorMasProbableBruto: mostLikelyError,
-            errorMasProbableNeto: mostLikelyError,
-            precisionTotal: basicPrecision,
-            limiteErrorSuperiorBruto: upperErrorLimit,
-            limiteErrorSuperiorNeto: upperErrorLimit,
-            isAccepted,
-            conclusion: `La población ${isAccepted ? 'PUEDE' : 'NO PUEDE'} aceptarse. ` +
-                       `UEL: ${upperErrorLimit.toLocaleString()}, ` +
-                       `Tolerable: ${tolerableError.toLocaleString()}`,
-            
-            stringerBoundData: {
-                basicPrecision,
-                incrementalAllowance,
-                upperErrorLimit,
-                mostLikelyError,
-                errorDetails: sortedErrors.map((error, index) => ({
-                    reference: error.reference,
-                    tainting: error.tainting,
-                    rank: index + 1,
-                    reliabilityFactor: factors[index] || factors[factors.length - 1],
-                    incrementalFactor: index < factors.length - 1 ? factors[index + 1] - factors[index] : 0,
-                    contribution: index < factors.length - 1 ? 
-                        (factors[index + 1] - factors[index]) * error.tainting * sampleInterval : 0
-                }))
-            }
-        };
-    }
-}
-
-// Cliente específico para Stringer Bound
 export const StringerBoundClient = {
-    async evaluate(data: {
-        sampleData: any[];
-        sampleInterval: number;
-        confidenceLevel: number;
-        populationValue: number;
-        tolerableError: number;
-        highValueLimit: number;
-        highValueItems?: any[]; // ✅ NUEVO: soporte para valores altos
-        populationExcludingHigh?: number;
-        highValueTotal?: number;
-        highValueCountResume?: number;
-    }) {
-        try {
-            const response = await fetch('/api/mum/evaluation/stringer-bound', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    sampleData: data.sampleData,
-                    sampleInterval: data.sampleInterval,
-                    confidenceLevel: data.confidenceLevel,
-                    populationValue: data.populationValue,
-                    tolerableError: data.tolerableError,
-                    highValueLimit: data.highValueLimit,
-                    // ✅ INCLUIR DATOS DE VALORES ALTOS
-                    highValueItems: data.highValueItems || [],
-                    populationExcludingHigh: data.populationExcludingHigh || data.populationValue,
-                    highValueTotal: data.highValueTotal || 0,
-                    highValueCountResume: data.highValueCountResume || 0
-                }),
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Error en evaluación Stringer Bound');
-            }
-
-            return await response.json();
-        } catch (error: any) {
-            console.error('Error en StringerBoundClient:', error);
-            throw new Error(error.message || 'Error de conexión');
+    async evaluate(data: any) {
+        const response = await fetch('/api/mum/evaluation/stringer-bound', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data),
+        });
+        
+        if (!response.ok) {
+            throw new Error('Error en evaluación Stringer Bound');
         }
+        
+        return await response.json();
     }
 };

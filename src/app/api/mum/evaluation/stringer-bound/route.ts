@@ -16,6 +16,9 @@ const getCorrectIDEAFactors = (confidenceLevel: number): number[] => {
 
 export async function POST(req: Request) {
     try {
+        console.log("🔍 INICIANDO EVALUACIÓN STRINGER BOUND");
+        
+        const requestData = await req.json();
         const { 
             sampleData, 
             sampleInterval, 
@@ -23,18 +26,44 @@ export async function POST(req: Request) {
             populationValue, 
             tolerableError,
             highValueLimit,
-            highValueItems = [], // ✅ RECIBIR ELEMENTOS DE VALOR ALTO
+            highValueItems = [],
             populationExcludingHigh,
             highValueTotal,
             highValueCountResume
-        } = await req.json();
+        } = requestData;
 
-        // ✅ 1. CALCULAR ERRORES EN MUESTRA NORMAL (igual que Cell & Classical)
+        console.log("📊 DATOS RECIBIDOS:", {
+            sampleDataLength: sampleData?.length,
+            sampleInterval,
+            confidenceLevel,
+            populationValue,
+            highValueItemsLength: highValueItems?.length,
+            highValueTotal,
+            highValueCountResume
+        });
+
+        // ✅ VALIDACIONES BÁSICAS
+        if (!sampleData || !Array.isArray(sampleData)) {
+            throw new Error("sampleData es requerido y debe ser un array");
+        }
+
+        if (!sampleInterval || sampleInterval <= 0) {
+            throw new Error("sampleInterval es requerido y debe ser mayor a 0");
+        }
+
+        // ✅ 1. CALCULAR ERRORES EN MUESTRA NORMAL
         const errors = sampleData
             .filter((item: any) => {
                 const bookValue = Number(item.bookValue);
                 const auditedValue = Number(item.auditedValue);
-                return !isNaN(bookValue) && !isNaN(auditedValue) && bookValue !== 0;
+                
+                if (isNaN(bookValue) || isNaN(auditedValue) || bookValue === 0) {
+                    return false;
+                }
+                
+                const error = bookValue - auditedValue;
+                // ✅ SOLO considerar error si la diferencia es significativa (> 1% o > 0.01)
+                return Math.abs(error) > (bookValue * 0.01) || Math.abs(error) > 0.01;
             })
             .map((item: any) => {
                 const bookValue = Number(item.bookValue);
@@ -54,7 +83,14 @@ export async function POST(req: Request) {
                 };
             });
 
-        // ✅ 2. CALCULAR ERRORES EN VALORES ALTOS (igual que Cell & Classical)
+        console.log("🔍 ERRORES ENCONTRADOS:", {
+            totalItems: sampleData.length,
+            erroresReales: errors.length,
+            overstatements: errors.filter((e: any) => e.isOverstatement).length,
+            understatements: errors.filter((e: any) => e.isUnderstatement).length
+        });
+
+        // ✅ 2. CALCULAR ERRORES EN VALORES ALTOS
         const calculateHighValueErrors = (highValueItems: any[]) => {
             if (!highValueItems || highValueItems.length === 0) {
                 return {
@@ -98,9 +134,16 @@ export async function POST(req: Request) {
             };
         };
 
-        // ✅ 3. ALGORITMO STRINGER BOUND (simplificado para evaluación combinada)
+        // ✅ 3. ALGORITMO STRINGER BOUND CORREGIDO
         const factors = getCorrectIDEAFactors(confidenceLevel);
         const basicPrecision = Math.round(factors[0] * sampleInterval * 100) / 100;
+
+        console.log("🔍 FACTORES Y PRECISIÓN BÁSICA:", {
+            confidenceLevel,
+            basicPrecisionFactor: factors[0],
+            basicPrecision,
+            sampleInterval
+        });
 
         // Separar overstatements y understatements
         const overstatements = errors.filter((e: any) => e.isOverstatement);
@@ -110,12 +153,20 @@ export async function POST(req: Request) {
         const overstatementMLE = Math.round(overstatements.reduce((sum: number, e: any) => sum + e.projectedError, 0) * 100) / 100;
         const understatementMLE = Math.round(understatements.reduce((sum: number, e: any) => sum + e.projectedError, 0) * 100) / 100;
 
-        // Calcular Upper Error Limit usando Stringer Bound
+        console.log("🔍 MOST LIKELY ERRORS:", {
+            overstatementMLE,
+            understatementMLE,
+            overstatementsCount: overstatements.length,
+            understatementsCount: understatements.length
+        });
+
+        // ✅ ALGORITMO STRINGER BOUND CORREGIDO
         const calculateStringerUEL = (errorList: any[]) => {
             if (errorList.length === 0) {
                 return basicPrecision;
             }
 
+            // Ordenar por tainting descendente
             const sortedErrors = [...errorList].sort((a: any, b: any) => b.taining - a.taining);
             let cumulativeFactor = factors[0]; // ✅ Empezar con el factor básico
 
@@ -132,8 +183,15 @@ export async function POST(req: Request) {
         const overstatementUEL = calculateStringerUEL(overstatements);
         const understatementUEL = calculateStringerUEL(understatements);
 
+        console.log("🔍 UPPER ERROR LIMITS:", {
+            overstatementUEL,
+            understatementUEL
+        });
+
         // ✅ 4. CALCULAR ERRORES EN VALORES ALTOS
         const highValueErrors = calculateHighValueErrors(highValueItems);
+
+        console.log("🔍 ERRORES EN VALORES ALTOS:", highValueErrors);
 
         // ✅ 5. RESULTADOS COMBINADOS (Stringer Bound)
         const response = {
@@ -159,12 +217,19 @@ export async function POST(req: Request) {
             }
         };
 
+        console.log("✅ RESULTADO FINAL STRINGER BOUND:", response);
+
         return NextResponse.json(response);
 
     } catch (error: any) {
-        console.error("❌ Error en evaluación Stringer Bound:", error);
+        console.error("❌ ERROR DETALLADO EN STRINGER BOUND:", {
+            message: error.message,
+            stack: error.stack,
+            name: error.name
+        });
+        
         return NextResponse.json({ 
-            error: `Error en evaluación: ${error.message}` 
+            error: `Error en evaluación Stringer Bound: ${error.message}` 
         }, { status: 500 });
     }
 }
