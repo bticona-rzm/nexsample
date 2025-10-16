@@ -156,17 +156,6 @@ export async function POST(req: Request) {
             expectedErrorMonetary
         );
 
-        // ✅ DEBUG PARA VERIFICAR
-        console.log('🔍 PLANIFICACIÓN IDEA - REGLAS APLICADAS:', {
-            input: {
-                populationValue,
-                confidenceLevel,
-                tolerableError: tolerableErrorMonetary,
-                expectedError: expectedErrorMonetary
-            },
-            output: result
-        });
-
         return NextResponse.json(result);
 
     } catch (error: any) {

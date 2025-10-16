@@ -222,11 +222,8 @@ function MumPageContent() {
             link.remove();
             window.URL.revokeObjectURL(sampleUrl);
 
-            console.log('✅ Archivo de muestra descargado:', sampleDownloadName);
-
             // ✅ CORRECCIÓN: MANEJO MEJORADO DE ARCHIVO DE VALORES ALTOS
             if (highValueManagement === "separado" && result.highValueFileBase64) {
-                console.log('📦 Generando archivo de valores altos...');
                 
                 const highValueBinary = atob(result.highValueFileBase64);
                 const highValueBytes = new Uint8Array(highValueBinary.length);
@@ -250,7 +247,6 @@ function MumPageContent() {
                 highValueLink.remove();
                 window.URL.revokeObjectURL(highValueUrl);
                 
-                console.log('✅ Archivo de valores altos descargado:', highValueDownloadName);
             } else if (highValueManagement === "separado" && !result.highValueFileBase64) {
                 console.log('⚠️  No se generó archivo de valores altos (posiblemente no hay valores altos)');
             }

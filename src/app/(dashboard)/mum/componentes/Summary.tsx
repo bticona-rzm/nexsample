@@ -92,15 +92,28 @@ const Summary: React.FC<SummaryProps> = ({
 }) => {
     // ELIMINADA la función formatNumber local - ahora usamos la importada
 
-    console.log('🕵️‍♂️ SUMMARY - HIGH VALUE DATA:', {
-        highValueCountResume,
-        highValueTotal,
-        propsSource: '¿De dónde vienen estos valores?'
+     console.log('🔍 SUMMARY - ORIGEN DE LOS DATOS:', {
+        numErroresProp: numErrores, // ← ¿Por qué viene con 2?
+        cellClassicalDataRealErrors: cellClassicalData ? 
+            (cellClassicalData.overstatements?.filter(s => s.tainting > 0).length || 0) + 
+            (cellClassicalData.understatements?.filter(s => s.tainting > 0).length || 0) 
+            : 'No cellClassicalData',
+        tieneCellClassicalData: !!cellClassicalData
     });
 
     const handlePrint = () => {
         window.print();
     };
+
+    // ✅ FORZAR USO DE DATOS REALES
+    const realOverstatementErrors = cellClassicalData?.overstatements?.filter(s => s.tainting > 0).length || 0;
+    const realUnderstatementErrors = cellClassicalData?.understatements?.filter(s => s.tainting > 0).length || 0;
+    
+    console.log('🔍 SUMMARY - ERRORES REALES:', {
+        realOverstatementErrors,
+        realUnderstatementErrors,
+        totalRealErrors: realOverstatementErrors + realUnderstatementErrors
+    });
 
     // Determine the titles and conclusion based on the evaluation method
     const mainTitle = evaluationMethod === 'stringer-bound'
@@ -147,12 +160,6 @@ const Summary: React.FC<SummaryProps> = ({
 
     const calculatedPopulationIncludingHigh = calculatedPopulationExcludingHigh + calculatedHighValueTotal;
 
-    console.log('🔍 Valores calculados en Summary:', {
-        calculatedPopulationExcludingHigh,
-        calculatedHighValueTotal, 
-        calculatedPopulationIncludingHigh
-    });
-
         // ✅ CORRECCIÓN: Tabla específica para Cell & Classical PPS
     const renderCellClassicalTable = () => {
         const totalItemsExamined = (estimatedSampleSize ?? 0) + (highValueCountResume ?? 0);
@@ -160,7 +167,13 @@ const Summary: React.FC<SummaryProps> = ({
         // ✅ CALCULAR VALORES CORRECTOS PARA CADA COLUMNA
         const overstatementErrors = cellClassicalData?.overstatements?.filter(s => s.tainting > 0).length || 0;
         const understatementErrors = cellClassicalData?.understatements?.filter(s => s.tainting > 0).length || 0;
-        
+
+        console.log('🔍 TABLA - USANDO DATOS REALES:', {
+            overstatementErrors,
+            understatementErrors, 
+            ignorandoNumErroresProp: numErrores // ← Esto muestra 2 pero lo ignoramos
+        });
+
         // ✅ DATOS PARA OVERSTATEMENTS (vienen del backend)
         const overstatementMLE = cellClassicalData?.mostLikelyError || 0;
         const overstatementUEL = cellClassicalData?.upperErrorLimit || 0;

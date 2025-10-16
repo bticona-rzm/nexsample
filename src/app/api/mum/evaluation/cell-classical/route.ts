@@ -50,29 +50,86 @@ export async function POST(req: Request) {
         });
 
         // 1. CALCULAR ERRORES
-        const errors = sampleData
-            .filter((item: any) => {
-                const bookValue = Number(item.bookValue);
-                const auditedValue = Number(item.auditedValue);
-                return !isNaN(bookValue) && !isNaN(auditedValue) && bookValue !== 0;
-            })
-            .map((item: any) => {
-                const bookValue = Number(item.bookValue);
-                const auditedValue = Number(item.auditedValue);
-                const error = bookValue - auditedValue;
-                const tainting = Math.min(Math.abs(error) / bookValue, 1);
-                
-                return {
-                    reference: item.reference,
-                    bookValue,
-                    auditedValue,
-                    error,
-                    tainting: Math.round(tainting * 10000) / 10000,
-                    isOverstatement: error > 0,
-                    isUnderstatement: error < 0,
-                    projectedError: Math.round(tainting * sampleInterval * 100) / 100
-                };
-            });
+        // Define la interfaz para los errores
+interface ProcessedError {
+    reference: string;
+    bookValue: number;
+    auditedValue: number;
+    error: number;
+    tainting: number;
+    isOverstatement: boolean;
+    isUnderstatement: boolean;
+    projectedError: number;
+}
+
+const errors = sampleData
+    .filter((item: any) => {
+        const bookValue = Number(item.bookValue);
+        const auditedValue = Number(item.auditedValue);
+        
+        if (isNaN(bookValue) || isNaN(auditedValue) || bookValue === 0) {
+            return false;
+        }
+        
+        const error = bookValue - auditedValue;
+        // ✅ SOLO considerar error si la diferencia es significativa (> 1% o > 0.01)
+        return Math.abs(error) > (bookValue * 0.01) || Math.abs(error) > 0.01;
+    })
+    .map((item: any) => {
+        const bookValue = Number(item.bookValue);
+        const auditedValue = Number(item.auditedValue);
+        const error = bookValue - auditedValue;
+        const tainting = Math.min(Math.abs(error) / bookValue, 1);
+        
+        return {
+            reference: item.reference,
+            bookValue,
+            auditedValue,
+            error,
+            tainting: Math.round(tainting * 10000) / 10000,
+            isOverstatement: error > 0,
+            isUnderstatement: error < 0,
+            projectedError: Math.round(tainting * sampleInterval * 100) / 100
+        };
+    });
+
+console.log('🔍 ERRORES FILTRADOS:', {
+    totalItems: sampleData.length,
+    erroresReales: errors.length,
+    erroresDetalles: errors.map((e: ProcessedError) => ({
+        reference: e.reference,
+        bookValue: e.bookValue,
+        auditedValue: e.auditedValue,
+        error: e.error,
+        tainting: e.tainting
+    }))
+});
+        interface SamplingError {
+    reference: string;
+    bookValue: number;
+    auditedValue: number;
+    error: number;
+    tainting: number;
+    isOverstatement: boolean;
+    isUnderstatement: boolean;
+    projectedError: number;
+}
+
+// Luego en tu console.log, agrega el tipado:
+console.log("🔍 DETALLE DE ERRORES ENCONTRADOS:", {
+    totalItems: sampleData.length,
+    erroresEncontrados: errors.length,
+    overstatements: errors.filter((e: SamplingError) => e.isOverstatement).length,
+    understatements: errors.filter((e: SamplingError) => e.isUnderstatement).length,
+    detalles: errors.map((e: SamplingError) => ({
+        referencia: e.reference,
+        bookValue: e.bookValue,
+        auditedValue: e.auditedValue,
+        error: e.error,
+        tainting: e.tainting,
+        tipo: e.isOverstatement ? 'OVER' : e.isUnderstatement ? 'UNDER' : 'NONE'
+    }))
+});
 
         // 2. SEPARAR ERRORES
         const overstatements = errors
@@ -98,29 +155,51 @@ export async function POST(req: Request) {
             let currentUEL = factors[0];
             let totalTaintings = 0;
 
-            // ✅ STAGE 0 - BASIC PRECISION
+            console.log('🔍 CALCULANDO UEL - ERRORES REALES:', {
+                errorType,
+                errorCount: errorList.length,
+                errors: errorList.map(e => ({ tainting: e.tainting, reference: e.reference }))
+            });
+
+            // ✅ STAGE 0 - BASIC PRECISION (siempre existe)
             const stage0 = {
                 stage: 0,
                 uelFactor: Math.round(factors[0] * 10000) / 10000,
-                tainting: errorType === 'understatement' ? 1.0000 : 1.0000,
-                averageTainting: 0.0000,
-                previousUEL: 0.0000,
-                loadingPropagation: 0.0000,
+                tainting: 0,
+                averageTainting: 0,
+                previousUEL: 0,
+                loadingPropagation: Math.round(factors[0] * 10000) / 10000,
                 simplePropagation: Math.round(factors[0] * 10000) / 10000,
                 maxStageUEL: Math.round(factors[0] * 10000) / 10000
             };
             stages.push(stage0);
 
-            // ✅ PROCESAR ERRORES (stages 1+)
-            for (let i = 0; i < errorList.length; i++) {
-                const error = errorList[i];
+            // ✅ SOLO PROCESAR ERRORES CON TAINTING > 0
+            const realErrors = errorList.filter(e => e.tainting > 0);
+            
+            console.log('🔍 ERRORES CON TAINTING > 0:', {
+                totalErrors: errorList.length,
+                realErrorsCount: realErrors.length,
+                realErrors: realErrors.map(e => ({ tainting: e.tainting, reference: e.reference }))
+            });
+
+            // ✅ PROCESAR SOLO ERRORES REALES (stages 1+)
+            for (let i = 0; i < realErrors.length; i++) {
+                const error = realErrors[i];
+                
+                // ✅ LIMITAR A 10 STAGES MÁXIMO (como IDEA)
+                if (i >= factors.length - 1) {
+                    console.log('⚠️  LIMITE: Máximo de stages alcanzado');
+                    break;
+                }
+
                 totalTaintings += error.tainting;
                 
-                const currentFactor = factors[i + 1] || factors[factors.length - 1];
+                const currentFactor = factors[i + 1];
                 
                 const loadAndSpread = Math.round((currentUEL + error.tainting) * 10000) / 10000;
                 
-                const taintingsUpToNow = errorList.slice(0, i + 1).map(e => e.tainting);
+                const taintingsUpToNow = realErrors.slice(0, i + 1).map(e => e.tainting);
                 const averageTainting = taintingsUpToNow.reduce((sum, t) => sum + t, 0) / taintingsUpToNow.length;
                 const simpleSpread = Math.round((currentFactor * averageTainting) * 10000) / 10000;
                 
@@ -139,25 +218,40 @@ export async function POST(req: Request) {
                 
                 stages.push(stage);
                 currentUEL = stageUEL;
+
+                console.log(`🔍 STAGE ${i + 1}:`, {
+                    tainting: error.tainting,
+                    currentUEL: Math.round(currentUEL * 10000) / 10000,
+                    stageUEL: Math.round(stageUEL * 10000) / 10000
+                });
             }
 
             const mostLikelyError = Math.round(totalTaintings * sampleInterval * 100) / 100;
             const upperErrorLimit = Math.round(currentUEL * sampleInterval * 100) / 100;
             const basicPrecisionValue = Math.round(factors[0] * sampleInterval * 100) / 100;
             
-            // ✅ CALCULAR PRECISION GAP WIDENING PARA ESTE TIPO DE ERROR
             const precisionGapWidening = calculatePrecisionGapWidening(
                 upperErrorLimit,
                 basicPrecisionValue,
                 mostLikelyError
             );
+
+            console.log('✅ RESULTADO UEL FINAL:', {
+                errorType,
+                stagesCount: stages.length,
+                totalTaintings,
+                mostLikelyError,
+                upperErrorLimit,
+                basicPrecisionValue,
+                precisionGapWidening
+            });
             
             return { 
                 uel: Math.round(currentUEL * 10000) / 10000, 
                 stages,
                 mostLikelyError,
                 totalTaintings: Math.round(totalTaintings * 10000) / 10000,
-                precisionGapWidening // ✅ INCLUIMOS PGW EN EL RESULTADO
+                precisionGapWidening
             };
         };
 
@@ -225,7 +319,7 @@ export async function POST(req: Request) {
 
         // 8. ✅ RESPUESTA FINAL CON AMBOS PRECISION GAP WIDENING
         const response = {
-            numErrores: errors.length,
+            numErrores: overstatements.length + understatements.length,
             errorMasProbableBruto: overstatementResult.mostLikelyError,
             errorMasProbableNeto: netOverstatementMLE,
             precisionTotal: calculateBasicPrecision(confidenceLevel, sampleInterval),

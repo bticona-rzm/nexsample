@@ -41,8 +41,6 @@ const Evaluation: React.FC<EvaluationProps> = (props) => {
     // ✅ CORREGIDO - Manejar datos de evaluación
     const handleEvaluationProcess = async (method: 'cell-classical' | 'stringer-bound', evaluationData?: any) => {
         try {
-            console.log('📥 Datos recibidos en Evaluation:', evaluationData);
-            
             if (evaluationData) {
                 // Guardar los datos directamente
                 setEvaluationResults(evaluationData);
@@ -64,21 +62,6 @@ const Evaluation: React.FC<EvaluationProps> = (props) => {
     const handleBack = () => {
         setShowSummary(false); 
     };
-
-    // Debug: ver qué datos tenemos
-    console.log('🔍 Evaluation Results State:', evaluationResults);
-
-    console.log('🔍 VALORES DE POBLACIÓN RECIBIDOS:', {
-        populationExcludingHigh: props.populationExcludingHigh,
-        highValueTotal: props.highValueTotal, 
-        populationIncludingHigh: props.populationIncludingHigh,
-        estimatedPopulationValue: props.estimatedPopulationValue
-    });
-
-    console.log('🕵️‍♂️ ORIGEN DEL HIGH VALUE COUNT:', {
-        propValue: props.highValueCountResume,
-        evaluationResultsValue: evaluationResults?.highValueCountResume
-    });
 
     return (
         <div className="p-6 bg-white rounded-lg shadow-md">
@@ -200,14 +183,15 @@ const Evaluation: React.FC<EvaluationProps> = (props) => {
                             highValueTotal={props.highValueTotal}
                             populationIncludingHigh={props.populationIncludingHigh}
                             estimatedSampleSize={props.estimatedSampleSize}
-                            // ✅ AHORA SÍ: Usar los datos reales de la evaluación
-                            numErrores={evaluationResults?.numErrores || props.numErrores}
-                            errorMasProbableBruto={evaluationResults?.errorMasProbableBruto || props.errorMasProbableBruto}
-                            errorMasProbableNeto={evaluationResults?.errorMasProbableNeto || props.errorMasProbableNeto}
-                            precisionTotal={evaluationResults?.precisionTotal || props.precisionTotal}
-                            limiteErrorSuperiorBruto={evaluationResults?.limiteErrorSuperiorBruto || props.limiteErrorSuperiorBruto}
-                            limiteErrorSuperiorNeto={evaluationResults?.limiteErrorSuperiorNeto || props.limiteErrorSuperiorNeto}
-                            highValueCountResume={evaluationResults?.highValueCountResume || props.highValueCountResume}
+
+                            // ✅ CORREGIR: Usar SOLO evaluationResults si existe
+                            numErrores={evaluationResults ? evaluationResults.numErrores : 0}
+                            errorMasProbableBruto={evaluationResults ? evaluationResults.errorMasProbableBruto : props.errorMasProbableBruto}
+                            errorMasProbableNeto={evaluationResults ? evaluationResults.errorMasProbableNeto : props.errorMasProbableNeto}
+                            precisionTotal={evaluationResults ? evaluationResults.precisionTotal : props.precisionTotal}
+                            limiteErrorSuperiorBruto={evaluationResults ? evaluationResults.limiteErrorSuperiorBruto : props.limiteErrorSuperiorBruto}
+                            limiteErrorSuperiorNeto={evaluationResults ? evaluationResults.limiteErrorSuperiorNeto : props.limiteErrorSuperiorNeto}
+                            highValueCountResume={evaluationResults ? evaluationResults.highValueCountResume : props.highValueCountResume}
                             
                             setActiveTab={props.setActiveTab}
                             handleSummary={() => props.handleEvaluation(selectedMethod)}
