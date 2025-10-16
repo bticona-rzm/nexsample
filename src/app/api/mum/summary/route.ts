@@ -78,11 +78,6 @@ export async function POST(req: Request) {
             populationValue: number;
         } = await req.json();
 
-        console.log('📊 CALCULANDO RESULTADOS PARA:', {
-            sampleSize: sampleData.length,
-            sampleInterval,
-            confidenceLevel
-        });
 
         // 1. CALCULAR ERRORES Y TAINTINGS
         const errors: CalculatedError[] = sampleData
@@ -106,12 +101,6 @@ export async function POST(req: Request) {
             .sort((a, b) => b.tainting - a.tainting);
         const understatements = errors.filter((e: CalculatedError) => e.isUnderstatement)
             .sort((a, b) => b.tainting - a.tainting);
-
-        console.log('🔍 ERRORES ENCONTRADOS:', {
-            total: errors.length,
-            over: overstatements.length,
-            under: understatements.length
-        });
 
         const uelFactors = getUELFactors(confidenceLevel);
 
@@ -218,24 +207,6 @@ export async function POST(req: Request) {
 
         const netOverstatementUEL = overstatementUEL - understatementMLE;
         const netUnderstatementUEL = understatementUEL - overstatementMLE;
-
-        console.log('🎯 RESULTADOS FINALES CORREGIDOS:', {
-            // Overstatements
-            overstatementMLE,
-            overstatementUEL,
-            overstatementPrecision, // Debería ser ~29,329,278.73
-            netOverstatementMLE,
-            netOverstatementUEL,
-            
-            // Understatements
-            understatementMLE,
-            understatementUEL,
-            understatementPrecision, // Debería ser ~26,388,786.00
-            netUnderstatementMLE,
-            netUnderstatementUEL, // Debería ser ~15,835,002.52
-            
-            basicPrecision
-        });
 
         const response: CellClassicalResponse = {
             numErrores: errors.length,

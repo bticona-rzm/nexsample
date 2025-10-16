@@ -22,10 +22,6 @@ export async function POST(req: Request) {
     try {
         const payload: ExtractionPayload = await req.json();
 
-        console.log('=== API EXTRACTION DEBUG ===');
-        console.log('Extraction filename:', payload.extractionFilename);
-        console.log('High value filename:', payload.highValueFilename);
-        console.log('============================');
 
         const { sampleFileBase64, highValueFileBase64 } = executeExtraction(payload);
 

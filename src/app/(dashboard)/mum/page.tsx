@@ -178,14 +178,6 @@ function MumPageContent() {
                     : `${highValueFilename}.xlsx`,
             };
 
-            console.log('Enviando datos al backend:', {
-                ...body,
-                excelData: `[${excelData.length} registros]`, // No loguear datos completos
-                highValueLimit: body.highValueLimit,
-                extractionFilename: body.extractionFilename,
-                highValueFilename: body.highValueFilename
-            });
-
             const result = await mumApi.extraction(body);
 
             // ✅ ACTUALIZAR: Setear los valores REALES calculados en el backend
@@ -248,7 +240,7 @@ function MumPageContent() {
                 window.URL.revokeObjectURL(highValueUrl);
                 
             } else if (highValueManagement === "separado" && !result.highValueFileBase64) {
-                console.log('⚠️  No se generó archivo de valores altos (posiblemente no hay valores altos)');
+                alert('⚠️  No se generó archivo de valores altos (posiblemente no hay valores altos)');
             }
 
             // ✅ ACTUALIZAR ESTADO Y NAVEGAR

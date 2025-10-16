@@ -80,8 +80,6 @@ const StringerBoundForm: React.FC<StringerBoundFormProps> = ({
                     const realHeaders = Object.keys(fileData[0]);
                     setHeaders(realHeaders);
                     
-                    console.log("📋 HEADERS REALES DEL ARCHIVO:", realHeaders);
-                    
                     // ✅ SELECCIÓN AUTOMÁTICA - EXACTA COMO CELL CLASSICAL
                     if (selectedField && realHeaders.includes(selectedField)) {
                         setBookValueField(selectedField);
@@ -130,40 +128,93 @@ const StringerBoundForm: React.FC<StringerBoundFormProps> = ({
         event.target.value = ''; 
     };
 
-    // ✅ FUNCIÓN PARA ARCHIVO DE VALORES ALTOS - IDÉNTICA A CELL CLASSICAL
+    // ✅ FUNCIÓN PARA ARCHIVO DE VALORES ALTOS - CORREGIDA
     const handleHighValueFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (file) {
             setHighValueFile(file);
             
             try {
-                // Leer y procesar el archivo de valores altos
                 const fileData = await readExcelFile(file);
                 
-                // Extraer headers del archivo de valores altos
                 if (fileData.length > 0) {
                     const headers = Object.keys(fileData[0]);
                     setHighValueHeaders(headers);
-                    
-                    console.log("📋 HEADERS REALES DE VALORES ALTOS:", headers);
-                    
-                    // ✅ AUTO-SELECCIÓN - EXACTA COMO CELL CLASSICAL
-                    if (headers.includes('BOOK_VALUE') || headers.includes('BOOK_VAL')) {
-                        setHighValueBookField(headers.find(h => h.includes('BOOK')) || headers[0]);
-                    } else if (headers.length > 0) {
-                        setHighValueBookField(headers[0]);
-                    }
-                    
-                    if (headers.includes('AUDITED_VALUE') || headers.includes('AUDIT_AMT')) {
-                        setHighValueAuditedField(headers.find(h => h.includes('AUDIT')) || '');
-                    }
-                    
-                    setHighValueReferenceField('REFERENCE')
 
-                    // ✅ GUARDAR LOS DATOS PARA ENVIAR AL BACKEND
+                    // ✅ CORRECCIÓN CRÍTICA: USAR EL MISMO BOOK VALUE FIELD QUE EL ARCHIVO PRINCIPAL
+                    let selectedBookField = bookValueField; // ← ¡ESTO ES LO MÁS IMPORTANTE!
+                    
+                    // Verificar que el campo exista en el archivo de valores altos
+                    if (!headers.includes(selectedBookField)) {
+                        console.warn(`El campo "${selectedBookField}" no existe en el archivo de valores altos. Buscando alternativas...`);
+                        
+                        // Buscar un campo similar
+                        const alternativeField = headers.find(header => 
+                            header.toUpperCase().includes(selectedBookField.toUpperCase()) ||
+                            selectedBookField.toUpperCase().includes(header.toUpperCase())
+                        );
+                        
+                        if (alternativeField) {
+                            selectedBookField = alternativeField;
+                            console.log(`✅ Usando campo alternativo: "${alternativeField}"`);
+                        } else if (headers.length > 0) {
+                            // Último recurso: usar el primer campo disponible
+                            selectedBookField = headers[0];
+                            console.warn(`⚠️  Usando primer campo disponible: "${headers[0]}"`);
+                        }
+                    }
+
+                    // ✅ PARA LOS OTROS CAMPOS, MANTENER LA LÓGICA ACTUAL
+                    let selectedAuditedField = '';
+                    let selectedReferenceField = '';
+
+                    headers.forEach(header => {
+                        const upperHeader = header.toUpperCase();
+                        
+                        // Audited Value Field
+                        if (!selectedAuditedField && (
+                            upperHeader.includes('AUDIT_AMT') ||  
+                            upperHeader.includes('AUDIT') ||
+                            upperHeader.includes('AUDITED') ||
+                            upperHeader.includes('VERIFICADO') ||
+                            upperHeader.includes('REVISADO')
+                        )) {
+                            selectedAuditedField = header;
+                        }
+                        
+                        // Reference Field
+                        if (!selectedReferenceField && (
+                            upperHeader.includes('REF') || 
+                            upperHeader.includes('ID') ||
+                            upperHeader.includes('REFERENCE')
+                        )) {
+                            selectedReferenceField = header;
+                        }
+                    });
+
+                    // Fallbacks para los otros campos
+                    if (!selectedAuditedField) {
+                        selectedAuditedField = headers.find(h => 
+                            h.toUpperCase().includes('AUDIT_AMT') || 
+                            h.toUpperCase().includes('AUDITED_VALUE')
+                        ) || '';
+                    }
+
+                    if (!selectedReferenceField) {
+                        selectedReferenceField = headers.find(h => 
+                            h.toUpperCase().includes('REFERENCE') || 
+                            h.toUpperCase().includes('ID')
+                        ) || '';
+                    }
+
+                    // ✅ APLICAR LAS SELECCIONES
+                    setHighValueBookField(selectedBookField);
+                    setHighValueAuditedField(selectedAuditedField);
+                    setHighValueReferenceField(selectedReferenceField);
+
+                    // Guardar los datos para enviar al backend
                     setHighValueItems(fileData);
                 }
-                
             } catch (error) {
                 console.error("Error procesando archivo de valores altos:", error);
                 alert("Error al procesar el archivo de valores altos");
@@ -235,18 +286,6 @@ const StringerBoundForm: React.FC<StringerBoundFormProps> = ({
                 highValueStats = calculateHighValueStats(highValueItems);
             }
 
-            // ✅ DEBUG
-            console.log("📤 ENVIANDO AL BACKEND STRINGER BOUND:", {
-                sampleDataCount: sampleData.length,
-                highValueItemsCount: highValueData.length,
-                bookValueField,
-                auditedValueField, 
-                referenceField,
-                highValueBookField,
-                highValueAuditedField,
-                highValueReferenceField
-            });
-
             // 4. ENVIAR AL BACKEND
             const results = await StringerBoundClient.evaluate({
                 sampleData: sampleData,
@@ -262,8 +301,6 @@ const StringerBoundForm: React.FC<StringerBoundFormProps> = ({
                 highValueCountResume: highValueStats.count,
                 populationExcludingHigh: estimatedPopulationValue - highValueStats.total
             });
-
-            console.log("✅ RESULTADOS STRINGER BOUND:", results);
             
             await onOk('stringer-bound');
 
@@ -494,47 +531,56 @@ const StringerBoundForm: React.FC<StringerBoundFormProps> = ({
                             {highValueItems.length > 0 && ` - ${highValueItems.length} elementos cargados`}
                         </p>
                         
-                        <div className="space-y-4 mt-4 p-4 ">
-                                <div className="flex items-center space-x-4">
-                                    <label className="text-sm font-medium text-gray-700 w-48">Book value field:</label>
-                                    <select 
-                                        value={highValueBookField}
-                                        onChange={(e) => setHighValueBookField(e.target.value)}
-                                        className="block w-48 rounded-md border-gray-300 shadow-sm sm:text-sm"
-                                    >
-                                        <option value="">Selecciona una columna</option>
-                                        {highValueHeaders.map(header => (
-                                            <option key={header} value={header}>{header}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div className="flex items-center space-x-4">
-                                    <label className="text-sm font-medium text-gray-700 w-48">Audited value field:</label>
-                                    <select 
-                                        value={highValueAuditedField}
-                                        onChange={(e) => setHighValueAuditedField(e.target.value)}
-                                        className="block w-48 rounded-md border-gray-300 shadow-sm sm:text-sm"
-                                    >
-                                        <option value="">Selecciona una columna</option>
-                                        {highValueHeaders.map(header => (
-                                            <option key={header} value={header}>{header}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div className="flex items-center space-x-4">
-                                    <label className="text-sm font-medium text-gray-700 w-48">Reference (optional):</label>
-                                    <select 
-                                        value={highValueReferenceField}
-                                        onChange={(e) => setHighValueReferenceField(e.target.value)}
-                                        className="block w-48 rounded-md border-gray-300 shadow-sm sm:text-sm"
-                                    >
-                                        <option value="">Selecciona una columna</option>
-                                        {highValueHeaders.map(header => (
-                                            <option key={header} value={header}>{header}</option>
-                                        ))}
-                                    </select>
-                                </div>
+                        <div className="space-y-4 mt-4 p-4">
+                            <div className="flex items-center space-x-4">
+                                <label className="text-sm font-medium text-gray-700 w-48">Book value field:</label>
+                                <select 
+                                    value={highValueBookField}
+                                    onChange={(e) => setHighValueBookField(e.target.value)}
+                                    disabled={!useHighValueFile || highValueHeaders.length === 0}
+                                    className={`block w-48 rounded-md border-gray-300 shadow-sm sm:text-sm ${
+                                        !useHighValueFile || highValueHeaders.length === 0 ? 'bg-gray-200 cursor-not-allowed' : ''
+                                    }`}
+                                >
+                                    <option value="">Selecciona una columna</option>
+                                    {highValueHeaders.map(header => ( // ✅ USA HIGH VALUE HEADERS
+                                        <option key={header} value={header}>{header}</option>
+                                    ))}
+                                </select>
                             </div>
+                            <div className="flex items-center space-x-4">
+                                <label className="text-sm font-medium text-gray-700 w-48">Audited value field:</label>
+                                <select 
+                                    value={highValueAuditedField}
+                                    onChange={(e) => setHighValueAuditedField(e.target.value)}
+                                    disabled={!useHighValueFile || highValueHeaders.length === 0}
+                                    className={`block w-48 rounded-md border-gray-300 shadow-sm sm:text-sm ${
+                                        !useHighValueFile || highValueHeaders.length === 0 ? 'bg-gray-200 cursor-not-allowed' : ''
+                                    }`}
+                                >
+                                    <option value="">Selecciona una columna</option>
+                                    {highValueHeaders.map(header => ( // ✅ USA HIGH VALUE HEADERS
+                                        <option key={header} value={header}>{header}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="flex items-center space-x-4">
+                                <label className="text-sm font-medium text-gray-700 w-48">Reference (optional):</label>
+                                <select 
+                                    value={highValueReferenceField}
+                                    onChange={(e) => setHighValueReferenceField(e.target.value)}
+                                    disabled={!useHighValueFile || highValueHeaders.length === 0}
+                                    className={`block w-48 rounded-md border-gray-300 shadow-sm sm:text-sm ${
+                                        !useHighValueFile || highValueHeaders.length === 0 ? 'bg-gray-200 cursor-not-allowed' : ''
+                                    }`}
+                                >
+                                    <option value="">Selecciona una columna</option>
+                                    {highValueHeaders.map(header => ( // ✅ USA HIGH VALUE HEADERS
+                                        <option key={header} value={header}>{header}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
                     </div>
                 </div>
 

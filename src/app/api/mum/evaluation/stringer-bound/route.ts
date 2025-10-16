@@ -29,13 +29,6 @@ export async function POST(req: Request) {
             highValueCountResume
         } = await req.json();
 
-        console.log("📊 PROCESANDO STRINGER BOUND:", {
-            items: sampleData.length,
-            highValueItems: highValueItems.length,
-            interval: sampleInterval,
-            confidence: confidenceLevel
-        });
-
         // ✅ 1. CALCULAR ERRORES EN MUESTRA NORMAL (igual que Cell & Classical)
         const errors = sampleData
             .filter((item: any) => {
@@ -123,18 +116,17 @@ export async function POST(req: Request) {
                 return basicPrecision;
             }
 
-            // Ordenar por tainting descendente
-            const sortedErrors = [...errorList].sort((a: any, b: any) => b.tainting - a.tainting);
-            let cumulativeUEL = factors[0];
+            const sortedErrors = [...errorList].sort((a: any, b: any) => b.taining - a.taining);
+            let cumulativeFactor = factors[0]; // ✅ Empezar con el factor básico
 
             for (let i = 0; i < Math.min(sortedErrors.length, factors.length - 1); i++) {
                 const error = sortedErrors[i];
                 const incrementalFactor = factors[i + 1] - factors[i];
-                const incrementalUEL = incrementalFactor * error.tainting * sampleInterval;
-                cumulativeUEL += incrementalUEL;
+                cumulativeFactor += incrementalFactor * error.taining; // ✅ Solo factores
             }
 
-            return Math.round(cumulativeUEL * 100) / 100;
+            // ✅ Convertir a UEL al final
+            return Math.round(cumulativeFactor * sampleInterval * 100) / 100;
         };
 
         const overstatementUEL = calculateStringerUEL(overstatements);
@@ -166,13 +158,6 @@ export async function POST(req: Request) {
                 totalErrorAmount: highValueErrors.totalErrorAmount
             }
         };
-
-        console.log("✅ RESULTADOS STRINGER BOUND:", {
-            errores: response.numErrores,
-            highValueErrores: highValueErrors.count,
-            errorBruto: response.errorMasProbableBruto,
-            limiteBruto: response.limiteErrorSuperiorBruto
-        });
 
         return NextResponse.json(response);
 

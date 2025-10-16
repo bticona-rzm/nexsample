@@ -43,11 +43,6 @@ export async function POST(req: Request) {
             highValueItems = []
         } = await req.json();
 
-        console.log("📊 PROCESANDO CELL & CLASSICAL PPS - ALGORITMO IDEA:", {
-            items: sampleData.length,
-            interval: sampleInterval,
-            confidence: confidenceLevel
-        });
 
         // 1. CALCULAR ERRORES
         // Define la interfaz para los errores
@@ -93,18 +88,7 @@ const errors = sampleData
         };
     });
 
-console.log('🔍 ERRORES FILTRADOS:', {
-    totalItems: sampleData.length,
-    erroresReales: errors.length,
-    erroresDetalles: errors.map((e: ProcessedError) => ({
-        reference: e.reference,
-        bookValue: e.bookValue,
-        auditedValue: e.auditedValue,
-        error: e.error,
-        tainting: e.tainting
-    }))
-});
-        interface SamplingError {
+    interface SamplingError {
     reference: string;
     bookValue: number;
     auditedValue: number;
@@ -114,22 +98,6 @@ console.log('🔍 ERRORES FILTRADOS:', {
     isUnderstatement: boolean;
     projectedError: number;
 }
-
-// Luego en tu console.log, agrega el tipado:
-console.log("🔍 DETALLE DE ERRORES ENCONTRADOS:", {
-    totalItems: sampleData.length,
-    erroresEncontrados: errors.length,
-    overstatements: errors.filter((e: SamplingError) => e.isOverstatement).length,
-    understatements: errors.filter((e: SamplingError) => e.isUnderstatement).length,
-    detalles: errors.map((e: SamplingError) => ({
-        referencia: e.reference,
-        bookValue: e.bookValue,
-        auditedValue: e.auditedValue,
-        error: e.error,
-        tainting: e.tainting,
-        tipo: e.isOverstatement ? 'OVER' : e.isUnderstatement ? 'UNDER' : 'NONE'
-    }))
-});
 
         // 2. SEPARAR ERRORES
         const overstatements = errors
@@ -159,12 +127,6 @@ const calculateUEL = (errorList: any[], errorType: string): {
     let currentUEL = initialUELFactor;
     let totalTaintings = 0;
 
-    console.log('🔍 CALCULANDO UEL - CONFIGURACIÓN:', {
-        errorType,
-        errorCount: errorList.length,
-        initialUELFactor,
-        sampleInterval
-    });
 
     // ✅ STAGE 0 - CALCULADO CORRECTAMENTE (NO HARCODEADO)
     const stage0 = {
@@ -179,27 +141,8 @@ const calculateUEL = (errorList: any[], errorType: string): {
     };
     stages.push(stage0);
 
-    console.log('🔍 STAGE 0 CALCULADO:', {
-        errorType,
-        stage0Tainting: stage0.tainting,
-        stage0LoadingPropagation: stage0.loadingPropagation,
-        stage0SimplePropagation: stage0.simplePropagation,
-        stage0MaxStageUEL: stage0.maxStageUEL
-    });
-
     // ✅ SOLO PROCESAR ERRORES CON TAINTING > 0
     const realErrors = errorList.filter(e => e.tainting > 0);
-    
-    console.log('🔍 ERRORES CON TAINTING > 0:', {
-        totalErrors: errorList.length,
-        realErrorsCount: realErrors.length,
-        realErrors: realErrors.map(e => ({ 
-            tainting: e.tainting, 
-            reference: e.reference,
-            bookValue: e.bookValue,
-            auditedValue: e.auditedValue 
-        }))
-    });
 
     // ✅ PROCESAR SOLO ERRORES REALES (stages 1+)
     for (let i = 0; i < realErrors.length; i++) {
@@ -241,15 +184,6 @@ const calculateUEL = (errorList: any[], errorType: string): {
         
         stages.push(stage);
         currentUEL = stageUEL;
-
-        console.log(`🔍 STAGE ${i + 1} CALCULADO:`, {
-            tainting: error.tainting,
-            loadAndSpread,
-            averageTainting,
-            simpleSpread,
-            stageUEL,
-            currentUEL
-        });
     }
 
     // ✅ CALCULAR RESULTADOS FINALES
@@ -262,17 +196,6 @@ const calculateUEL = (errorList: any[], errorType: string): {
         basicPrecisionValue,
         mostLikelyError
     );
-
-    console.log('✅ RESULTADO UEL FINAL:', {
-        errorType,
-        stagesCount: stages.length,
-        totalTaintings,
-        mostLikelyError,
-        upperErrorLimit,
-        basicPrecisionValue,
-        precisionGapWidening,
-        currentUEL
-    });
     
     return { 
         uel: Math.round(currentUEL * 10000) / 10000, 
@@ -399,13 +322,6 @@ const calculateUEL = (errorList: any[], errorType: string): {
             }
         };
 
-        console.log("✅ RESULTADOS - CON ERRORES DE VALOR ALTO REALES:", {
-            highValueItems: highValueItems.length,
-            highValueErrors: highValueErrors.count,
-            highValueOverstatements: highValueErrors.overstatementCount,
-            highValueUnderstatements: highValueErrors.understatementCount,
-            highValueErrorAmount: highValueErrors.totalErrorAmount
-        });
 
         return NextResponse.json(response);
 

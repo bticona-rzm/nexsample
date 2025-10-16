@@ -244,13 +244,6 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({
             }
 
             const results = await response.json();
-
-            // 5. MANEJAR RESULTADOS
-            console.log("Resultados evaluación CON VALORES ALTOS:", {
-                highValueItems: highValueData.length,
-                highValueTotal: highValueStats.total,
-                highValueCount: highValueStats.count
-            });
             
             await onOk('cell-classical', {
                 cellClassicalData: results.cellClassicalData,
