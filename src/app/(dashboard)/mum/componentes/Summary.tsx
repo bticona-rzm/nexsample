@@ -33,6 +33,7 @@ interface CellClassicalData {
     netUnderstatementUEL?: number;
     precisionGapWideningOver?: number;
     precisionGapWideningUnder?: number;
+    precisionTotalUnder?: number;
 }
 
 // Define the types for the props, including the new 'evaluationMethod' and 'onBack' handler
@@ -57,6 +58,7 @@ interface SummaryProps {
     handleSummary: () => Promise<void>;
     evaluationMethod: 'cell-classical' | 'stringer-bound'; // <-- Prop de tipo de evaluación
     onBack: () => void; // <-- Nuevo prop para la función de retroceso
+    precisionTotalUnder: number;
     cellClassicalData?: CellClassicalData;
     highValueErrors?: { // ✅ NUEVO: Datos de errores en valor alto
         totalCount: number;
@@ -66,6 +68,7 @@ interface SummaryProps {
         understatementAmount: number;
         totalErrorAmount: number;
     };
+    
 }
 
 const Summary: React.FC<SummaryProps> = ({
@@ -82,6 +85,7 @@ const Summary: React.FC<SummaryProps> = ({
     errorMasProbableBruto,
     errorMasProbableNeto,
     precisionTotal,
+    precisionTotalUnder,
     limiteErrorSuperiorBruto,
     limiteErrorSuperiorNeto,
     highValueCountResume,
@@ -165,8 +169,8 @@ const Summary: React.FC<SummaryProps> = ({
         const totalItemsExamined = (estimatedSampleSize ?? 0) + (highValueCountResume ?? 0);
     
         // ✅ CALCULAR VALORES CORRECTOS PARA CADA COLUMNA
-        const overstatementErrors = cellClassicalData?.overstatements?.filter(s => s.tainting > 0).length || 0;
-        const understatementErrors = cellClassicalData?.understatements?.filter(s => s.tainting > 0).length || 0;
+        const overstatementErrors = cellClassicalData?.overstatements?.filter(s => s.stage > 0 && s.tainting > 0).length || 0;
+        const understatementErrors = cellClassicalData?.understatements?.filter(s => s.stage > 0 && s.tainting > 0).length || 0;
 
         console.log('🔍 TABLA - USANDO DATOS REALES:', {
             overstatementErrors,
@@ -177,12 +181,10 @@ const Summary: React.FC<SummaryProps> = ({
         // ✅ DATOS PARA OVERSTATEMENTS (vienen del backend)
         const overstatementMLE = cellClassicalData?.mostLikelyError || 0;
         const overstatementUEL = cellClassicalData?.upperErrorLimit || 0;
-        const overstatementPrecision = precisionTotal || 0;
         
         // ✅ DATOS PARA UNDERSTATEMENTS (usar los campos específicos del backend)
         const understatementMLE = cellClassicalData?.understatementMLE ?? 0;
         const understatementUEL = cellClassicalData?.understatementUEL ?? cellClassicalData?.basicPrecision ?? 0;
-        const understatementPrecision = cellClassicalData?.understatementPrecision ?? cellClassicalData?.basicPrecision ?? 0;
         
         // ✅ NET CALCULATIONS CORRECTOS
         const netOverstatementMLE = overstatementMLE - understatementMLE;
@@ -196,6 +198,21 @@ const Summary: React.FC<SummaryProps> = ({
         const highValueUnderstatementErrors = highValueErrors?.understatementCount || 0;
         const highValueOverstatementAmount = highValueErrors?.overstatementAmount || 0;
         const highValueUnderstatementAmount = highValueErrors?.understatementAmount || 0;
+
+        // ✅ OPCIÓN 2: Calcular desde cellClassicalData (MEJOR)
+    const overstatementPrecision = cellClassicalData ? 
+        (cellClassicalData.upperErrorLimit - cellClassicalData.mostLikelyError) : 
+        precisionTotal;
+    
+    const understatementPrecision = cellClassicalData ? 
+        ((cellClassicalData.understatementUEL || 0) - (cellClassicalData.understatementMLE || 0)) : 
+        (precisionTotalUnder || precisionTotal);
+
+    console.log('🔍 PRECISIONES CALCULADAS:', {
+        overstatementPrecision,
+        understatementPrecision,
+        tieneCellClassicalData: !!cellClassicalData
+    });
             
         return (
             <tbody className="bg-white divide-y divide-gray-200">

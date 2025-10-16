@@ -188,7 +188,8 @@ const Evaluation: React.FC<EvaluationProps> = (props) => {
                             numErrores={evaluationResults ? evaluationResults.numErrores : 0}
                             errorMasProbableBruto={evaluationResults ? evaluationResults.errorMasProbableBruto : props.errorMasProbableBruto}
                             errorMasProbableNeto={evaluationResults ? evaluationResults.errorMasProbableNeto : props.errorMasProbableNeto}
-                            precisionTotal={evaluationResults ? evaluationResults.precisionTotal : props.precisionTotal}
+                            precisionTotal={evaluationResults?.precisionTotal || props.precisionTotal}
+                            precisionTotalUnder={evaluationResults?.precisionTotalUnder || props.precisionTotal} // ← Temporalmente mismo valor
                             limiteErrorSuperiorBruto={evaluationResults ? evaluationResults.limiteErrorSuperiorBruto : props.limiteErrorSuperiorBruto}
                             limiteErrorSuperiorNeto={evaluationResults ? evaluationResults.limiteErrorSuperiorNeto : props.limiteErrorSuperiorNeto}
                             highValueCountResume={evaluationResults ? evaluationResults.highValueCountResume : props.highValueCountResume}

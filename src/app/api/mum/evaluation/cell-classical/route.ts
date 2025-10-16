@@ -144,116 +144,144 @@ console.log("🔍 DETALLE DE ERRORES ENCONTRADOS:", {
         const factors = getCorrectIDEAFactors(confidenceLevel);
 
         // 4. ✅ ALGORITMO IDEA CORREGIDO
-        const calculateUEL = (errorList: any[], errorType: string): { 
-            uel: number, 
-            stages: any[],
-            mostLikelyError: number,
-            totalTaintings: number,
-            precisionGapWidening: number // ✅ AGREGAMOS PGW AL RESULTADO
-        } => {
-            const stages: any[] = [];
-            let currentUEL = factors[0];
-            let totalTaintings = 0;
+        // ✅ ALGORITMO CORREGIDO - SIN HARCODEAR
+const calculateUEL = (errorList: any[], errorType: string): { 
+    uel: number, 
+    stages: any[],
+    mostLikelyError: number,
+    totalTaintings: number,
+    precisionGapWidening: number
+} => {
+    const stages: any[] = [];
+    
+    // ✅ CALCULAR VALORES INICIALES CORRECTAMENTE
+    const initialUELFactor = Math.round(factors[0] * 10000) / 10000;
+    let currentUEL = initialUELFactor;
+    let totalTaintings = 0;
 
-            console.log('🔍 CALCULANDO UEL - ERRORES REALES:', {
-                errorType,
-                errorCount: errorList.length,
-                errors: errorList.map(e => ({ tainting: e.tainting, reference: e.reference }))
-            });
+    console.log('🔍 CALCULANDO UEL - CONFIGURACIÓN:', {
+        errorType,
+        errorCount: errorList.length,
+        initialUELFactor,
+        sampleInterval
+    });
 
-            // ✅ STAGE 0 - BASIC PRECISION (siempre existe)
-            const stage0 = {
-                stage: 0,
-                uelFactor: Math.round(factors[0] * 10000) / 10000,
-                tainting: 0,
-                averageTainting: 0,
-                previousUEL: 0,
-                loadingPropagation: Math.round(factors[0] * 10000) / 10000,
-                simplePropagation: Math.round(factors[0] * 10000) / 10000,
-                maxStageUEL: Math.round(factors[0] * 10000) / 10000
-            };
-            stages.push(stage0);
+    // ✅ STAGE 0 - CALCULADO CORRECTAMENTE (NO HARCODEADO)
+    const stage0 = {
+        stage: 0,
+        uelFactor: initialUELFactor,
+        tainting: 1.0000, // Stage 0 no tiene tainting de errores
+        averageTainting: 0.0000, // Stage 0 no tiene average tainting
+        previousUEL: 0.0000, // No hay stage anterior
+        loadingPropagation: 0.0000, // No hay "load" del stage anterior + tainting 0
+        simplePropagation: initialUELFactor, // Factor × Average Tainting (0) = Factor
+        maxStageUEL: Math.max(0.0000, initialUELFactor) // Max entre loadingPropagation y simplePropagation
+    };
+    stages.push(stage0);
 
-            // ✅ SOLO PROCESAR ERRORES CON TAINTING > 0
-            const realErrors = errorList.filter(e => e.tainting > 0);
-            
-            console.log('🔍 ERRORES CON TAINTING > 0:', {
-                totalErrors: errorList.length,
-                realErrorsCount: realErrors.length,
-                realErrors: realErrors.map(e => ({ tainting: e.tainting, reference: e.reference }))
-            });
+    console.log('🔍 STAGE 0 CALCULADO:', {
+        errorType,
+        stage0Tainting: stage0.tainting,
+        stage0LoadingPropagation: stage0.loadingPropagation,
+        stage0SimplePropagation: stage0.simplePropagation,
+        stage0MaxStageUEL: stage0.maxStageUEL
+    });
 
-            // ✅ PROCESAR SOLO ERRORES REALES (stages 1+)
-            for (let i = 0; i < realErrors.length; i++) {
-                const error = realErrors[i];
-                
-                // ✅ LIMITAR A 10 STAGES MÁXIMO (como IDEA)
-                if (i >= factors.length - 1) {
-                    console.log('⚠️  LIMITE: Máximo de stages alcanzado');
-                    break;
-                }
+    // ✅ SOLO PROCESAR ERRORES CON TAINTING > 0
+    const realErrors = errorList.filter(e => e.tainting > 0);
+    
+    console.log('🔍 ERRORES CON TAINTING > 0:', {
+        totalErrors: errorList.length,
+        realErrorsCount: realErrors.length,
+        realErrors: realErrors.map(e => ({ 
+            tainting: e.tainting, 
+            reference: e.reference,
+            bookValue: e.bookValue,
+            auditedValue: e.auditedValue 
+        }))
+    });
 
-                totalTaintings += error.tainting;
-                
-                const currentFactor = factors[i + 1];
-                
-                const loadAndSpread = Math.round((currentUEL + error.tainting) * 10000) / 10000;
-                
-                const taintingsUpToNow = realErrors.slice(0, i + 1).map(e => e.tainting);
-                const averageTainting = taintingsUpToNow.reduce((sum, t) => sum + t, 0) / taintingsUpToNow.length;
-                const simpleSpread = Math.round((currentFactor * averageTainting) * 10000) / 10000;
-                
-                const stageUEL = Math.max(loadAndSpread, simpleSpread);
-                
-                const stage = {
-                    stage: i + 1,
-                    uelFactor: Math.round(currentFactor * 10000) / 10000,
-                    tainting: error.tainting,
-                    averageTainting: Math.round(averageTainting * 10000) / 10000,
-                    previousUEL: Math.round(currentUEL * 10000) / 10000,
-                    loadingPropagation: loadAndSpread,
-                    simplePropagation: simpleSpread,
-                    maxStageUEL: Math.round(stageUEL * 10000) / 10000
-                };
-                
-                stages.push(stage);
-                currentUEL = stageUEL;
+    // ✅ PROCESAR SOLO ERRORES REALES (stages 1+)
+    for (let i = 0; i < realErrors.length; i++) {
+        const error = realErrors[i];
+        
+        // ✅ LIMITAR A 10 STAGES MÁXIMO (como IDEA)
+        if (i >= factors.length - 1) {
+            console.log('⚠️  LIMITE: Máximo de stages alcanzado');
+            break;
+        }
 
-                console.log(`🔍 STAGE ${i + 1}:`, {
-                    tainting: error.tainting,
-                    currentUEL: Math.round(currentUEL * 10000) / 10000,
-                    stageUEL: Math.round(stageUEL * 10000) / 10000
-                });
-            }
-
-            const mostLikelyError = Math.round(totalTaintings * sampleInterval * 100) / 100;
-            const upperErrorLimit = Math.round(currentUEL * sampleInterval * 100) / 100;
-            const basicPrecisionValue = Math.round(factors[0] * sampleInterval * 100) / 100;
-            
-            const precisionGapWidening = calculatePrecisionGapWidening(
-                upperErrorLimit,
-                basicPrecisionValue,
-                mostLikelyError
-            );
-
-            console.log('✅ RESULTADO UEL FINAL:', {
-                errorType,
-                stagesCount: stages.length,
-                totalTaintings,
-                mostLikelyError,
-                upperErrorLimit,
-                basicPrecisionValue,
-                precisionGapWidening
-            });
-            
-            return { 
-                uel: Math.round(currentUEL * 10000) / 10000, 
-                stages,
-                mostLikelyError,
-                totalTaintings: Math.round(totalTaintings * 10000) / 10000,
-                precisionGapWidening
-            };
+        totalTaintings += error.tainting;
+        
+        const currentFactor = factors[i + 1];
+        
+        // ✅ CALCULAR LOAD AND SPREAD: Previous UEL + Current Tainting
+        const loadAndSpread = Math.round((currentUEL + error.tainting) * 10000) / 10000;
+        
+        // ✅ CALCULAR AVERAGE TAINTING: Promedio de todos los taintings hasta este stage
+        const taintingsUpToNow = realErrors.slice(0, i + 1).map(e => e.tainting);
+        const averageTainting = taintingsUpToNow.reduce((sum, t) => sum + t, 0) / taintingsUpToNow.length;
+        
+        // ✅ CALCULAR SIMPLE SPREAD: Factor × Average Tainting
+        const simpleSpread = Math.round((currentFactor * averageTainting) * 10000) / 10000;
+        
+        // ✅ CALCULAR STAGE UEL: Máximo entre Load & Spread y Simple Spread
+        const stageUEL = Math.max(loadAndSpread, simpleSpread);
+        
+        const stage = {
+            stage: i + 1,
+            uelFactor: Math.round(currentFactor * 10000) / 10000,
+            tainting: error.tainting,
+            averageTainting: Math.round(averageTainting * 10000) / 10000,
+            previousUEL: Math.round(currentUEL * 10000) / 10000,
+            loadingPropagation: loadAndSpread,
+            simplePropagation: simpleSpread,
+            maxStageUEL: Math.round(stageUEL * 10000) / 10000
         };
+        
+        stages.push(stage);
+        currentUEL = stageUEL;
+
+        console.log(`🔍 STAGE ${i + 1} CALCULADO:`, {
+            tainting: error.tainting,
+            loadAndSpread,
+            averageTainting,
+            simpleSpread,
+            stageUEL,
+            currentUEL
+        });
+    }
+
+    // ✅ CALCULAR RESULTADOS FINALES
+    const mostLikelyError = Math.round(totalTaintings * sampleInterval * 100) / 100;
+    const upperErrorLimit = Math.round(currentUEL * sampleInterval * 100) / 100;
+    const basicPrecisionValue = Math.round(factors[0] * sampleInterval * 100) / 100;
+    
+    const precisionGapWidening = calculatePrecisionGapWidening(
+        upperErrorLimit,
+        basicPrecisionValue,
+        mostLikelyError
+    );
+
+    console.log('✅ RESULTADO UEL FINAL:', {
+        errorType,
+        stagesCount: stages.length,
+        totalTaintings,
+        mostLikelyError,
+        upperErrorLimit,
+        basicPrecisionValue,
+        precisionGapWidening,
+        currentUEL
+    });
+    
+    return { 
+        uel: Math.round(currentUEL * 10000) / 10000, 
+        stages,
+        mostLikelyError,
+        totalTaintings: Math.round(totalTaintings * 10000) / 10000,
+        precisionGapWidening
+    };
+};
 
         // 5. ✅ CALCULAR RESULTADOS (AHORA CON PGW INDIVIDUAL)
         const overstatementResult = calculateUEL(overstatements, 'overstatement');
@@ -313,6 +341,11 @@ console.log("🔍 DETALLE DE ERRORES ENCONTRADOS:", {
             };
         };
 
+        // ✅ FUNCIÓN CORRECTA PARA PRECISIÓN TOTAL
+        const calculatePrecisionTotal = (upperErrorLimit: number, mostLikelyError: number): number => {
+            return Math.round((upperErrorLimit - mostLikelyError) * 100) / 100;
+        };
+
         // ✅ CALCULAR ERRORES DE VALOR ALTO
         const highValueErrors = calculateHighValueErrors(highValueItems);
 
@@ -322,7 +355,17 @@ console.log("🔍 DETALLE DE ERRORES ENCONTRADOS:", {
             numErrores: overstatements.length + understatements.length,
             errorMasProbableBruto: overstatementResult.mostLikelyError,
             errorMasProbableNeto: netOverstatementMLE,
-            precisionTotal: calculateBasicPrecision(confidenceLevel, sampleInterval),
+            
+            // ✅ PRECISIÓN TOTAL CORRECTA PARA CADA TIPO
+            precisionTotal: calculatePrecisionTotal(
+                Math.round(overstatementResult.uel * sampleInterval * 100) / 100,
+                overstatementResult.mostLikelyError
+            ),
+            precisionTotalUnder: calculatePrecisionTotal(
+                Math.round(understatementResult.uel * sampleInterval * 100) / 100,
+                understatementResult.mostLikelyError
+            ),
+
             limiteErrorSuperiorBruto: Math.round(overstatementResult.uel * sampleInterval * 100) / 100,
             limiteErrorSuperiorNeto: netOverstatementUEL,
             populationExcludingHigh: populationExcludingHigh !== undefined ? Math.round(populationExcludingHigh * 100) / 100 : Math.round(populationValue * 100) / 100,
