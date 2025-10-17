@@ -566,7 +566,6 @@ const Summary: React.FC<SummaryProps> = ({
     
     // EN Summary.tsx - MEJORAR renderStringerBoundTable
     const renderStringerBoundTable = () => {
-        const totalItemsExamined = (estimatedSampleSize ?? 0) + (highValueCountResume ?? 0);
         
         // ✅ USAR DATOS REALES DEL BACKEND - NO HARDCODEAR
         const highValueOverstatementErrors = highValueErrors?.overstatementCount || 0;
@@ -574,37 +573,25 @@ const Summary: React.FC<SummaryProps> = ({
         const highValueOverstatementAmount = highValueErrors?.overstatementAmount || 0;
         const highValueUnderstatementAmount = highValueErrors?.understatementAmount || 0;
 
-        // ✅ USAR LOS DATOS REALES QUE VIENEN DEL BACKEND
-        // El backend ahora devuelve estos campos separados
-        const overstatementErrors = numErrores > 0 ? 1 : 0; // El backend dice que hay 1 error
-        const understatementErrors = 0; // El backend dice 0 understatements
+        const totalItemsExamined = (estimatedSampleSize ?? 0) + (highValueCountResume ?? 0);
+    
+        // ✅ USAR DIRECTAMENTE LOS VALORES DEL BACKEND - NO RECALCULAR
+        const overstatementErrors = numErrores > 0 ? 1 : 0;
+        const understatementErrors = 0;
         
-        // ✅ USAR LOS CAMPOS ESPECÍFICOS DEL BACKEND
-        const overstatementMLE = errorMasProbableBruto; // Esto debería ser 10,553,776.20
-        const understatementMLE = 0; // El backend dice 0
+        // ✅ VALORES DIRECTOS DEL BACKEND
+        const overstatementMLE = errorMasProbableBruto; // 10,553,776.20
+        const understatementMLE = 0;
         
-        const overstatementUEL = limiteErrorSuperiorBruto; // Esto debería ser > 26,389,131.07
+        const overstatementUEL = limiteErrorSuperiorBruto; // 42,521,633.37 ← USAR DIRECTAMENTE
         const understatementUEL = limiteErrorSuperiorBruto; // Basic Precision para understatements
         
-        // ✅ CÁLCULOS NETOS USANDO DATOS REALES
+        // ✅ CÁLCULOS NETOS USANDO VALORES DEL BACKEND
         const netOverstatementMLE = errorMasProbableNeto;
-        const netUnderstatementMLE = -errorMasProbableNeto; // Negativo del neto
+        const netUnderstatementMLE = -errorMasProbableNeto;
         
         const netOverstatementUEL = limiteErrorSuperiorNeto;
-        const netUnderstatementUEL = (understatementUEL - overstatementMLE) || 0;
-
-        console.log("🔍 DATOS STRINGER BOUND FRONTEND:", {
-            overstatementErrors,
-            understatementErrors,
-            overstatementMLE,
-            understatementMLE,
-            overstatementUEL,
-            understatementUEL,
-            netOverstatementMLE,
-            netUnderstatementMLE,
-            netOverstatementUEL,
-            netUnderstatementUEL
-        });
+        const netUnderstatementUEL = (understatementUEL - overstatementMLE);
 
         return (
             <tbody className="bg-white divide-y divide-gray-200">

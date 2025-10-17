@@ -261,7 +261,6 @@ const StringerBoundForm: React.FC<StringerBoundFormProps> = ({
     // ✅ CORREGIR handleOkClick - ELIMINAR DUPLICACIÓN
     const handleOkClick = async () => {
         try {
-            console.log("🔄 Iniciando evaluación Stringer Bound...");
             
             if (!initialFile || !bookValueField || !auditedValueField) {
                 alert("Por favor, complete todos los campos requeridos");
@@ -325,11 +324,8 @@ const StringerBoundForm: React.FC<StringerBoundFormProps> = ({
                 highValueLimit: Number(highValueLimit)
             };
 
-            console.log("📤 Datos a enviar a evaluación:", evaluationData);
-
             // ✅ SOLO UNA LLAMADA A LA API
             const result = await mumApi.stringerBoundEvaluation(evaluationData);
-            console.log("✅ Resultado recibido:", result);
 
             // ✅ PASAR EL RESULTADO AL PADRE
             await onOk('stringer-bound', result);

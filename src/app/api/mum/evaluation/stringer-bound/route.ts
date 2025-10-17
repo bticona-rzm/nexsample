@@ -30,35 +30,42 @@ const calculateStringerBound = (
     mostLikelyError: number,
     totalTaintings: number
 } => {
-    console.log(`🔍 ${errorType} - ERROR LIST LENGTH:`, errorList.length);
-    console.log(`🔍 ${errorType} - FIRST ERROR:`, errorList[0] ? {
-        hasTainting: errorList[0].hasOwnProperty('tainting'),
-        tainting: errorList[0].tainting
-    } : 'No errors');
     
-    const realErrors = errorList.filter(e => e.taining > 0);
+    // ✅ FILTRAR SOLO ERRORES CON TAINTING > 0 (igual que Cell & Classical)
+    const realErrors = errorList.filter(e => e.tainting > 0);
     
     if (realErrors.length === 0) {
+        // ✅ SI NO HAY ERRORES, DEVOLVER BASIC PRECISION
         return {
-            uel: factors[0],
+            uel: factors[0] * sampleInterval, // ← ✅ MULTIPLICAR POR SAMPLE INTERVAL
             mostLikelyError: 0,
             totalTaintings: 0
         };
     }
 
-    let bound = factors[0];
+    // ✅ ALGORITMO STRINGER BOUND CORRECTO
+    let bound = factors[0]; // Comenzar con el factor básico
     
-    for (let i = 0; i < Math.min(realErrors.length, factors.length - 1); i++) {
-        const error = realErrors[i];
+    // ✅ ORDENAR ERRORES POR TAINTING DESCENDENTE (igual que IDEA)
+    const sortedErrors = [...realErrors].sort((a, b) => b.tainting - a.tainting);
+    
+    // ✅ APLICAR FACTORES INCREMENTALES (Stringer Bound clásico)
+    for (let i = 0; i < Math.min(sortedErrors.length, factors.length - 1); i++) {
+        const error = sortedErrors[i];
         const incrementalFactor = factors[i + 1] - factors[i];
-        bound += incrementalFactor * error.taining;
+        bound += incrementalFactor * error.tainting;
+        
     }
 
-    const totalTaintings = realErrors.reduce((sum, e) => sum + e.taining, 0);
+    // ✅ CALCULAR TOTAL TAINTINGS Y MOST LIKELY ERROR
+    const totalTaintings = sortedErrors.reduce((sum, e) => sum + e.tainting, 0);
     const mostLikelyError = Math.round(totalTaintings * sampleInterval * 100) / 100;
+    
+    // ✅ CONVERTIR BOUND A MONETARY (multiplicar por sampleInterval)
+    const monetaryBound = Math.round(bound * sampleInterval * 100) / 100;
 
     return {
-        uel: Math.round(bound * 10000) / 10000,
+        uel: monetaryBound, // ← ✅ YA EN TÉRMINOS MONETARIOS
         mostLikelyError,
         totalTaintings: Math.round(totalTaintings * 10000) / 10000
     };
@@ -91,62 +98,40 @@ export async function POST(req: Request) {
         }
         
 
-        // ✅ 1. CALCULAR ERRORES (USAR EXACTAMENTE EL MISMO CÓDIGO QUE CELL & CLASSICAL)
-        // ✅ DENTRO DEL MAPEO DE ERRORES - VERIFICAR CÁLCULOS
+        // ✅ EN EL POST DE STRINGER BOUND - VERIFICAR CÁLCULO DE ERRORES
         const errors = sampleData
-        .filter((item: any) => {
-            const bookValue = Number(item.bookValue);
-            const auditedValue = Number(item.auditedValue);
-            
-            if (isNaN(bookValue) || isNaN(auditedValue) || bookValue === 0) {
-                return false;
-            }
-            
-            const error = bookValue - auditedValue;
-            return Math.abs(error) > (bookValue * 0.01) || Math.abs(error) > 0.01;
-        })
-        .map((item: any) => {
-            const bookValue = Number(item.bookValue);
-            const auditedValue = Number(item.auditedValue);
-            const error = bookValue - auditedValue;
-            const tainting = Math.min(Math.abs(error) / bookValue, 1);
-            const projectedError = tainting * sampleInterval;
-            
-            console.log("🔍 ERROR CALCULATION:", {
-                bookValue,
-                auditedValue,
-                error,
-                tainting,
-                sampleInterval,
-                projectedError,
-                projectedErrorRounded: Math.round(projectedError * 100) / 100
+            .filter((item: any) => {
+                const bookValue = Number(item.bookValue);
+                const auditedValue = Number(item.auditedValue);
+                
+                if (isNaN(bookValue) || isNaN(auditedValue) || bookValue === 0) {
+                    return false;
+                }
+                
+                const error = bookValue - auditedValue;
+                // ✅ USAR EL MISMO CRITERIO QUE CELL & CLASSICAL
+                return Math.abs(error) > (bookValue * 0.01) || Math.abs(error) > 0.01;
+            })
+            .map((item: any) => {
+                const bookValue = Number(item.bookValue);
+                const auditedValue = Number(item.auditedValue);
+                const error = bookValue - auditedValue;
+                const tainting = Math.min(Math.abs(error) / bookValue, 1);
+                const projectedError = tainting * sampleInterval;
+                
+        
+                
+                return {
+                    reference: item.reference,
+                    bookValue,
+                    auditedValue,
+                    error,
+                    tainting: Math.round(tainting * 10000) / 10000,
+                    isOverstatement: error > 0,
+                    isUnderstatement: error < 0,
+                    projectedError: Math.round(projectedError * 100) / 100
+                };
             });
-            
-            return {
-                reference: item.reference,
-                bookValue,
-                auditedValue,
-                error,
-                tainting: Math.round(tainting * 10000) / 10000,  // ← ✅ CORREGIR: "taining" con una 't'
-                isOverstatement: error > 0,
-                isUnderstatement: error < 0,
-                projectedError: Math.round(projectedError * 100) / 100
-            };
-        });
-
-            console.log("🔍 SUMA DE projectedError:", errors.reduce((sum, e) => sum + e.projectedError, 0));
-
-        console.log("🔍 ERRORES DETECTADOS STRINGER BOUND:", {
-            totalItems: sampleData.length,
-            erroresReales: errors.length,
-            erroresDetalles: errors.map(e => ({
-                bookValue: e.bookValue,
-                auditedValue: e.auditedValue,
-                error: e.error,
-                tainting: e.tainting,
-                projectedError: e.projectedError
-            }))
-        });
 
         // ✅ 2. SEPARAR ERRORES (IGUAL QUE CELL & CLASSICAL)
         const overstatements = errors
@@ -157,28 +142,9 @@ export async function POST(req: Request) {
             .filter((e: any) => e.isUnderstatement)
             .sort((a: any, b: any) => b.taining - a.taining);  // ← ✅ CORREGIR: "taining" con una 't'
 
-        console.log("🔍 SEPARACIÓN DE ERRORES:", {
-            overstatements: overstatements.length,
-            understatements: understatements.length,
-            overstatementsDetails: overstatements.map(o => ({
-                tainting: o.tainting,  // ← ✅ CORREGIR: "taining" con una 't'
-                projectedError: o.projectedError
-            }))
-        });
-
-        // ✅ DEBUG PROFUNDO - VERIFICAR LA ESTRUCTURA COMPLETA
-        console.log("🔍 ESTRUCTURA COMPLETA DE OVERSTATEMENTS:", JSON.stringify(overstatements, null, 2));
 
         // ✅ 3. OBTENER FACTORES (IGUAL QUE CELL & CLASSICAL)
         const factors = getCorrectIDEAFactors(confidenceLevel);
-
-        console.log("🔍 INMEDIATELY BEFORE calculateStringerBound:", {
-            overstatementsLength: overstatements.length,
-            firstOverstatement: overstatements[0] ? {
-                tainting: overstatements[0].tainting,
-                keys: Object.keys(overstatements[0])
-            } : 'No overstatements'
-        });
 
         const overstatementResult = calculateStringerBound(overstatements, 'overstatement', factors, sampleInterval);
 
@@ -190,25 +156,15 @@ export async function POST(req: Request) {
             sampleInterval
         );
 
-        console.log("🔍 RESULTADOS STRINGER BOUND CALCULADOS:", {
-            overstatementUEL: overstatementResult.uel,
-            overstatementMLE: overstatementResult.mostLikelyError,
-            understatementUEL: understatementResult.uel,
-            understatementMLE: understatementResult.mostLikelyError,
-            basicPrecision: factors[0]
-        });
-
-        // ✅ 6. CÁLCULOS NETOS (IGUAL QUE CELL & CLASSICAL)
+        // ✅ EN EL POST DE STRINGER BOUND - CORREGIR CÁLCULOS NETOS
         const netOverstatementMLE = overstatementResult.mostLikelyError - understatementResult.mostLikelyError;
-        const netOverstatementUEL = Math.round((overstatementResult.uel * sampleInterval - understatementResult.mostLikelyError) * 100) / 100;
+        const netOverstatementUEL = Math.round((overstatementResult.uel - understatementResult.mostLikelyError) * 100) / 100;
 
-        // ✅ 7. BASIC PRECISION VALUE
-        const basicPrecisionValue = calculateBasicPrecision(confidenceLevel, sampleInterval);
-
-        // ✅ 8. CALCULAR PRECISIÓN TOTAL
+        // ✅ CALCULAR PRECISIÓN TOTAL CORRECTAMENTE
         const calculatePrecisionTotal = (upperErrorLimit: number, mostLikelyError: number): number => {
             return Math.round((upperErrorLimit - mostLikelyError) * 100) / 100;
         };
+
 
         // ✅ 9. CALCULAR ERRORES DE VALOR ALTO
         const calculateHighValueErrors = (highValueItems: any[]) => {
@@ -263,11 +219,11 @@ export async function POST(req: Request) {
             errorMasProbableNeto: netOverstatementMLE,
             
             precisionTotal: calculatePrecisionTotal(
-                Math.round(overstatementResult.uel * sampleInterval * 100) / 100,
+                overstatementResult.uel,
                 overstatementResult.mostLikelyError
             ),
 
-            limiteErrorSuperiorBruto: Math.round(overstatementResult.uel * sampleInterval * 100) / 100,
+            limiteErrorSuperiorBruto: overstatementResult.uel,
             limiteErrorSuperiorNeto: netOverstatementUEL,
             
             // ✅ NUEVOS CAMPOS PARA FRONTEND
@@ -275,8 +231,6 @@ export async function POST(req: Request) {
             understatementErrors: understatements.length,
             overstatementMLE: overstatementResult.mostLikelyError,
             understatementMLE: understatementResult.mostLikelyError,
-            overstatementUEL: Math.round(overstatementResult.uel * sampleInterval * 100) / 100,
-            understatementUEL: Math.round(understatementResult.uel * sampleInterval * 100) / 100,
             
             populationExcludingHigh: populationExcludingHigh !== undefined ? Math.round(populationExcludingHigh * 100) / 100 : Math.round(populationValue * 100) / 100,
             highValueTotal: highValueTotal !== undefined ? Math.round(highValueTotal * 100) / 100 : 0,
@@ -292,8 +246,6 @@ export async function POST(req: Request) {
                 totalErrorAmount: highValueErrors.totalErrorAmount
             }
         };
-
-        console.log("✅ RESULTADO FINAL STRINGER BOUND:", response);
 
         return NextResponse.json(response);
 
