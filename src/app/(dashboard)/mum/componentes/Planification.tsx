@@ -165,20 +165,41 @@ const Planification: React.FC<PlanificationProps> = ({
     };
 
     const handleEstimate = async () => {
-        if (!useFieldValue && excelData.length === 0) {
-            alert("La población es cero. No se puede realizar la estimación.");
+        // ✅ VALIDACIÓN COMPLETA
+        if (estimatedPopulationValue <= 0) {
+            alert("El valor de la población debe ser mayor a 0 para realizar la estimación.");
+            return;
+        }
+
+        if (tolerableError <= 0) {
+            alert("Debe ingresar un valor mayor a 0 para el Error tolerable.");
+            return;
+        }
+
+        if (expectedError <= 0) {
+            alert("Debe ingresar un valor mayor a 0 para el Error esperado.");
+            return;
+        }
+
+        if (expectedError >= tolerableError) {
+            alert("El Error esperado debe ser menor que el Error tolerable.");
+            return;
+        }
+
+        if (!isExcelLoaded) {
+            alert("Debe cargar un archivo Excel primero.");
             return;
         }
 
         addLog(
             'Usuario inició estimación de planificación',
-            `Nivel confianza: ${confidenceLevel}%\nError tolerable: ${tolerableError}\nError esperado: ${expectedError}`,
+            `Nivel confianza: ${confidenceLevel}%\nError tolerable: ${tolerableError}\nError esperado: ${expectedError}\nPoblación: ${estimatedPopulationValue}`,
             'planification'
         );
 
         try {
             await handlePlanification();
-            setHasEstimated(true); // ← ESTA ES LA CLAVE: Solo se marca después de estimación exitosa
+            setHasEstimated(true);
             addLog('Estimación completada exitosamente', '', 'planification');
         } catch (error) {
             console.error('Error en estimación:', error);
@@ -395,10 +416,36 @@ const Planification: React.FC<PlanificationProps> = ({
                 <div className="w-48 flex-none flex flex-col space-y-4 mt-8">
                     <button
                         onClick={handleEstimate}
-                        className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded shadow"
+                        disabled={
+                            !isExcelLoaded || 
+                            tolerableError <= 0 || 
+                            expectedError <= 0 || 
+                            expectedError >= tolerableError ||
+                            estimatedPopulationValue <= 0  // ✅ NUEVA VALIDACIÓN
+                        }
+                        className={`bg-purple-600 ${
+                            !isExcelLoaded || 
+                            tolerableError <= 0 || 
+                            expectedError <= 0 || 
+                            expectedError >= tolerableError ||
+                            estimatedPopulationValue <= 0
+                                ? 'bg-gray-400 cursor-not-allowed' 
+                                : 'hover:bg-purple-700'
+                        } text-white font-semibold py-2 px-4 rounded shadow`}
                     >
                         Estimar
                     </button>
+                    
+                    {/* Mensaje de ayuda cuando el botón está deshabilitado */}
+                    {(!isExcelLoaded || estimatedPopulationValue <= 0 || tolerableError <= 0 || expectedError <= 0 || expectedError >= tolerableError) && (
+                        <div className="absolute top-full left-0 mt-1 w-64 p-2 bg-yellow-100 border border-yellow-300 rounded text-xs text-yellow-800">
+                            {!isExcelLoaded && "• Cargue un archivo Excel\n"}
+                            {estimatedPopulationValue <= 0 && "• La población debe ser mayor a 0\n"}
+                            {tolerableError <= 0 && "• Error tolerable debe ser mayor a 0\n"}
+                            {expectedError <= 0 && "• Error esperado debe ser mayor a 0\n"}
+                            {expectedError >= tolerableError && "• Error esperado debe ser menor al tolerable"}
+                        </div>
+                    )}
                     <button
                         onClick={handleAccept}
                         disabled={!hasEstimated}

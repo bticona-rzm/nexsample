@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { formatNumber, readExcelFile, StringerBoundClient } from '@/lib/apiClient';
+import { formatNumber, readExcelFile, StringerBoundClient, mumApi } from '@/lib/apiClient'; // ✅ Agregar mumApi
 
 interface StringerBoundFormProps {
-    onOk: (method: 'stringer-bound') => Promise<void>; 
+    onOk: (method: 'stringer-bound', result?: any) => Promise<void>; 
     confidenceLevel: number;
     estimatedPopulationValue: number;
     estimatedSampleSize: number;
@@ -12,6 +12,12 @@ interface StringerBoundFormProps {
     precisionValue: number;
     setPrecisionValue: (value: number) => void;
     selectedField: string | null;
+    // ❌ ELIMINAR props que no existen realmente
+    // populationValue: number; 
+    // populationExcludingHigh: number; 
+    // highValueTotal: number;   
+    // highValueCountResume: number;
+    // highValueItems: any[];
 }
 
 const StringerBoundForm: React.FC<StringerBoundFormProps> = ({ 
@@ -24,7 +30,7 @@ const StringerBoundForm: React.FC<StringerBoundFormProps> = ({
     highValueLimit, 
     precisionValue, 
     setPrecisionValue,
-    selectedField 
+    selectedField,
 }) => {
     const [initialFile, setInitialFile] = useState<File | null>(null);
     const [files, setFiles] = useState<File[]>([]);
@@ -252,33 +258,34 @@ const StringerBoundForm: React.FC<StringerBoundFormProps> = ({
         };
     };
 
-    // ✅ FUNCIÓN handleOkClick - IDÉNTICA A CELL CLASSICAL
+    // ✅ CORREGIR handleOkClick - ELIMINAR DUPLICACIÓN
     const handleOkClick = async () => {
-        if (!initialFile || !bookValueField || !auditedValueField) {
-            alert("Por favor, complete todos los campos requeridos");
-            return;
-        }
-
-        // ✅ VALIDACIÓN PARA VALORES ALTOS - EXACTA COMO CELL CLASSICAL
-        if (useHighValueFile && (!highValueBookField || !highValueAuditedField)) {
-            alert("Por favor, complete los campos para el archivo de valores altos");
-            return;
-        }
-
-        setIsLoading(true);
-
         try {
+            console.log("🔄 Iniciando evaluación Stringer Bound...");
+            
+            if (!initialFile || !bookValueField || !auditedValueField) {
+                alert("Por favor, complete todos los campos requeridos");
+                return;
+            }
+
+            if (useHighValueFile && (!highValueBookField || !highValueAuditedField)) {
+                alert("Por favor, complete los campos para el archivo de valores altos");
+                return;
+            }
+
+            setIsLoading(true);
+
             // 1. LEER Y PROCESAR ARCHIVO PRINCIPAL
             const fileData = await readExcelFile(initialFile);
             
             // 2. PREPARAR DATOS REALES DE MUESTRA
-            const sampleData = fileData.map((row: any) => ({
+            const processedSampleData = fileData.map((row: any) => ({
                 reference: row[referenceField]?.toString() || `item-${Math.random()}`,
                 bookValue: parseFloat(row[bookValueField]) || 0,
                 auditedValue: parseFloat(row[auditedValueField]) || 0
             }));
 
-            // 3. ✅ PREPARAR DATOS DE VALORES ALTOS - EXACTO COMO CELL CLASSICAL
+            // 3. PREPARAR DATOS DE VALORES ALTOS
             let highValueData: any[] = [];
             let highValueStats = { total: 0, count: 0 };
 
@@ -292,27 +299,48 @@ const StringerBoundForm: React.FC<StringerBoundFormProps> = ({
                 highValueStats = calculateHighValueStats(highValueItems);
             }
 
-            // 4. ENVIAR AL BACKEND
-            const results = await StringerBoundClient.evaluate({
-                sampleData: sampleData,
-                sampleInterval: sampleInterval,
-                confidenceLevel: confidenceLevel,  
-                populationValue: estimatedPopulationValue,
-                tolerableError: tolerableError,
-                highValueLimit: highValueLimit,
-                
-                // ✅ DATOS DE VALORES ALTOS - EXACTO COMO CELL CLASSICAL
+            // ✅ VALIDACIONES CRÍTICAS
+            if (!processedSampleData || processedSampleData.length === 0) {
+                throw new Error("No hay datos de muestra para evaluar");
+            }
+
+            if (!sampleInterval || sampleInterval <= 0) {
+                throw new Error("Intervalo de muestreo no válido");
+            }
+
+            // ✅ CALCULAR populationExcludingHigh CORRECTAMENTE
+            const populationExcludingHighValue = estimatedPopulationValue - highValueStats.total;
+
+            // 4. PREPARAR DATOS PARA EL BACKEND
+            const evaluationData = {
+                sampleData: processedSampleData,
+                sampleInterval: Number(sampleInterval),
+                confidenceLevel: Number(confidenceLevel),
+                populationValue: Number(estimatedPopulationValue),
                 highValueItems: highValueData,
-                highValueTotal: highValueStats.total,
-                highValueCountResume: highValueStats.count,
-                populationExcludingHigh: estimatedPopulationValue - highValueStats.total
-            });
-            
-            await onOk('stringer-bound');
+                populationExcludingHigh: Number(populationExcludingHighValue),
+                highValueTotal: Number(highValueStats.total),
+                highValueCountResume: Number(highValueStats.count),
+                tolerableError: Number(tolerableError),
+                highValueLimit: Number(highValueLimit)
+            };
+
+            console.log("📤 Datos a enviar a evaluación:", evaluationData);
+
+            // ✅ SOLO UNA LLAMADA A LA API
+            const result = await mumApi.stringerBoundEvaluation(evaluationData);
+            console.log("✅ Resultado recibido:", result);
+
+            // ✅ PASAR EL RESULTADO AL PADRE
+            await onOk('stringer-bound', result);
 
         } catch (error: any) {
-            console.error("❌ Error en evaluación:", error);
-            alert(`Error: ${error.message}`);
+            console.error("❌ Error detallado en handleOkClick:", {
+                message: error.message,
+                stack: error.stack
+            });
+            
+            alert(`Error en evaluación: ${error.message}`);
         } finally {
             setIsLoading(false);
         }

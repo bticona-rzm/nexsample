@@ -273,6 +273,7 @@ export const mumApi = {
     },
   
     stringerBoundEvaluation: async (data: any): Promise<any> => {
+    try {
         const response = await fetch('/api/mum/evaluation/stringer-bound', {
             method: 'POST',
             headers: {
@@ -282,11 +283,17 @@ export const mumApi = {
         });
         
         if (!response.ok) {
-            throw new Error('Error en evaluación Stringer Bound');
+            const errorData = await response.json();
+            console.error("❌ Error response:", errorData);
+            throw new Error(errorData.error || 'Error en evaluación Stringer Bound');
         }
         
         return await response.json();
+    } catch (error) {
+        console.error("❌ Error en stringerBoundEvaluation:", error);
+        throw error;
     }
+}
 };
 
 // Definimos la interfaz para los datos de entrada

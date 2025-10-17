@@ -39,11 +39,11 @@ const Evaluation: React.FC<EvaluationProps> = (props) => {
     const [evaluationResults, setEvaluationResults] = useState<any>(null);
 
     // ✅ CORREGIDO - Manejar datos de evaluación
-    const handleEvaluationProcess = async (method: 'cell-classical' | 'stringer-bound', evaluationData?: any) => {
+    const handleEvaluationProcess = async (method: 'cell-classical' | 'stringer-bound', result?: any) => {
         try {
-            if (evaluationData) {
+            if (result) {
                 // Guardar los datos directamente
-                setEvaluationResults(evaluationData);
+                setEvaluationResults(result);
                 setShowSummary(true);
             } else {
                 // Fallback: usar la función original

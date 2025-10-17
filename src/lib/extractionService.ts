@@ -100,9 +100,6 @@ export const executeExtraction = (params: {
         correctedRandomStart = roundToInteger(randomStartPoint);
     }
     
-    console.log('Corrected sample interval:', correctedSampleInterval);
-    console.log('Corrected random start:', correctedRandomStart);
-    
     // DETECCIÓN DE VALORES ALTOS
     let highValues = excelData.filter((row: any) => {
         const rawValue = row[sampleField];
@@ -116,9 +113,6 @@ export const executeExtraction = (params: {
         return !isNaN(value) && Math.abs(value) < correctedHighValueLimit;
     });
 
-    console.log('High values count:', highValues.length);
-    console.log('Remaining data count:', remainingData.length);
-
     // 2. ACUMULACIÓN
     let cumulativeValue = 0;
     const accumulatedData: any[] = [];
@@ -126,8 +120,7 @@ export const executeExtraction = (params: {
     const dataForSampling = highValueManagement === 'agregados' 
         ? excelData
         : remainingData;
-    
-    console.log('Data for sampling count:', dataForSampling.length);
+
 
     // Crear acumulación con valores enteros
     dataForSampling.forEach((row: any, originalIndex: number) => {
@@ -149,8 +142,6 @@ export const executeExtraction = (params: {
             absoluteValue: roundToInteger(absoluteValue)
         });
     });
-
-    console.log('Total cumulative value for sampling:', roundToInteger(cumulativeValue));
 
     // 3. ✅ CORRECCIÓN COMPLETA: SELECCIÓN SISTEMÁTICA
     let currentPosition = correctedRandomStart;
@@ -211,7 +202,6 @@ export const executeExtraction = (params: {
 
     }
 
-    console.log('Selected items count:', selectedItems.length);
 
     // 4. ✅ CORRECCIÓN: PROCESAR MUESTRA FINAL
     const finalSample = selectedItems.map(({ item, mumRecno, mumTotal, mumExcess, mumHit, mumRecHit }) => {
@@ -242,7 +232,6 @@ export const executeExtraction = (params: {
     // PROCESAR VALORES ALTOS
     if (highValueManagement === 'separado') {
         if (highValues.length > 0) {
-            console.log('✅ GENERANDO ARCHIVO DE VALORES ALTOS con', highValues.length, 'registros');
             
             const processedHighValues = highValues.map((row: any, index: number) => {
                 const rawValue = row[sampleField];
@@ -263,7 +252,6 @@ export const executeExtraction = (params: {
             
             highValueFileBase64 = createBase64Excel(processedHighValues, "Valores Altos");
         } else {
-            console.log('✅ GENERANDO ARCHIVO DE VALORES ALTOS VACÍO');
             
             const emptyHighValueRow: any = {};
             

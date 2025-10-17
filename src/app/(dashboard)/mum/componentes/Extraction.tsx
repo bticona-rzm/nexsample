@@ -188,14 +188,6 @@ const Extraction: React.FC<ExtractionProps> = ({
             // ✅ ACTUALIZAR EL ESTADO
             setRandomStartPoint(newRandomStartPoint);
 
-            console.log('🔍 DEBUG IDEA RANDOM:', {
-                sampleInterval,
-                seedUsed: seed,
-                randomValue: ideRandom(),
-                calculatedStartPoint: newRandomStartPoint,
-                expectedIDEA: 10899201
-            });
-
             const newHighValueLimit = sampleInterval;
             if (!modifyHighValueLimit) {
                 setHighValueLimit(newHighValueLimit);
