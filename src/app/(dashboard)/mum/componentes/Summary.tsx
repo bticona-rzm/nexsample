@@ -1,5 +1,6 @@
 import React, { Dispatch, SetStateAction } from 'react';
 import { formatNumber } from '@/lib/apiClient';
+import { PDFExportService } from '@/lib/pdfService';
 
 interface CellClassicalData {
     overstatements: Array<{
@@ -96,8 +97,46 @@ const Summary: React.FC<SummaryProps> = ({
 }) => {
     // ELIMINADA la función formatNumber local - ahora usamos la importada
 
-    const handlePrint = () => {
-        window.print();
+     const handleSavePDF = () => {
+        try {
+        const pdfData = {
+            mainTitle,
+            confidenceLevel,
+            sampleInterval,
+            highValueLimit,
+            precisionValue,
+            populationExcludingHigh: calculatedPopulationExcludingHigh,
+            highValueTotal: calculatedHighValueTotal,
+            populationIncludingHigh: calculatedPopulationIncludingHigh,
+            estimatedSampleSize,
+            numErrores,
+            errorMasProbableBruto,
+            errorMasProbableNeto,
+            precisionTotal,
+            precisionTotalUnder,
+            limiteErrorSuperiorBruto,
+            limiteErrorSuperiorNeto,
+            highValueCountResume,
+            evaluationMethod,
+            conclusionText,
+            highValueConclusionText,
+            cellClassicalData,
+            highValueErrors
+        };
+
+        const pdf = PDFExportService.generateSummaryPDF(pdfData);
+        
+        // Generar nombre de archivo con timestamp
+        const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+        const filename = `Muestreo_${evaluationMethod}_${timestamp}.pdf`;
+        
+        pdf.save(filename);
+        
+        console.log('✅ PDF generado exitosamente:', filename);
+        } catch (error) {
+        console.error('❌ Error al generar PDF:', error);
+        alert('Error al generar el PDF. Por favor, intenta nuevamente.');
+        }
     };
 
     // ✅ FORZAR USO DE DATOS REALES
@@ -858,7 +897,7 @@ const Summary: React.FC<SummaryProps> = ({
                                         <div className="flex justify-between items-center">
                                             <span className="text-sm font-medium text-gray-700 w-85">Método de evaluación:</span>
                                             <span className="text-sm font-bold text-gray-900">
-                                                {evaluationMethod === 'cell-classical' ? 'MUM - Evaluación Celda' : 'MUM - Evaluación Stringer Bound'}
+                                                {evaluationMethod === 'cell-classical' ? 'MUM - Evaluación Celda y PPS Clásico' : 'MUM - Evaluación Stringer Bound'}
                                             </span>
                                         </div>
                                     </div>
@@ -916,7 +955,7 @@ const Summary: React.FC<SummaryProps> = ({
                                 Atrás
                             </button>
                             <button
-                                onClick={handlePrint}
+                                onClick={handleSavePDF}
                                 className="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-6 rounded-lg shadow-md transition-all duration-300 transform hover:scale-105 print-button"
                             >
                                 Guardar en PDF
