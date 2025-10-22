@@ -314,7 +314,6 @@ const Extraction: React.FC<ExtractionProps> = ({
                                         <label className="block text-sm font-medium text-gray-700">
                                             Nombre del archivo de valor alto:
                                         </label>
-                                        <HelpButton context="filename" />
                                     </div>
                                     <input
                                         type="text"
@@ -372,7 +371,6 @@ const Extraction: React.FC<ExtractionProps> = ({
                                     <label className="block text-sm font-medium text-gray-700">
                                         Intervalo muestral:
                                     </label>
-                                    <HelpButton context="sample-interval" />
                                 </div>
                                 <input
                                     type="text"
@@ -388,7 +386,6 @@ const Extraction: React.FC<ExtractionProps> = ({
                                     <label className="block text-sm font-medium text-gray-700">
                                         Punto de inicio aleatorio:
                                     </label>
-                                    <HelpButton context="random-start" />
                                 </div>
                                 <input
                                     type="text"
@@ -430,10 +427,7 @@ const Extraction: React.FC<ExtractionProps> = ({
 
                     {/* Value Table */}
                     <div className="bg-white p-6 rounded-lg shadow-md">
-                        <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-xl font-bold text-gray-800">Resumen de Valores</h3>
-                            <HelpButton context="value-table" />
-                        </div>
+                        <h3 className="text-xl font-bold text-gray-800 mb-4">Resumen de Valores</h3>
                         <table className="min-w-full divide-y divide-gray-200">
                             <thead className="bg-gray-50">
                                 <tr>
@@ -515,7 +509,6 @@ const Extraction: React.FC<ExtractionProps> = ({
                             <label className="block text-sm font-medium text-gray-700">
                                 Nombre de archivo:
                             </label>
-                            <HelpButton context="filename" />
                         </div>  
                         <input
                             type="text"

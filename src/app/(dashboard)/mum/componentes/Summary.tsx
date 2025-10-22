@@ -843,8 +843,12 @@ const Summary: React.FC<SummaryProps> = ({
                         
                         {/* Título y Resumen General */}
                         <div className="page-break">
-                            <h2 className="text-2xl font-bold text-center text-gray-800 mb-6">{mainTitle}</h2>
-                            
+                            <div className="relative mb-6">
+                                <h2 className="text-2xl font-bold text-center text-gray-800">
+                                    {mainTitle}
+                                    <HelpButton context="general" />
+                                </h2>
+                            </div>
                             <div className="grid grid-cols-2 gap-10">
                                 {/* Columna izquierda - Parámetros de muestreo */}
                                 <div className="space-y-4">
