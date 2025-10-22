@@ -10,6 +10,7 @@ import Evaluation from "./componentes/Evaluation";
 import { LogProvider } from '../../../contexts/LogContext'; // Importa el LogProvider
 import AnimatedTabs from '../../../components/visual/AnimatedTabs';
 import { motion } from 'framer-motion';
+import { HelpButton } from './componentes/HelpButtonMumPage';
 
 function MumPageContent() {
     const [excelData, setExcelData] = useState<ExcelRow[]>([]);
@@ -305,36 +306,47 @@ function MumPageContent() {
     return (
         <main className="min-h-screen bg-gray-100 p-8">
             <div className="max-w-7xl mx-auto">
-                <h1 className="text-3xl font-bold text-gray-800 mb-6">
-                    Muestreo por Unidad Monetaria
-                </h1>
+                {/* Título con ayuda general */}
+                <div className="flex items-center justify-between mb-6">
+                    <h1 className="text-3xl font-bold text-gray-800">
+                        Muestreo por Unidad Monetaria
+                    </h1>
+                </div>
 
-                {/* Sección de carga de archivo y selector de MUM */}
+                {/* Sección de carga de archivo con ayuda */}
                 <div className="flex justify-between items-center mb-4">
-                    {/* Contenedor del botón de carga de archivo */}
-                    <div>
-                        <label
-                            htmlFor="file-upload"
-                            className={`cursor-pointer font-semibold py-2 px-4 rounded shadow transition-colors ${
-                                isExcelLoaded
-                                    ? "bg-[#008795] hover:bg-emerald-700 text-white"
-                                    : "bg-[#0f3c73] hover:bg-blue-800 text-white"
-                            }`}
-                        >
-                            {isExcelLoaded ? "Archivo Cargado ✅" : "Cargar Archivo Excel"}
-                        </label>
-                        <input
-                            id="file-upload"
-                            type="file"
-                            accept=".xlsx,.xls,.csv,.xml,.dbf,.accdb,.mdb"
-                            onChange={handleFileUpload}
-                            className="hidden"
-                            ref={fileInputRef}
+                    <div className="flex items-center gap-4">
+                        <div>
+                            <label
+                                htmlFor="file-upload"
+                                className={`cursor-pointer font-semibold py-2 px-4 rounded shadow transition-colors ${
+                                    isExcelLoaded
+                                        ? "bg-[#008795] hover:bg-emerald-700 text-white"
+                                        : "bg-[#0f3c73] hover:bg-blue-800 text-white"
+                                }`}
+                            >
+                                {isExcelLoaded ? "Archivo Cargado ✅" : "Cargar Archivo Excel"}
+                            </label>
+                            <input
+                                id="file-upload"
+                                type="file"
+                                accept=".xlsx,.xls,.csv,.xml,.dbf,.accdb,.mdb"
+                                onChange={handleFileUpload}
+                                className="hidden"
+                                ref={fileInputRef}
+                            />
+                        </div>
+                        <HelpButton context="file-upload" />
+                    </div>
+                    
+                    {/* Botón de ayuda general */}
+                    <div className="w-32">
+                        <HelpButton 
+                            context="general" 
+                            className="bg-gray-400 hover:bg-gray-500 text-white font-semibold py-2 px-4 rounded-full shadow w-full" 
                         />
                     </div>
                 </div>
-
-                <hr className="my-5 border-t border-gray-300" />
 
                 {/* Navegación por pestañas */}
                 <AnimatedTabs

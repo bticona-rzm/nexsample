@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {handleErrorChange, formatNumber, formatErrorValue} from '../../../../lib/apiClient';
 // En Planification.tsx - solo las partes modificadas
 import { useLog } from '../../../../contexts/LogContext';
+import { HelpButton } from './HelpButtonPlanification';
 
 // Define la interfaz de las props que el componente espera recibir
 interface PlanificationProps {
@@ -41,16 +42,16 @@ interface PlanificationProps {
     setIsPlanificacionDone: (value: boolean) => void;
     setActiveTab: (tabId: string) => void;
     handlePlanification: () => void;
-    highValueLimit: number; // ← NUEVO: necesitas el límite para elementos de alto valor
-    setHighValueLimit: (value: number) => void; // ← NUEVO
-    populationExcludingHigh: number; // ← NUEVO
-    setPopulationExcludingHigh: (value: number) => void; // ← NUEVO
-    highValueTotal: number; // ← NUEVO
-    setHighValueTotal: (value: number) => void; // ← NUEVO
-    populationIncludingHigh: number; // ← NUEVO
-    setPopulationIncludingHigh: (value: number) => void; // ← NUEVO
-    highValueCount: number; // ← NUEVO: cantidad de elementos de alto valor
-    setHighValueCount: (value: number) => void; // ← NUEVO
+    highValueLimit: number;
+    setHighValueLimit: (value: number) => void;
+    populationExcludingHigh: number;
+    setPopulationExcludingHigh: (value: number) => void;
+    highValueTotal: number;
+    setHighValueTotal: (value: number) => void;
+    populationIncludingHigh: number;
+    setPopulationIncludingHigh: (value: number) => void;
+    highValueCount: number;
+    setHighValueCount: (value: number) => void;
 }
 
 const Planification: React.FC<PlanificationProps> = ({
@@ -223,8 +224,12 @@ const Planification: React.FC<PlanificationProps> = ({
         return (
             <div className="flex space-x-6 p-4">
                 <div className="flex-1 space-y-6">
+                    {/* Sección 1: Valor total de la población */}
                     <div className="bg-gray-50 p-6 rounded-lg shadow-inner">
-                        <h3 className="text-xl font-bold mb-4 text-gray-800">Valor total de la población para la muestra</h3>
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-xl font-bold text-gray-800">Valor total de la población para la muestra</h3>
+                            <HelpButton context="population-value" />
+                        </div>
                         <div className="flex items-center mb-4">
                             <input
                                 type="checkbox"
@@ -269,7 +274,7 @@ const Planification: React.FC<PlanificationProps> = ({
                                     value="negative"
                                     checked={selectedPopulationType === "negative"}
                                     onChange={() => setSelectedPopulationType("negative")}
-                                    disabled={true} // BLOQUEADO
+                                    disabled={true}
                                     className="h-4 w-4 text-gray-400 cursor-not-allowed"
                                 />
                                 <span className="ml-2 text-sm text-gray-400">Valores negativos</span>
@@ -280,7 +285,7 @@ const Planification: React.FC<PlanificationProps> = ({
                                     value="absolute"
                                     checked={selectedPopulationType === "absolute"}
                                     onChange={() => setSelectedPopulationType("absolute")}
-                                    disabled={true} // BLOQUEADO
+                                    disabled={true}
                                     className="h-4 w-4 text-gray-400 cursor-not-allowed"
                                 />
                                 <span className="ml-2 text-sm text-gray-400">Valores absolutos</span>
@@ -299,8 +304,15 @@ const Planification: React.FC<PlanificationProps> = ({
                             />
                         </div>
                     </div>
+
+                    {/* Sección 2: Configuraciones */}
                     <div className="bg-gray-50 p-6 rounded-lg shadow-inner">
-                        <h3 className="text-xl font-bold mb-4 text-gray-800">Configuraciones</h3>
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-xl font-bold text-gray-800">Configuraciones</h3>
+                            <HelpButton context="configurations" />
+                        </div>
+                        
+                        {/* Nivel de confianza */}
                         <div className="flex items-center space-x-4 mb-4">
                             <label className="text-sm font-medium text-gray-700">
                                 Nivel de confianza(%):
@@ -320,28 +332,36 @@ const Planification: React.FC<PlanificationProps> = ({
                             />
                             <span className="text-sm text-gray-500">(75-99%)</span>
                         </div>
-                                                <div className="flex space-x-4 mb-4">
-                            <label className="inline-flex items-center">
-                                <input
-                                    type="radio"
-                                    value="importe"
-                                    checked={errorType === "importe"}
-                                    onChange={() => setErrorType("importe")}
-                                    className="h-4 w-4 text-blue-600"
-                                />
-                                <span className="ml-2 text-sm text-gray-700">Importe</span>
-                            </label>
-                            <label className="inline-flex items-center">
-                                <input
-                                    type="radio"
-                                    value="percentage"
-                                    checked={errorType === "percentage"}
-                                    onChange={() => setErrorType("percentage")}
-                                    className="h-4 w-4 text-blue-600"
-                                />
-                                <span className="ml-2 text-sm text-gray-700">Porcentaje</span>
-                            </label>
+                        
+                        {/* Tipo de error */}
+                        <div className="flex items-center space-x-4 mb-4">
+                            <label className="text-sm font-medium text-gray-700">Tipo de error:</label>
+                            <div className="flex space-x-4">
+                                <label className="inline-flex items-center">
+                                    <input
+                                        type="radio"
+                                        value="importe"
+                                        checked={errorType === "importe"}
+                                        onChange={() => setErrorType("importe")}
+                                        className="h-4 w-4 text-blue-600"
+                                    />
+                                    <span className="ml-2 text-sm text-gray-700">Importe</span>
+                                </label>
+                                <label className="inline-flex items-center">
+                                    <input
+                                        type="radio"
+                                        value="percentage"
+                                        checked={errorType === "percentage"}
+                                        onChange={() => setErrorType("percentage")}
+                                        className="h-4 w-4 text-blue-600"
+                                    />
+                                    <span className="ml-2 text-sm text-gray-700">Porcentaje</span>
+                                </label>
+                            </div>
+                            <HelpButton context="error-type" />
                         </div>
+                        
+                        {/* Error tolerable */}
                         <div className="flex items-center space-x-4 mb-4">
                             <label className="text-sm font-medium text-gray-700 w-32">
                                 Error tolerable:
@@ -353,7 +373,10 @@ const Planification: React.FC<PlanificationProps> = ({
                                 className="block w-32 rounded-md border-gray-300 shadow-sm sm:text-sm text-right"
                             />
                             {errorType === "percentage" && <span className="text-gray-700">%</span>}
+                            <HelpButton context="tolerable-error" />
                         </div>
+                        
+                        {/* Error esperado */}
                         <div className="flex items-center space-x-4 mb-4">
                             <label className="text-sm font-medium text-gray-700 w-32">
                                 Error esperado:
@@ -365,14 +388,17 @@ const Planification: React.FC<PlanificationProps> = ({
                                 className="block w-32 rounded-md border-gray-300 shadow-sm sm:text-sm text-right"
                             />
                             {errorType === "percentage" && <span className="text-gray-700">%</span>}
+                            <HelpButton context="expected-error" />
                         </div>
+                        
+                        {/* Precisión básica */}
                         <div className="flex items-center space-x-4">
                             <input
                                 type="checkbox"
                                 checked={modifyPrecision}
                                 onChange={(e) => setModifyPrecision(e.target.checked)}
                                 className="h-4 w-4 text-blue-600 rounded"
-                                disabled={true} // BLOQUEADO - nunca se modifica
+                                disabled={true}
                             />
                             <label className="text-sm font-medium text-gray-400">
                                 Modificar valor de precisión básica (100%):
@@ -380,15 +406,20 @@ const Planification: React.FC<PlanificationProps> = ({
                             <input
                                 type="text"
                                 value={precisionValue}
-                                disabled={true} // BLOQUEADO
+                                disabled={true}
                                 onChange={(e) => setPrecisionValue(Number(e.target.value))}
                                 className="block w-24 rounded-md border-gray-300 shadow-sm text-center bg-gray-200 cursor-not-allowed"
                             />
                             <span className="text-gray-400">%</span>
                         </div>
                     </div>
+
+                    {/* Sección 3: Resultados de la Muestra */}
                     <div className="bg-white p-6 rounded-lg shadow-md space-y-4">
-                        <h3 className="text-xl font-bold text-gray-800">Resultados de la Muestra</h3>
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-xl font-bold text-gray-800">Resultados de la Muestra</h3>
+                            <HelpButton context="sample-results" />
+                        </div>
                         <div className="grid grid-cols-2 gap-4">
                             <div className="flex justify-between items-center">
                                 <span className="text-sm font-medium text-gray-700">Tamaño de la muestra aprox.:</span>
@@ -413,6 +444,8 @@ const Planification: React.FC<PlanificationProps> = ({
                         </div>
                     </div>
                 </div>
+
+                {/* Panel de botones lateral */}
                 <div className="w-48 flex-none flex flex-col space-y-4 mt-8">
                     <button
                         onClick={handleEstimate}
@@ -421,7 +454,7 @@ const Planification: React.FC<PlanificationProps> = ({
                             tolerableError <= 0 || 
                             expectedError <= 0 || 
                             expectedError >= tolerableError ||
-                            estimatedPopulationValue <= 0  // ✅ NUEVA VALIDACIÓN
+                            estimatedPopulationValue <= 0
                         }
                         className={`bg-purple-600 ${
                             !isExcelLoaded || 
@@ -442,26 +475,20 @@ const Planification: React.FC<PlanificationProps> = ({
                     >
                         Aceptar
                     </button>
-                    { /* 
-                    <button
-                        onClick={handlePrint}
-                        className="bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded shadow"
-                    >
-                        Imprimir
-                    </button>
-                    */ }
                     <button
                         onClick={() => setActiveTab("visualizar")}
                         className="bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded shadow"
                     >
                         Cancelar
                     </button>
-                    <button
-                        onClick={() => alert("Función de Ayuda: Consulta la documentación del software IDEA para los cálculos estadísticos o contacta al soporte.")}
-                        className="bg-gray-400 hover:bg-gray-500 text-white font-semibold py-2 px-4 rounded-full shadow"
-                    >
-                        ? Ayuda
-                    </button>
+                    
+                    {/* Botón de ayuda general - CON TEXTO "AYUDA" */}
+                    <div className="flex justify-center">
+                        <HelpButton 
+                            context="general" 
+                            className="bg-gray-400 hover:bg-gray-500 text-white font-semibold py-2 px-4 rounded-full shadow w-full" 
+                        />
+                    </div>
                 </div>
             </div>
         );

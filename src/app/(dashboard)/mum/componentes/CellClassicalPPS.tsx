@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { readExcelFile } from '@/lib/apiClient';
-
+import { HelpButton } from './HelpButtonEvaluation';
 import {handleErrorChange, formatNumber, formatErrorValue} from '../../../../lib/apiClient';
 
 // Props para el formulario de Cell & Classical PPS
@@ -275,7 +275,10 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({
 
                     {/* Sección para subir el archivo principal */}
                     <div className="bg-gray-50 p-6 rounded-lg shadow-inner">
-                        <h3 className="text-lg font-bold text-gray-800">Subir Archivo de Muestra</h3>
+                         <div className="flex items-center justify-between mb-2">
+                            <h3 className="text-lg font-bold text-gray-800">Subir Archivo de Muestra</h3>
+                            <HelpButton context="file-upload" />
+                        </div>
                         <div className="flex items-center space-x-4 mt-2">
                             <input
                                 id="main-file-input"
@@ -296,7 +299,10 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({
                     </div>
 
                     <div className="bg-gray-50 p-6 rounded-lg shadow-inner">
-                        <h3 className="text-lg font-bold text-gray-800">Método</h3>
+                        <div className="flex items-center justify-between mb-2">
+                            <h3 className="text-lg font-bold text-gray-800">Método</h3>
+                            <HelpButton context="cell-classical-method" />
+                        </div>
                         <div className="flex space-x-4 mb-4 mt-2">
                             <label className="inline-flex items-center">
                                 <input
@@ -324,7 +330,10 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({
                     </div>
 
                     <div className="bg-gray-50 p-6 rounded-lg shadow-inner">
-                        <h3 className="text-lg font-bold text-gray-800">Campos</h3>
+                        <div className="flex items-center justify-between mb-2">
+                            <h3 className="text-lg font-bold text-gray-800">Campos</h3>
+                            <HelpButton context="field-selection" />
+                        </div>
                         <div className="space-y-4 mt-2">
                             <div className="flex items-center space-x-4">
                                 <label className="text-sm font-medium text-gray-700 w-48">Book value field:</label>
@@ -372,7 +381,10 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({
                     </div>
 
                     <div className="bg-gray-50 p-6 rounded-lg shadow-inner">
-                        <h3 className="text-lg font-bold text-gray-800">Configuración de Muestra</h3>
+                        <div className="flex items-center justify-between mb-2">
+                            <h3 className="text-lg font-bold text-gray-800">Configuración de Muestra</h3>
+                            <HelpButton context="sample-configuration" />
+                        </div>
                         <div className="space-y-4 mt-2">
                             <div className="flex items-center space-x-4">
                                 <label className="text-sm font-medium text-gray-700 w-60">Nivel de confianza (%):</label>
@@ -421,7 +433,10 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({
                     </div>
 
                     <div className="bg-gray-50 p-6 rounded-lg shadow-inner">
-                        <h3 className="text-lg font-bold text-gray-800">Manejo de Valores Altos</h3>
+                        <div className="flex items-center justify-between mb-2">
+                            <h3 className="text-lg font-bold text-gray-800">Manejo de Valores Altos</h3>
+                            <HelpButton context="high-value-management" />
+                        </div>
                         <div className="flex items-center space-x-4 mt-2">
                             <input
                                 type="checkbox"
@@ -494,7 +509,10 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({
                     </div>
 
                     <div className="bg-gray-50 p-6 rounded-lg shadow-inner">
-                        <h3 className="text-lg font-bold text-gray-800">Límites de Precisión</h3>
+                        <div className="flex items-center justify-between mb-2">
+                            <h3 className="text-lg font-bold text-gray-800">Límites de Precisión</h3>
+                            <HelpButton context="precision-limits" />
+                        </div>
                         <div className="flex space-x-4 mt-2">
                             <label className="inline-flex items-center">
                                 <input
@@ -540,9 +558,13 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({
                     <button className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 px-6 rounded-md shadow transition-colors">
                         Cancelar
                     </button>
-                    <button className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 px-6 rounded-md shadow transition-colors">
-                        Ayuda
-                    </button>
+                    {/* Reemplazar el botón de ayuda existente */}
+                    <div className="flex justify-center">
+                        <HelpButton 
+                            context="general" 
+                            className="bg-gray-400 hover:bg-gray-500 text-white font-semibold py-2 px-4 rounded-full shadow w-full" 
+                        />
+                    </div>
                 </div>
             </div>
         </div>

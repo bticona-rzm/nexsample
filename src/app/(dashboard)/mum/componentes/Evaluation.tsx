@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import CellClassicalPPSForm from './CellClassicalPPS'; 
 import StringerBoundForm from './StringerBound'; 
 import Summary from './Summary'; 
+import { HelpButton } from './HelpButtonEvaluation';
 
 // ✅ ACTUALIZAR la interfaz
 interface EvaluationProps {
@@ -65,9 +66,12 @@ const Evaluation: React.FC<EvaluationProps> = (props) => {
 
     return (
         <div className="p-6 bg-white rounded-lg shadow-md">
-            <h2 className="text-2xl font-bold text-center text-gray-800 mb-8">
-                MUM - Evaluación
-            </h2>
+            <div className="flex items-center justify-between mb-8">
+                <h2 className="text-2xl font-bold text-center text-gray-800">
+                    MUM - Evaluación
+                </h2>
+                <HelpButton context="general" />
+            </div>
             
             {/* Toggle Switch Animado - Solo se muestra cuando NO hay summary */}
             <AnimatePresence>
@@ -118,7 +122,11 @@ const Evaluation: React.FC<EvaluationProps> = (props) => {
                                 Stringer Bound
                             </button>
                         </div>
+                            <div className="flex justify-center mb-4">
+                                <HelpButton context="method-selection" />
+                            </div>
                     </motion.div>
+                    
                 )}
             </AnimatePresence>
 

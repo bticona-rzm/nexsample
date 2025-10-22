@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { formatNumber, readExcelFile, StringerBoundClient, mumApi } from '@/lib/apiClient'; // ✅ Agregar mumApi
+import { HelpButton } from './HelpButtonEvaluation';
 
 interface StringerBoundFormProps {
     onOk: (method: 'stringer-bound', result?: any) => Promise<void>; 
@@ -383,7 +384,10 @@ const StringerBoundForm: React.FC<StringerBoundFormProps> = ({
 
                     {/* Archivos a evaluar */}
                     <div className="bg-gray-50 p-6 rounded-lg shadow-inner">
-                        <h3 className="text-lg font-bold text-gray-800">Archivos a evaluar</h3>
+                        <div className="flex items-center justify-between mb-2">
+                            <h3 className="text-lg font-bold text-gray-800">Archivos a evaluar</h3>
+                            <HelpButton context="stringer-files-config" />
+                        </div>
                         <div className="mt-4">
                             <input
                                 type="file"
@@ -411,6 +415,10 @@ const StringerBoundForm: React.FC<StringerBoundFormProps> = ({
 
                     {/* Opciones de configuración */}
                     <div className="bg-gray-50 p-6 rounded-lg shadow-inner">
+                        <div className="flex items-center justify-between mb-2">
+                            <h3 className="text-lg font-bold text-gray-800">Configuración de Evaluación</h3>
+                            <HelpButton context="stringer-result-config" />
+                        </div>
                         <div className="flex items-center space-x-4">
                             <label className="text-sm font-medium text-gray-700 w-48">Nivel de confianza (%):</label>
                             <input 
@@ -424,6 +432,10 @@ const StringerBoundForm: React.FC<StringerBoundFormProps> = ({
 
                     {/* Secciones restantes */}
                     <div className="bg-gray-50 p-6 rounded-lg shadow-inner">
+                        <div className="flex items-center justify-between mb-2">
+                            <h3 className="text-lg font-bold text-gray-800">Configuración de Archivos</h3>
+                            <HelpButton context="stringer-files-config" />
+                        </div>
                         <div className="flex items-center space-x-4 mb-4">
                             <label className="text-sm font-medium text-gray-700 w-48">Nombre del archivo:</label>
                             <select
@@ -450,6 +462,10 @@ const StringerBoundForm: React.FC<StringerBoundFormProps> = ({
 
                     {/* Campos de columna - ARCHIVO PRINCIPAL */}
                     <div className="bg-gray-50 p-6 rounded-lg shadow-inner">
+                        <div className="flex items-center justify-between mb-2">
+                            <h3 className="text-lg font-bold text-gray-800">Configuración de Campos y Parámetros</h3>
+                            <HelpButton context="stringer-basic-precision" />
+                        </div>
                         <div className="grid grid-cols-2 gap-6">
                             {/* Columna izquierda */}
                              <div className="space-y-4">
@@ -529,9 +545,12 @@ const StringerBoundForm: React.FC<StringerBoundFormProps> = ({
                         </div>
                     </div>
 
-                    {/* ✅ MANEJO DE VALORES ALTOS - EXACTO COMO CELL CLASSICAL */}
+                    {/* ✅ MANEJO DE VALORES ALTOS */}
                     <div className="bg-gray-50 p-6 rounded-lg shadow-inner">
-                        <h3 className="text-lg font-bold text-gray-800">Manejo de Valores Altos</h3>
+                        <div className="flex items-center justify-between mb-2">
+                            <h3 className="text-lg font-bold text-gray-800">Manejo de Valores Altos</h3>
+                            <HelpButton context="high-value-management" />
+                        </div>
                         <div className="flex items-center space-x-4 mt-2">
                             <input
                                 type="checkbox"
@@ -573,7 +592,7 @@ const StringerBoundForm: React.FC<StringerBoundFormProps> = ({
                                     }`}
                                 >
                                     <option value="">Selecciona una columna</option>
-                                    {highValueHeaders.map(header => ( // ✅ USA HIGH VALUE HEADERS
+                                    {highValueHeaders.map(header => (
                                         <option key={header} value={header}>{header}</option>
                                     ))}
                                 </select>
@@ -589,7 +608,7 @@ const StringerBoundForm: React.FC<StringerBoundFormProps> = ({
                                     }`}
                                 >
                                     <option value="">Selecciona una columna</option>
-                                    {highValueHeaders.map(header => ( // ✅ USA HIGH VALUE HEADERS
+                                    {highValueHeaders.map(header => (
                                         <option key={header} value={header}>{header}</option>
                                     ))}
                                 </select>
@@ -605,7 +624,7 @@ const StringerBoundForm: React.FC<StringerBoundFormProps> = ({
                                     }`}
                                 >
                                     <option value="">Selecciona una columna</option>
-                                    {highValueHeaders.map(header => ( // ✅ USA HIGH VALUE HEADERS
+                                    {highValueHeaders.map(header => (
                                         <option key={header} value={header}>{header}</option>
                                     ))}
                                 </select>
@@ -630,9 +649,14 @@ const StringerBoundForm: React.FC<StringerBoundFormProps> = ({
                     <button className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 px-6 rounded-md shadow transition-colors">
                         Cancelar
                     </button>
-                    <button className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 px-6 rounded-md shadow transition-colors">
-                        Ayuda
-                    </button>
+                    
+                    {/* ✅ REEMPLAZAR BOTÓN DE AYUDA EXISTENTE */}
+                    <div className="flex justify-center">
+                        <HelpButton 
+                            context="stringer-bound-method" 
+                            className="bg-gray-400 hover:bg-gray-500 text-white font-semibold py-2 px-4 rounded-full shadow w-full" 
+                        />
+                    </div>
                 </div>
             </div>
         </div>

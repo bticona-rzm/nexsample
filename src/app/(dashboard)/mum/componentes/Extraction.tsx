@@ -4,6 +4,7 @@ import { saveAs } from 'file-saver';
 import { useLog } from '@/contexts/LogContext';
 import { HistoryPanel } from '@/components/mum/HistoryPanel';
 import {handleErrorChange, formatNumber, formatErrorValue} from '../../../../lib/apiClient';
+import { HelpButton } from './HelpButtonExtraction';
 
 // Define the shape of a single row in your Excel data
 interface ExcelRow {
@@ -257,7 +258,10 @@ const Extraction: React.FC<ExtractionProps> = ({
                     {/* Extraction Type and High Value Management */}
                     <div className="bg-gray-50 p-6 rounded-lg shadow-inner flex space-x-8">
                         <div className="flex-1">
-                            <h3 className="text-lg font-bold mb-2 text-gray-800">Tipo de extracción</h3>
+                            <div className="flex items-center gap-2 mb-2">
+                                <h3 className="text-lg font-bold text-gray-800">Tipo de extracción</h3>
+                                <HelpButton context="extraction-type" />
+                            </div>
                             <label className="flex items-center space-x-2">
                                 <input
                                     type="radio"
@@ -280,7 +284,10 @@ const Extraction: React.FC<ExtractionProps> = ({
                             </label>
                         </div>
                         <div className="flex-1">
-                            <h3 className="text-lg font-bold mb-2 text-gray-800">Gestión de valores altos</h3>
+                            <div className="flex items-center gap-2 mb-2">
+                                <h3 className="text-lg font-bold text-gray-800">Gestión de valores altos</h3>
+                                <HelpButton context="high-value-management" />
+                            </div>
                             <label className="flex items-center space-x-2 mb-2">
                                 <input
                                     type="radio"
@@ -303,9 +310,12 @@ const Extraction: React.FC<ExtractionProps> = ({
                             </label>
                             {highValueManagement === 'separado' && (
                                 <div className="mt-4">
-                                    <label className="block text-sm font-medium text-gray-700">
-                                        Nombre del archivo de valor alto:
-                                    </label>
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <label className="block text-sm font-medium text-gray-700">
+                                            Nombre del archivo de valor alto:
+                                        </label>
+                                        <HelpButton context="filename" />
+                                    </div>
                                     <input
                                         type="text"
                                         value={highValueFilename}
@@ -320,11 +330,18 @@ const Extraction: React.FC<ExtractionProps> = ({
 
                     {/* Extraction Parameters */}
                     <div className="bg-gray-50 p-6 rounded-lg shadow-inner">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-xl font-bold text-gray-800">Parámetros de Extracción</h3>
+                            <HelpButton context="extraction-parameters" />
+                        </div>
                         <div className="flex items-center space-x-8 mb-4">
                             <div className="flex-1">
-                                <label className="block text-sm font-medium text-gray-700">
-                                    Campo numérico para la muestra:
-                                </label>
+                                <div className="flex items-center gap-2 mb-1">
+                                    <label className="block text-sm font-medium text-gray-700">
+                                        Campo numérico para la muestra:
+                                    </label>
+                                    <HelpButton context="sample-field" />
+                                </div>
                                 <select
                                     value={sampleField || selectedField || ""}
                                     onChange={(e) => {
@@ -351,9 +368,12 @@ const Extraction: React.FC<ExtractionProps> = ({
                                 )}
                             </div>
                             <div className="flex-1">
-                                <label className="block text-sm font-medium text-gray-700">
-                                    Intervalo muestral:
-                                </label>
+                                <div className="flex items-center gap-2 mb-1">
+                                    <label className="block text-sm font-medium text-gray-700">
+                                        Intervalo muestral:
+                                    </label>
+                                    <HelpButton context="sample-interval" />
+                                </div>
                                 <input
                                     type="text"
                                     value={formatNumber(sampleInterval, 2)}
@@ -364,9 +384,12 @@ const Extraction: React.FC<ExtractionProps> = ({
                         </div>
                         <div className="flex items-center space-x-8">
                             <div className="flex-1">
-                                <label className="block text-sm font-medium text-gray-700">
-                                    Punto de inicio aleatorio:
-                                </label>
+                                <div className="flex items-center gap-2 mb-1">
+                                    <label className="block text-sm font-medium text-gray-700">
+                                        Punto de inicio aleatorio:
+                                    </label>
+                                    <HelpButton context="random-start" />
+                                </div>
                                 <input
                                     type="text"
                                     value={formatNumber(randomStartPoint, 2)} // 0 decimales para enteros
@@ -384,9 +407,12 @@ const Extraction: React.FC<ExtractionProps> = ({
                                     onChange={(e) => setModifyHighValueLimit(e.target.checked)}
                                     className="h-4 w-4 text-blue-600 rounded"
                                 />
-                                <label className="ml-2 text-sm font-medium text-gray-700">
-                                    Monto de valor alto:
-                                </label>
+                                <div className="flex items-center gap-2 ml-2">
+                                    <label className="text-sm font-medium text-gray-700">
+                                        Monto de valor alto:
+                                    </label>
+                                    <HelpButton context="high-value-limit" />
+                                </div>
                                 <input
                                     type="text"
                                     value={formatNumber(highValueLimit, 2)}
@@ -404,6 +430,10 @@ const Extraction: React.FC<ExtractionProps> = ({
 
                     {/* Value Table */}
                     <div className="bg-white p-6 rounded-lg shadow-md">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-xl font-bold text-gray-800">Resumen de Valores</h3>
+                            <HelpButton context="value-table" />
+                        </div>
                         <table className="min-w-full divide-y divide-gray-200">
                             <thead className="bg-gray-50">
                                 <tr>
@@ -481,9 +511,12 @@ const Extraction: React.FC<ExtractionProps> = ({
 
                     {/* File Name */}
                     <div className="mt-4">
-                        <label className="block text-sm font-medium text-gray-700">
-                            Nombre de archivo:
-                        </label>
+                        <div className="flex items-center gap-2 mb-1">
+                            <label className="block text-sm font-medium text-gray-700">
+                                Nombre de archivo:
+                            </label>
+                            <HelpButton context="filename" />
+                        </div>  
                         <input
                             type="text"
                             value={extractionFilename}
@@ -525,12 +558,13 @@ const Extraction: React.FC<ExtractionProps> = ({
                         Cancelar
                     </button>
                     
-                    <button
-                        onClick={() => alert("Función de Ayuda: En este módulo, se definen los parámetros para la extracción de la muestra estadística, incluyendo la gestión de valores altos.")}
-                        className="bg-gray-400 hover:bg-gray-500 text-white font-semibold py-2 px-4 rounded-full shadow"
-                    >
-                        ? Ayuda
-                    </button>
+                     {/* Botón de ayuda general actualizado - REEMPLAZAR el botón existente */}
+                    <div className="flex justify-center">
+                        <HelpButton 
+                            context="general" 
+                            className="bg-gray-400 hover:bg-gray-500 text-white font-semibold py-2 px-4 rounded-full shadow w-full" 
+                        />
+                    </div>
                 </div>
 
                 {/* Panel de Historial */}
