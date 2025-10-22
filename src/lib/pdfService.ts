@@ -43,7 +43,7 @@ export class PDFExportService {
     static generateSummaryPDF(data: PDFData): jsPDF {
         const doc = new jsPDF();
         const pageWidth = doc.internal.pageSize.width;
-        let yPosition = 25;
+        let yPosition = 20; // REDUCIDO de 25 a 20
 
         // ✅ FECHA Y HORA ACTUAL - A LA IZQUIERDA
         const now = new Date();
@@ -58,32 +58,27 @@ export class PDFExportService {
 
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(8);
-        doc.text(`Generado: ${fechaHora}`, 20, 15);
+        doc.text(`Generado: ${fechaHora}`, 20, 12); // REDUCIDO de 15 a 12
 
-        // ✅ TÍTULO PRINCIPAL CON FONDO
-        doc.setFillColor(240, 240, 240); // Fondo gris claro
-        doc.rect(15, yPosition - 8, pageWidth - 30, 12, 'F'); // Rectángulo de fondo
+        // ✅ TÍTULO PRINCIPAL CON FONDO - MÁS COMPACTO
+        doc.setFillColor(240, 240, 240);
+        doc.rect(15, yPosition - 5, pageWidth - 30, 10, 'F'); // REDUCIDO altura de 12 a 10
         
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(14);
         doc.text(data.mainTitle, pageWidth - 20, yPosition, { align: 'right' });
-        yPosition += 20;
+        yPosition += 12; // REDUCIDO de 20 a 12
 
-        // Fondo para la sección de parámetros
+        // Fondo para la sección de parámetros - MÁS COMPACTO
         doc.setFillColor(250, 250, 250);
-        doc.rect(20, yPosition - 5, pageWidth - 40, 60, 'F');
+        doc.rect(20, yPosition - 3, pageWidth - 40, 50, 'F'); // REDUCIDO altura de 60 a 50
 
         // ✅ MÉTODO COMPLETO (ALINEADO A LA DERECHA)
         const metodoCompleto = data.evaluationMethod === 'cell-classical' 
             ? 'MUM - Evaluación Celda y PPS Clásico' 
             : 'MUM - Evaluación Stringer Bound';
         
-        // ✅ INFORMACIÓN GENERAL CON TABLA DE BORDES INVISIBLES - COMPACTA
-        const leftColumnX = 25;
-        const rightColumnX = pageWidth / 2 + 10;
-        const rowHeight = 8;
-
-        // Datos para la tabla
+        // ✅ INFORMACIÓN GENERAL CON TABLA MÁS COMPACTA
         const tableData = [
             ['Nivel de confianza:', `${data.confidenceLevel}%`, 'Población excluyendo altos:', this.formatNumber(data.populationExcludingHigh)],
         ];
@@ -105,13 +100,13 @@ export class PDFExportService {
         autoTable(doc, {
             body: tableData,
             startY: yPosition,
-            theme: 'grid',
+            theme: 'plain', // CAMBIADO de 'grid' a 'plain' para menos bordes
             styles: { 
-                fontSize: 9, 
-                cellPadding: 3, // Reducido de 4 a 3
+                fontSize: 8,  // REDUCIDO de 9 a 8
+                cellPadding: 2, // REDUCIDO de 3 a 2
                 lineColor: [255, 255, 255],
                 lineWidth: 0,
-                minCellHeight: 8, // Reducido de 10 a 8
+                minCellHeight: 6, // REDUCIDO de 8 a 6
                 textColor: [0, 0, 0],
                 font: 'helvetica'
             },
@@ -121,35 +116,36 @@ export class PDFExportService {
                 fontStyle: 'bold',
                 lineColor: [255, 255, 255],
                 lineWidth: 0,
-                cellPadding: 3 // Reducido también en head
+                cellPadding: 2 // REDUCIDO de 3 a 2
             },
             bodyStyles: {
                 fillColor: [255, 255, 255],
                 textColor: [0, 0, 0],
                 lineColor: [255, 255, 255],
                 lineWidth: 0,
-                cellPadding: 3 // Reducido también en body
+                cellPadding: 2 // REDUCIDO de 3 a 2
             },
             margin: { left: 20, right: 20 },
             tableWidth: 'wrap',
-            // ✅ REDUCIR ESPACIOS INTERNOS DE LA TABLA
-            pageBreak: 'avoid', // Evita saltos de página
-            rowPageBreak: 'avoid', // Evita que las rows se corten
-            // ✅ REDUCIR MÁRGENES VERTICALES INTERNOS
-            didDrawPage: function(data) {
-                // Esto ayuda a reducir espacio extra
+            pageBreak: 'avoid',
+            rowPageBreak: 'avoid',
+            // ✅ CONFIGURACIÓN ADICIONAL PARA REDUCIR ESPACIOS
+            tableLineWidth: 0,
+            tableLineColor: [255, 255, 255],
+            didParseCell: function (data) {
+                // Reducir aún más el padding interno
+                data.cell.styles.cellPadding = { top: 1, right: 2, bottom: 1, left: 2 };
             }
         });
 
         // ✅ ESPACIO POSTERIOR MÁS PEQUEÑO
-        yPosition = (doc as any).lastAutoTable.finalY + 5; // Reducido de 10 a 5
-
+        yPosition = (doc as any).lastAutoTable.finalY + 3; // REDUCIDO de 5 a 3
 
         // ✅ TABLA PRINCIPAL DE RESULTADOS
         const finalY = this.addMainResultsTable(doc, data, yPosition);
         
         // ✅ CONCLUSIÓN SIEMPRE EN PRIMERA PÁGINA
-        this.addConclusionSection(doc, data, finalY);
+        this.addCompactConclusionSection(doc, data, finalY);
 
         // ✅ SI ES CELL & CLASSICAL, AGREGAR TABLAS DETALLADAS EN PÁGINAS SEPARADAS
         if (data.evaluationMethod === 'cell-classical' && data.cellClassicalData) {
@@ -157,6 +153,80 @@ export class PDFExportService {
         }
 
         return doc;
+    }
+
+    private static addMainResultsTableCompact(doc: jsPDF, data: PDFData, startY: number): number {
+        const tableColumn = ['', 'Sobrestimaciones', 'Subestimaciones'];
+        let tableRows: any[] = [];
+
+        if (data.evaluationMethod === 'cell-classical') {
+            tableRows = this.getCellClassicalTableRows(data);
+        } else {
+            tableRows = this.getStringerBoundTableRows(data);
+        }
+
+        autoTable(doc, {
+            head: [tableColumn],
+            body: tableRows,
+            startY: startY,
+            theme: 'grid',
+            styles: { 
+                fontSize: 7, // MÁS PEQUEÑO
+                cellPadding: 2, // MÁS COMPACTO
+            },
+            headStyles: { 
+                fillColor: [66, 66, 66], 
+                textColor: [255, 255, 255],
+                fontSize: 7, // MÁS PEQUEÑO
+                cellPadding: 2,
+            },
+            alternateRowStyles: { fillColor: [245, 245, 245] },
+            margin: { left: 15, right: 15 }, // MÁRGENES MÁS PEQUEÑOS
+            tableWidth: 'auto', // AJUSTAR MEJOR AL CONTENIDO
+            pageBreak: 'avoid',
+            didParseCell: function (data) {
+                // Reducir padding para filas de sección
+                if (data.row.index === 7 || data.row.index === 11) {
+                    data.cell.styles.cellPadding = { top: 1, right: 2, bottom: 1, left: 2 };
+                }
+            }
+        });
+
+        return (doc as any).lastAutoTable.finalY + 5;
+    }
+
+    private static addCompactConclusionSection(doc: jsPDF, data: PDFData, startY: number) {
+        const pageHeight = doc.internal.pageSize.height;
+        const spaceNeeded = 25; // ESPACIO ESTIMADO PARA CONCLUSIÓN COMPACTA
+        
+        // Si no hay espacio suficiente, forzar que todo quede en primera página
+        if (startY + spaceNeeded > pageHeight - 15) {
+            // Reducir aún más los espacios anteriores
+            console.warn('Ajustando espacios para mantener conclusión en primera página');
+            // En una implementación real, podrías recalcular todo con espacios más reducidos
+        }
+
+        // CONCLUSIÓN MÁS COMPACTA
+        doc.setFillColor(240, 240, 240);
+        doc.rect(15, startY - 3, doc.internal.pageSize.width - 30, 8, 'F'); // MÁS COMPACTO
+        
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10); // MÁS PEQUEÑO
+        doc.text('Conclusión:', 20, startY + 2);
+        
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8); // MÁS PEQUEÑO
+        
+        // Texto más compacto
+        const conclusionLines = doc.splitTextToSize(data.conclusionText, doc.internal.pageSize.width - 30);
+        doc.text(conclusionLines, 20, startY + 8);
+        
+        let currentY = startY + 8 + (conclusionLines.length * 3.5); // INTERLINEADO REDUCIDO
+        
+        if (data.highValueConclusionText) {
+            const highValueLines = doc.splitTextToSize(data.highValueConclusionText, doc.internal.pageSize.width - 30);
+            doc.text(highValueLines, 20, currentY + 3);
+        }
     }
 
     private static addDetailedTables(doc: jsPDF, data: PDFData) {

@@ -435,17 +435,6 @@ const Planification: React.FC<PlanificationProps> = ({
                     >
                         Estimar
                     </button>
-                    
-                    {/* Mensaje de ayuda cuando el botón está deshabilitado */}
-                    {(!isExcelLoaded || estimatedPopulationValue <= 0 || tolerableError <= 0 || expectedError <= 0 || expectedError >= tolerableError) && (
-                        <div className="absolute top-full left-0 mt-1 w-64 p-2 bg-yellow-100 border border-yellow-300 rounded text-xs text-yellow-800">
-                            {!isExcelLoaded && "• Cargue un archivo Excel\n"}
-                            {estimatedPopulationValue <= 0 && "• La población debe ser mayor a 0\n"}
-                            {tolerableError <= 0 && "• Error tolerable debe ser mayor a 0\n"}
-                            {expectedError <= 0 && "• Error esperado debe ser mayor a 0\n"}
-                            {expectedError >= tolerableError && "• Error esperado debe ser menor al tolerable"}
-                        </div>
-                    )}
                     <button
                         onClick={handleAccept}
                         disabled={!hasEstimated}
