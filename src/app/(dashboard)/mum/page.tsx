@@ -2,7 +2,7 @@
 
 import { useState, useRef } from "react";
 // Importa las funciones de MUM desde apiClient
-import { fetchData, ExcelRow, mumApi } from "../../../lib/apiClient";
+import { fetchDataWithHeaders, ExcelRow, mumApi } from "../../../lib/apiClient";
 import Visualizer from "../atributos/componentes/Visualizer";
 import Planification from "./componentes/Planification";
 import Extraction from "./componentes/Extraction";
@@ -11,6 +11,8 @@ import { LogProvider } from '../../../contexts/LogContext'; // Importa el LogPro
 import AnimatedTabs from '../../../components/visual/AnimatedTabs';
 import { motion } from 'framer-motion';
 import { HelpButton } from './componentes/HelpButtonMumPage';
+
+
 
 function MumPageContent() {
     const [excelData, setExcelData] = useState<ExcelRow[]>([]);
@@ -86,7 +88,7 @@ function MumPageContent() {
         }
 
         try {
-            const { headers, data } = await fetchData(file);
+            const { headers, data } = await fetchDataWithHeaders(file);
             setHeaders(headers);
             setExcelData(data);
             setIsExcelLoaded(true);

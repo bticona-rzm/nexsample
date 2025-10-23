@@ -1,5 +1,3 @@
-// utils/tables.ts
-
 // ✅ FACTORES UNIFICADOS PARA TODOS LOS MÉTODOS
 export const confidenceFactors: { [confidenceLevel: number]: number } = {
     50: 0.70,
@@ -43,7 +41,7 @@ export const stringerBoundFactors: { [confidenceLevel: number]: number[] } = {
     99: [4.61, 1.36, 0.95, 0.77, 0.66, 0.58, 0.52, 0.48, 0.44, 0.41]
 };
 
-// ✅ INTERFACES UNIFICADAS
+// ✅ INTERFACES BÁSICAS (solo las esenciales para las tablas)
 export interface ProcessedError {
     reference: string;
     bookValue: number;
@@ -66,16 +64,7 @@ export interface StageData {
     maxStageUEL: number;
 }
 
-export interface HighValueErrors {
-    count: number;
-    overstatementCount: number;
-    understatementCount: number;
-    overstatementAmount: number;
-    understatementAmount: number;
-    totalErrorAmount: number;
-}
-
-// ✅ FUNCIONES UNIFICADAS
+// ✅ FUNCIONES BÁSICAS DE ACCESO A TABLAS
 
 // Obtener factores para Cell & Classical
 export const getCellClassicalFactors = (confidenceLevel: number): number[] => {
@@ -100,103 +89,4 @@ export const getConfidenceFactor = (confidenceLevel: number): number => {
 // Función para obtener los niveles de confianza disponibles
 export const getAvailableConfidenceLevels = (): number[] => {
     return Object.keys(confidenceFactors).map(Number).sort((a, b) => a - b);
-};
-
-// ✅ CALCULAR BASIC PRECISION (unificada)
-export const calculateBasicPrecision = (confidenceLevel: number, sampleInterval: number): number => {
-    const factor = getConfidenceFactor(confidenceLevel);
-    return Math.round(factor * sampleInterval * 100) / 100;
-};
-
-// ✅ FUNCIÓN PARA DETECTAR ERRORES (unificada)
-export const detectErrors = (sampleData: any[], sampleInterval: number): ProcessedError[] => {
-    return sampleData
-        .filter((item: any) => {
-            const bookValue = Number(item.bookValue);
-            const auditedValue = Number(item.auditedValue);
-            
-            if (isNaN(bookValue) || isNaN(auditedValue) || bookValue === 0) {
-                return false;
-            }
-            
-            const error = bookValue - auditedValue;
-            return Math.abs(error) > (bookValue * 0.01) || Math.abs(error) > 0.01;
-        })
-        .map((item: any) => {
-            const bookValue = Number(item.bookValue);
-            const auditedValue = Number(item.auditedValue);
-            const error = bookValue - auditedValue;
-            const tainting = Math.min(Math.abs(error) / bookValue, 1);
-            const projectedError = tainting * sampleInterval;
-            
-            return {
-                reference: item.reference,
-                bookValue,
-                auditedValue,
-                error,
-                tainting: Math.round(tainting * 10000) / 10000,
-                isOverstatement: error > 0,
-                isUnderstatement: error < 0,
-                projectedError: Math.round(projectedError * 100) / 100
-            };
-        });
-};
-
-// ✅ CALCULAR ERRORES EN ELEMENTOS DE VALOR ALTO (unificada)
-export const calculateHighValueErrors = (highValueItems: any[]): HighValueErrors => {
-    if (!highValueItems || highValueItems.length === 0) {
-        return {
-            count: 0,
-            overstatementCount: 0,
-            understatementCount: 0,
-            overstatementAmount: 0,
-            understatementAmount: 0,
-            totalErrorAmount: 0
-        };
-    }
-
-    const highValueErrors = highValueItems.filter((item: any) => {
-        const bookValue = Number(item.bookValue);
-        const auditedValue = Number(item.auditedValue);
-        return !isNaN(bookValue) && !isNaN(auditedValue) && 
-               Math.abs(bookValue - auditedValue) > 0.01;
-    });
-
-    const overstatementErrors = highValueErrors.filter((item: any) => 
-        Number(item.bookValue) > Number(item.auditedValue)
-    );
-    const understatementErrors = highValueErrors.filter((item: any) => 
-        Number(item.bookValue) < Number(item.auditedValue)
-    );
-
-    const overstatementAmount = overstatementErrors.reduce((sum: number, item: any) => 
-        sum + (Number(item.bookValue) - Number(item.auditedValue)), 0
-    );
-    const understatementAmount = understatementErrors.reduce((sum: number, item: any) => 
-        sum + (Number(item.auditedValue) - Number(item.bookValue)), 0
-    );
-
-    return {
-        count: highValueErrors.length,
-        overstatementCount: overstatementErrors.length,
-        understatementCount: understatementErrors.length,
-        overstatementAmount: Math.round(overstatementAmount * 100) / 100,
-        understatementAmount: Math.round(understatementAmount * 100) / 100,
-        totalErrorAmount: Math.round((overstatementAmount + understatementAmount) * 100) / 100
-    };
-};
-
-// ✅ CALCULAR PRECISIÓN TOTAL (unificada)
-export const calculatePrecisionTotal = (upperErrorLimit: number, mostLikelyError: number): number => {
-    return Math.round((upperErrorLimit - mostLikelyError) * 100) / 100;
-};
-
-// ✅ CALCULAR PRECISION GAP WIDENING (unificada)
-export const calculatePrecisionGapWidening = (
-    upperErrorLimit: number, 
-    basicPrecision: number, 
-    mostLikelyError: number
-): number => {
-    const pgw = upperErrorLimit - basicPrecision - mostLikelyError;
-    return Math.round(pgw * 100) / 100;
 };

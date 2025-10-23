@@ -1,16 +1,116 @@
-// app/api/mum/evaluation/cell-classical/route.ts
 import { NextResponse } from 'next/server';
 import { 
     getCellClassicalFactors, 
-    detectErrors, 
-    calculateHighValueErrors,
-    calculatePrecisionTotal,
-    calculatePrecisionGapWidening,
     ProcessedError,
-    StageData
+    StageData 
 } from '@/utils/tables';
 
-// ✅ ALGORITMO CELL & CLASSICAL (usando factores centralizados)
+// ✅ INTERFACES ESPECÍFICAS DEL COMPONENTE
+interface HighValueErrors {
+    count: number;
+    overstatementCount: number;
+    understatementCount: number;
+    overstatementAmount: number;
+    understatementAmount: number;
+    totalErrorAmount: number;
+}
+
+// ✅ FUNCIONES DE LÓGICA DE NEGOCIO (en el route)
+const detectErrors = (sampleData: any[], sampleInterval: number): ProcessedError[] => {
+    return sampleData
+        .filter((item: any) => {
+            const bookValue = Number(item.bookValue);
+            const auditedValue = Number(item.auditedValue);
+            
+            if (isNaN(bookValue) || isNaN(auditedValue) || bookValue === 0) {
+                return false;
+            }
+            
+            const error = bookValue - auditedValue;
+            return Math.abs(error) > (bookValue * 0.01) || Math.abs(error) > 0.01;
+        })
+        .map((item: any) => {
+            const bookValue = Number(item.bookValue);
+            const auditedValue = Number(item.auditedValue);
+            const error = bookValue - auditedValue;
+            const tainting = Math.min(Math.abs(error) / bookValue, 1);
+            const projectedError = tainting * sampleInterval;
+            
+            return {
+                reference: item.reference,
+                bookValue,
+                auditedValue,
+                error,
+                tainting: Math.round(tainting * 10000) / 10000,
+                isOverstatement: error > 0,
+                isUnderstatement: error < 0,
+                projectedError: Math.round(projectedError * 100) / 100
+            };
+        });
+};
+
+const calculateHighValueErrors = (highValueItems: any[]): HighValueErrors => {
+    if (!highValueItems || highValueItems.length === 0) {
+        return {
+            count: 0,
+            overstatementCount: 0,
+            understatementCount: 0,
+            overstatementAmount: 0,
+            understatementAmount: 0,
+            totalErrorAmount: 0
+        };
+    }
+
+    const highValueErrors = highValueItems.filter((item: any) => {
+        const bookValue = Number(item.bookValue);
+        const auditedValue = Number(item.auditedValue);
+        return !isNaN(bookValue) && !isNaN(auditedValue) && 
+               Math.abs(bookValue - auditedValue) > 0.01;
+    });
+
+    const overstatementErrors = highValueErrors.filter((item: any) => 
+        Number(item.bookValue) > Number(item.auditedValue)
+    );
+    const understatementErrors = highValueErrors.filter((item: any) => 
+        Number(item.bookValue) < Number(item.auditedValue)
+    );
+
+    const overstatementAmount = overstatementErrors.reduce((sum: number, item: any) => 
+        sum + (Number(item.bookValue) - Number(item.auditedValue)), 0
+    );
+    const understatementAmount = understatementErrors.reduce((sum: number, item: any) => 
+        sum + (Number(item.auditedValue) - Number(item.bookValue)), 0
+    );
+
+    return {
+        count: highValueErrors.length,
+        overstatementCount: overstatementErrors.length,
+        understatementCount: understatementErrors.length,
+        overstatementAmount: Math.round(overstatementAmount * 100) / 100,
+        understatementAmount: Math.round(understatementAmount * 100) / 100,
+        totalErrorAmount: Math.round((overstatementAmount + understatementAmount) * 100) / 100
+    };
+};
+
+const calculatePrecisionTotal = (upperErrorLimit: number, mostLikelyError: number): number => {
+    return Math.round((upperErrorLimit - mostLikelyError) * 100) / 100;
+};
+
+const calculatePrecisionGapWidening = (
+    upperErrorLimit: number, 
+    basicPrecision: number, 
+    mostLikelyError: number
+): number => {
+    const pgw = upperErrorLimit - basicPrecision - mostLikelyError;
+    return Math.round(pgw * 100) / 100;
+};
+
+const calculateBasicPrecision = (confidenceLevel: number, sampleInterval: number): number => {
+    const factor = getCellClassicalFactors(confidenceLevel)[0];
+    return Math.round(factor * sampleInterval * 100) / 100;
+};
+
+// ✅ ALGORITMO CELL & CLASSICAL (lógica específica del componente)
 const calculateUEL = (errorList: ProcessedError[], factors: number[], sampleInterval: number): { 
     uel: number, 
     stages: StageData[],
@@ -70,7 +170,7 @@ const calculateUEL = (errorList: ProcessedError[], factors: number[], sampleInte
 
     const mostLikelyError = Math.round(totalTaintings * sampleInterval * 100) / 100;
     const upperErrorLimit = Math.round(currentUEL * sampleInterval * 100) / 100;
-    const basicPrecisionValue = Math.round(factors[0] * sampleInterval * 100) / 100;
+    const basicPrecisionValue = calculateBasicPrecision(90, sampleInterval); // Usar 90 como default
     
     const precisionGapWidening = calculatePrecisionGapWidening(
         upperErrorLimit,
@@ -100,7 +200,7 @@ export async function POST(req: Request) {
             highValueItems = []
         } = await req.json();
 
-        // ✅ USAR FUNCIONES CENTRALIZADAS
+        // ✅ USAR TABLAS CENTRALIZADAS, pero lógica local
         const errors = detectErrors(sampleData, sampleInterval);
         const factors = getCellClassicalFactors(confidenceLevel);
 
@@ -156,7 +256,7 @@ export async function POST(req: Request) {
                 understatements: understatementResult.stages,
                 totalTaintings: overstatementResult.totalTaintings,
                 stageUEL: overstatementResult.uel,
-                basicPrecision: Math.round(factors[0] * sampleInterval * 100) / 100,
+                basicPrecision: calculateBasicPrecision(confidenceLevel, sampleInterval),
                 mostLikelyError: overstatementResult.mostLikelyError,
                 upperErrorLimit: Math.round(overstatementResult.uel * sampleInterval * 100) / 100,
                 understatementMLE: understatementResult.mostLikelyError,
