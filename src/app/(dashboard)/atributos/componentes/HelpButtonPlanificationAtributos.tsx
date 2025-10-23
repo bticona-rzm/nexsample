@@ -1,4 +1,4 @@
-// components/HelpButtonPlanificationAtributos.tsx
+// components/HelpButtonPlanificationAtributos.tsx - VERSIÓN BALANCEADA
 import React, { useState } from 'react';
 import { HelpCircle } from 'lucide-react';
 
@@ -16,40 +16,40 @@ export const HelpButtonPlanificationAtributos: React.FC<HelpButtonProps> = ({ co
 
   const helpContent = {
     'general': {
-      title: 'Planificación de Muestreo por Atributos',
+      title: '📋 Planificación de Muestreo por Atributos',
       content: [
-        'Calcula tamaño de muestra para controles de cumplimiento',
+        '🎯 Calcula tamaño de muestra para controles de cumplimiento',
         'Basado en tablas de muestreo estadístico estándar',
         'Define parámetros de riesgo y confianza',
         'Genera conclusión sobre suficiencia muestral'
       ]
     },
     'control-type': {
-      title: 'Tipo de Control de Riesgo',
+      title: '⚖️ Tipo de Control de Riesgo',
       content: [
-        'Riesgo Beta (Muestreo): Solo considera riesgo de muestreo',
+        '📊 Riesgo Beta (Muestreo): Solo considera riesgo de muestreo',
         'Riesgo Beta y Alfa (Control Interno): Considera ambos riesgos',
-        'Beta: Riesgo de concluir que el control funciona cuando no es así',
-        'Alfa: Riesgo de rechazar incorrectamente un control que funciona'
+        '⚠️ Beta: Riesgo de concluir que el control funciona cuando no es así',
+        '⚠️ Alfa: Riesgo de rechazar incorrectamente un control que funciona'
       ]
     },
     'key-parameters': {
-      title: 'Parámetros Clave del Muestreo',
+      title: '🎯 Parámetros Clave del Muestreo',
       content: [
-        'Tamaño Población: Número total de elementos',
-        'Desviación Esperada: % de errores anticipados (0-5% típico)',
-        'Desviación Tolerable: Máximo % aceptable (5-10% típico)',
-        'Confianza Beta: Probabilidad de detección (90%, 95%, 99%)',
+        '👥 Tamaño Población: Número total de elementos',
+        '📈 Desviación Esperada: % de errores anticipados (0-5% típico)',
+        '🎯 Desviación Tolerable: Máximo % aceptable (5-10% típico)',
+        '✅ Confianza Beta: Probabilidad de detección (90%, 95%, 99%)',
         'Confianza Alfa: Solo para controles internos'
       ]
     },
     'results': {
-      title: 'Interpretación de Resultados',
+      title: '📊 Interpretación de Resultados',
       content: [
-        'Tamaño Muestra: Elementos a examinar',
+        '👥 Tamaño Muestra: Elementos a examinar',
         'Desviaciones Críticas: Límite para considerar control efectivo',
-        'Tabla Confianza: Relación desviaciones vs. nivel confianza',
-        'Conclusión: Si no se excede el límite crítico, el control es efectivo'
+        '📋 Tabla Confianza: Relación desviaciones vs. nivel confianza',
+        '✅ Conclusión: Si no se excede el límite crítico, el control es efectivo'
       ]
     }
   };

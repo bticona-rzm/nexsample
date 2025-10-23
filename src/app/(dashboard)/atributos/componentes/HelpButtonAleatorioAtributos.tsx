@@ -1,4 +1,4 @@
-// components/HelpButtonAleatorioAtributos.tsx
+// components/HelpButtonAleatorioAtributos.tsx - VERSIÓN BALANCEADA
 import React, { useState } from 'react';
 import { HelpCircle } from 'lucide-react';
 
@@ -15,32 +15,32 @@ export const HelpButtonAleatorioAtributos: React.FC<HelpButtonProps> = ({ contex
 
   const helpContent = {
     'general': {
-      title: 'Generación de Muestra Aleatoria',
+      title: '🎲 Generación de Muestra Aleatoria',
       content: [
         'Genera muestra aleatoria simple del dataset',
-        'Usa algoritmo de selección aleatoria reproducible',
+        '🔄 Usa algoritmo de selección reproducible',
         'Permite controlar rango y duplicados',
         'Exporta resultados a Excel para auditoría'
       ]
     },
     'parameters': {
-      title: 'Parámetros de la Muestra',
+      title: '⚙️ Parámetros de la Muestra',
       content: [
         'Número de Registros: Cantidad de elementos a seleccionar',
-        'Semilla Aleatoria: Número para reproducir misma muestra',
+        '🔑 Semilla Aleatoria: Número para reproducir misma muestra',
         'Registro Inicial/Final: Define subconjunto de la población',
         'Permitir Duplicados: Habilita selección con reemplazo',
-        'Nombre Archivo: Identificador para el archivo de salida'
+        '📝 Nombre Archivo: Identificador para el archivo de salida'
       ]
     },
     'results': {
-      title: 'Resultados y Exportación',
+      title: '📊 Resultados y Exportación',
       content: [
         'Muestra visualizada en tabla interactiva',
         'Scroll horizontal/vertical para navegar datos',
-        'Exportación a Excel mantiene formato original',
+        '📤 Exportación a Excel mantiene formato original',
         'Muestra reproducible usando misma semilla',
-        'Ideal para procedimientos de auditoría'
+        '✅ Ideal para procedimientos de auditoría'
       ]
     }
   };

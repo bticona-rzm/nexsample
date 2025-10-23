@@ -1,4 +1,4 @@
-// components/HelpButtonPlanification.tsx - VERSIÓN OPTIMIZADA
+// components/HelpButtonPlanification.tsx - VERSIÓN BALANCEADA
 import React, { useState } from 'react';
 import { HelpCircle } from 'lucide-react';
 
@@ -19,66 +19,66 @@ export const HelpButton: React.FC<HelpButtonProps> = ({ context, className = '' 
 
   const helpContent = {
     'general': {
-      title: 'Módulo de Planificación MUS',
+      title: '📈 Módulo de Planificación MUS',
       content: [
-        'Planifica muestreo por unidad monetaria',
+        '🎯 Planifica muestreo por unidad monetaria',
         'Define parámetros estadísticos para extracción',
         'Calcula tamaño de muestra e intervalo muestral',
-        'Genera conclusiones sobre suficiencia muestral'
+        '📊 Genera conclusiones sobre suficiencia muestral'
       ]
     },
     'population-value': {
-      title: 'Valor de la Población',
+      title: '💰 Valor de la Población',
       content: [
         'Valor total de la población a muestrear',
-        'Calculado desde campo del archivo Excel',
+        '📊 Calculado desde campo del archivo Excel',
         'Solo valores positivos',
         'Determina intervalo y tamaño de muestra'
       ]
     },
     'configurations': {
-      title: 'Configuraciones de Muestreo',
+      title: '⚙️ Configuraciones de Muestreo',
       content: [
-        'Nivel de confianza: 75-99%',
+        '🎯 Nivel de confianza: 75-99%',
         'Tipo de error: Importe o Porcentaje',
         'Error tolerable: Máximo aceptable',
         'Error esperado: Estimación anticipada'
       ]
     },
     'error-type': {
-      title: 'Tipo de Error',
+      title: '📊 Tipo de Error',
       content: [
-        'Importe: Valores absolutos ($)',
-        'Porcentaje: % del valor de población',
+        '💰 Importe: Valores absolutos ($)',
+        '% Porcentaje: % del valor de población',
         'Afecta interpretación de errores',
         'Conversión automática entre formatos'
       ]
     },
     'tolerable-error': {
-      title: 'Error Tolerable',
+      title: '⚠️ Error Tolerable',
       content: [
         'Máximo error aceptable en población',
-        'Define umbral de materialidad',
+        '🎯 Define umbral de materialidad',
         'Debe ser > 0 y > error esperado',
         'Valores menores = muestras mayores'
       ]
     },
     'expected-error': {
-      title: 'Error Esperado',
+      title: '📈 Error Esperado',
       content: [
         'Estimación de error anticipado',
-        'Basado en experiencias previas',
+        '🔄 Basado en experiencias previas',
         'Debe ser < error tolerable',
         'Afecta tamaño de muestra'
       ]
     },
     'sample-results': {
-      title: 'Resultados de Muestra',
+      title: '📋 Resultados de Muestra',
       content: [
-        'Tamaño muestra: Partidas a examinar',
-        'Intervalo muestral: Para selección sistemática',
+        '👥 Tamaño muestra: Partidas a examinar',
+        '📐 Intervalo muestral: Para selección sistemática',
         'Contaminaciones tolerables: Límite de errores',
-        'Conclusión sobre suficiencia muestral'
+        '✅ Conclusión sobre suficiencia muestral'
       ]
     }
   };

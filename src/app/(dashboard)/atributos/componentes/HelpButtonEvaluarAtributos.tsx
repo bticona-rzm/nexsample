@@ -1,4 +1,4 @@
-// components/HelpButtonEvaluarAtributos.tsx
+// components/HelpButtonEvaluarAtributos.tsx - VERSIÓN BALANCEADA
 import React, { useState } from 'react';
 import { HelpCircle } from 'lucide-react';
 
@@ -15,31 +15,31 @@ export const HelpButtonEvaluarAtributos: React.FC<HelpButtonProps> = ({ context,
 
   const helpContent = {
     'general': {
-      title: 'Evaluación del Muestreo por Atributos',
+      title: '📊 Evaluación del Muestreo por Atributos',
       content: [
         'Evalúa resultados del muestreo aleatorio realizado',
-        'Calcula intervalos de confianza para la población',
+        '🎯 Calcula intervalos de confianza para la población',
         'Determina si el control es efectivo estadísticamente',
         'Basado en distribución binomial y tablas de confianza'
       ]
     },
     'inputs': {
-      title: 'Parámetros de Evaluación',
+      title: '⚙️ Parámetros de Evaluación',
       content: [
         'Desviaciones Observadas: Número real de errores encontrados en la muestra',
-        'Confianza Deseada: Nivel de certeza para la estimación (90%, 95%, 99%)',
+        '🎯 Confianza Deseada: Nivel de certeza para la estimación (90%, 95%, 99%)',
         'Tamaño Población/Muestra: Automáticamente cargados de etapas anteriores',
         'La evaluación considera el riesgo de muestreo y variabilidad estadística'
       ]
     },
     'results': {
-      title: 'Interpretación de Resultados',
+      title: '📈 Interpretación de Resultados',
       content: [
         'Tasa Desviación Muestra: % de errores en la muestra examinada',
-        'Límite Unilateral Superior: Máxima desviación posible en población con confianza dada',
+        '📊 Límite Unilateral Superior: Máxima desviación posible en población con confianza dada',
         'Límites Bilaterales: Intervalo de confianza para la tasa real de desviación',
-        'Si límite superior ≤ desviación tolerable → Control efectivo',
-        'Si límite superior > desviación tolerable → Control requiere atención'
+        '✅ Si límite superior ≤ desviación tolerable → Control efectivo',
+        '❌ Si límite superior > desviación tolerable → Control requiere atención'
       ]
     }
   };

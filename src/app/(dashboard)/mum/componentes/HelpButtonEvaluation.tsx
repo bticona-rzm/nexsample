@@ -1,4 +1,4 @@
-// components/HelpButtonEvaluation.tsx
+// components/HelpButtonEvaluation.tsx - VERSIÓN BALANCEADA
 import React, { useState } from 'react';
 import { HelpCircle } from 'lucide-react';
 
@@ -13,7 +13,6 @@ interface HelpButtonProps {
     | 'sample-configuration'
     | 'high-value-management'
     | 'precision-limits'
-    // ✅ AGREGAR CONTEXTOS ESPECÍFICOS DE STRINGER BOUND
     | 'stringer-files-config'
     | 'stringer-basic-precision'
     | 'stringer-result-config';
@@ -25,37 +24,37 @@ export const HelpButton: React.FC<HelpButtonProps> = ({ context, className = '' 
 
   const helpContent = {
     'general': {
-      title: 'Módulo de Evaluación MUS',
+      title: '📊 Módulo de Evaluación MUS',
       content: [
         'Evalúa resultados del muestreo estadístico',
         'Compara valores contables vs auditados',
-        'Calcula límites de error y precisión',
+        '🎯 Calcula límites de error y precisión',
         'Genera reportes profesionales',
         'Soporte elementos alto valor'
       ]
     },
     'method-selection': {
-      title: 'Selección de Método',
+      title: '🎯 Selección de Método',
       content: [
-        'Cell & Classical PPS: Evaluación separada',
-        'Stringer Bound: Método conservador',
+        '<strong>Cell & Classical PPS</strong>: Evaluación separada',
+        '<strong>Stringer Bound</strong>: Método conservador',
         'Cell: Errores ambas direcciones',
         'Classical PPS: Método tradicional',
         'Stringer: Pocos errores esperados'
       ]
     },
     'cell-classical-method': {
-      title: 'Método Cell & Classical PPS',
+      title: '📈 Método Cell & Classical PPS',
       content: [
         'Evalúa sobre/subestimaciones separado',
         'Usa factores confianza estándar',
         'Calcula Error Más Probable (MLE)',
         'Calcula Límite Superior (UEL)',
-        'Recomendado errores ambas direcciones'
+        '✅ Recomendado errores ambas direcciones'
       ]
     },
     'stringer-bound-method': {
-      title: 'Método Stringer Bound',
+      title: '🛡️ Método Stringer Bound',
       content: [
         'Método conservador límites superiores',
         'Apropiado pocos errores muestra',
@@ -65,58 +64,57 @@ export const HelpButton: React.FC<HelpButtonProps> = ({ context, className = '' 
       ]
     },
     'file-upload': {
-      title: 'Carga de Archivos',
+      title: '📁 Carga de Archivos',
       content: [
-        'Archivo Principal: Muestra extraída',
-        'Archivo Valores Altos: Elementos alto valor',
+        '<strong>Archivo Principal</strong>: Muestra extraída',
+        '<strong>Archivo Valores Altos</strong>: Elementos alto valor',
         'Formatos: Excel, CSV, XML',
         'Campos numéricos book/audited value',
         'Verificar formato datos correcto'
       ]
     },
     'field-selection': {
-      title: 'Selección de Campos',
+      title: '🔍 Selección de Campos',
       content: [
-        'Book Value: Valores contables libro mayor',
-        'Audited Value: Valores verificados auditoría',
+        '<strong>Book Value</strong>: Valores contables libro mayor',
+        '<strong>Audited Value</strong>: Valores verificados auditoría',
         'Reference: Campo opcional identificación',
         'Campos deben ser numéricos',
         'Coincidir entre archivos principales/altos'
       ]
     },
     'sample-configuration': {
-      title: 'Configuración de Muestra',
+      title: '⚙️ Configuración de Muestra',
       content: [
         'Nivel Confianza: Probabilidad estadística',
-        'Valor Población: Total población muestreada',
+        '💰 Valor Población: Total población muestreada',
         'Tamaño Muestra: Elementos en muestra',
         'Precisión Básica: Nivel base precisión',
         'Parámetros heredados automáticamente'
       ]
     },
     'high-value-management': {
-      title: 'Gestión de Valores Altos',
+      title: '💰 Gestión de Valores Altos',
       content: [
-        'Archivo Separado: Elementos independiente',
-        'Evaluación Integrada: Incluidos análisis',
+        '<strong>Archivo Separado</strong>: Elementos independiente',
+        '<strong>Evaluación Integrada</strong>: Incluidos análisis',
         'Campos específicos book/audited value',
         'Reference: Identificación elementos',
         'Impacto significativo resultados finales'
       ]
     },
     'precision-limits': {
-      title: 'Límites de Precisión',
+      title: '📐 Límites de Precisión',
       content: [
-        'Superior: Solo límite superior error',
-        'Superior/Inferior: Ambos límites',
+        '<strong>Superior</strong>: Solo límite superior error',
+        '<strong>Superior/Inferior</strong>: Ambos límites',
         'Disponible Classical PPS',
         'Límites inferiores detectan subestimaciones',
         'Seleccionar según objetivos auditoría'
       ]
     },
-    // ✅ CONTEXTOS ESPECÍFICOS DE STRINGER BOUND - SIMPLIFICADOS
     'stringer-files-config': {
-      title: 'Configuración Archivos - Stringer',
+      title: '📋 Configuración Archivos - Stringer',
       content: [
         'Archivos Evaluar: Selecciona muestras análisis',
         'Múltiples Archivos: Evaluación simultánea',
@@ -126,7 +124,7 @@ export const HelpButton: React.FC<HelpButtonProps> = ({ context, className = '' 
       ]
     },
     'stringer-basic-precision': {
-      title: 'Precisión Básica - Stringer',
+      title: '📊 Precisión Básica - Stringer',
       content: [
         'Valor Población: Total población examen',
         'Tamaño Muestra: Elementos seleccionados',
@@ -136,7 +134,7 @@ export const HelpButton: React.FC<HelpButtonProps> = ({ context, className = '' 
       ]
     },
     'stringer-result-config': {
-      title: 'Configuración Resultados - Stringer',
+      title: '🎯 Configuración Resultados - Stringer',
       content: [
         'Nivel Confianza: Certeza estadística',
         'Parámetros Heredados: Valores automáticos',
@@ -182,7 +180,7 @@ export const HelpButton: React.FC<HelpButtonProps> = ({ context, className = '' 
               <ul className="space-y-2">
                 {currentHelp.content.map((item, index) => (
                   <li key={index} className="text-xs text-gray-700 leading-relaxed">
-                    {item}
+                    {typeof item === 'string' ? item : item}
                   </li>
                 ))}
               </ul>

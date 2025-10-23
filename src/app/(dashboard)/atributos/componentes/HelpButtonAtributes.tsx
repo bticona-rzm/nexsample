@@ -1,4 +1,4 @@
-// components/HelpButtonAtributos.tsx
+// components/HelpButtonAtributos.tsx - VERSIÓN BALANCEADA
 import React, { useState } from 'react';
 import { HelpCircle } from 'lucide-react';
 
@@ -14,18 +14,18 @@ export const HelpButtonAtributos: React.FC<HelpButtonProps> = ({ context, classN
 
   const helpContent = {
     'general': {
-      title: 'Módulo Muestreo por Atributos',
+      title: '📋 Módulo Muestreo por Atributos',
       content: [
+        '🔄 Flujo: Cargar archivo → Planificar → Muestra Aleatoria → Evaluar',
         'Sistema completo para muestreo estadístico por atributos',
-        'Flujo: Cargar archivo → Planificar → Muestra Aleatoria → Evaluar',
-        'Ideal para controles de cumplimiento y auditorías',
+        '✅ Ideal para controles de cumplimiento y auditorías',
         'Basado en tablas de muestreo estadístico estándar'
       ]
     },
     'file-upload': {
-      title: 'Carga de Archivo Excel',
+      title: '📁 Carga de Archivo Excel',
       content: [
-        'Formatos soportados: Excel (.xlsx, .xls), CSV, XML, DBF, Access',
+        '✅ Formatos: Excel (.xlsx, .xls), CSV, XML, DBF, Access',
         'La primera fila debe contener los nombres de columnas',
         'Los datos pueden ser de cualquier tipo (texto, números, fechas)',
         'Habilita las demás funcionalidades al cargar exitosamente'

@@ -1,4 +1,4 @@
-// components/HelpButtonSummary.tsx
+// components/HelpButtonSummary.tsx - VERSIÓN BALANCEADA
 import React, { useState } from 'react';
 import { HelpCircle } from 'lucide-react';
 
@@ -18,44 +18,44 @@ export const HelpButton: React.FC<HelpButtonProps> = ({ context, className = '' 
 
   const helpContent = {
     'general': {
-      title: 'Resumen de Evaluación MUS',
+      title: '📊 Resumen de Evaluación MUS',
       content: [
-        'Resultados completos proceso muestreo',
+        '✅ Resultados completos proceso muestreo',
         'Comparación métodos evaluación',
         'Análisis sobre/sub-estimaciones',
-        'Conclusiones estadísticas',
+        '📈 Conclusiones estadísticas',
         'Exportación PDF profesional'
       ]
     },
     'sampling-parameters': {
-      title: 'Parámetros de Muestreo',
+      title: '⚙️ Parámetros de Muestreo',
       content: [
-        'Nivel confianza: Probabilidad resultado',
-        'Intervalo muestral: Base selección',
+        '🎯 Nivel confianza: Probabilidad resultado',
+        '📐 Intervalo muestral: Base selección',
         'Precisión básica: Nivel estadístico',
         'Determina confiabilidad resultados'
       ]
     },
     'population-values': {
-      title: 'Valores de Población',
+      title: '💰 Valores de Población',
       content: [
-        'Población muestreada: Base análisis',
+        '👥 Población muestreada: Base análisis',
         'Elementos alto valor: Examinados 100%',
         'Población total: Cobertura completa',
         'Define alcance examen auditoría'
       ]
     },
     'results-table': {
-      title: 'Tabla de Resultados',
+      title: '📋 Tabla de Resultados',
       content: [
-        'Excluyendo alto valor: Muestra principal',
+        '📊 Excluyendo alto valor: Muestra principal',
         'Incluyendo alto valor: Cobertura completa',
         'Error más probable: Estimación puntual',
-        'Límite superior: Máximo error posible'
+        '📈 Límite superior: Máximo error posible'
       ]
     },
     'conclusion': {
-      title: 'Conclusión del Resumen',
+      title: '✅ Conclusión del Resumen',
       content: [
         'Resumen ejecutivo evidencia estadística',
         'Interpretación contexto materialidad',
@@ -64,7 +64,7 @@ export const HelpButton: React.FC<HelpButtonProps> = ({ context, className = '' 
       ]
     },
     'pdf-export': {
-      title: 'Exportación a PDF',
+      title: '📄 Exportación a PDF',
       content: [
         'Genera reporte profesional',
         'Incluye tablas y conclusiones',

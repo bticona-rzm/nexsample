@@ -386,6 +386,8 @@ const Extraction: React.FC<ExtractionProps> = ({
                                     <label className="block text-sm font-medium text-gray-700">
                                         Punto de inicio aleatorio:
                                     </label>
+                                    {/* ✅ AQUÍ AGREGAMOS EL BOTÓN DE AYUDA */}
+                                    <HelpButton context="random-start" />
                                 </div>
                                 <input
                                     type="text"

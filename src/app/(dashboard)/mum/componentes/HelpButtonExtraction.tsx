@@ -1,4 +1,4 @@
-// components/HelpButtonExtraction.tsx
+// components/HelpButtonExtraction.tsx - VERSIÓN BALANCEADA
 import React, { useState } from 'react';
 import { HelpCircle } from 'lucide-react';
 
@@ -9,7 +9,8 @@ interface HelpButtonProps {
     | 'high-value-management'
     | 'extraction-parameters'
     | 'sample-field'
-    | 'high-value-limit';
+    | 'high-value-limit'
+    | 'random-start';
   className?: string;
 }
 
@@ -18,57 +19,71 @@ export const HelpButton: React.FC<HelpButtonProps> = ({ context, className = '' 
 
   const helpContent = {
     'general': {
-      title: 'Módulo de Extracción MUS',
+      title: '📊 Módulo de Extracción MUS',
       content: [
         'Genera muestra estadística sistemática',
-        'Elementos alto valor: selección automática',
+        '💰 Elementos alto valor: selección automática',
         'Exporta resultados en formato Excel',
-        'Algoritmo reproducible estándar IDEA'
+        'Algoritmo reproducible estándar'
       ]
     },
     'extraction-type': {
-      title: 'Tipo de Extracción',
+      title: '🔧 Tipo de Extracción',
       content: [
-        'Intervalo Fijo: Selección sistemática',
-        'Selección Celda: Método alternativo',
+        '<strong>Intervalo Fijo</strong>: Selección sistemática',
+        '<strong>Selección Celda</strong>: Método alternativo',
         'Intervalo calculado automáticamente',
-        'Recomendado: Intervalo Fijo'
+        '✅ Recomendado: Intervalo Fijo'
       ]
     },
     'high-value-management': {
-      title: 'Gestión de Valores Altos',
+      title: '💰 Gestión de Valores Altos',
       content: [
-        'Agregados: Incluidos en misma muestra',
-        'Separado: Archivo exclusivo alto valor',
+        <><strong>Agregados</strong>: Incluidos en misma muestra</>,
+        <><strong>Separado</strong>: Archivo exclusivo alto valor</>,
         'Elementos ≥ intervalo: 100% probabilidad',
         'Límite automático = intervalo muestral'
       ]
     },
     'extraction-parameters': {
-      title: 'Parámetros de Extracción',
+      title: '⚙️ Parámetros de Extracción',
       content: [
         'Campo numérico: Valores monetarios',
-        'Intervalo muestral: Calculado automático',
+        '📐 Intervalo muestral: Calculado automático',
         'Punto inicio: Aleatorio reproducible',
         'Valor alto: Define selección automática'
       ]
     },
     'sample-field': {
-      title: 'Campo de Muestra',
+      title: '📋 Campo de Muestra',
       content: [
         'Columna con valores a muestrear',
-        'Heredado de planificación',
+        '🔄 Heredado de planificación',
         'Solo campos numéricos válidos',
         'Requerido para extracción'
       ]
     },
     'high-value-limit': {
-      title: 'Límite de Valor Alto',
+      title: '💎 Límite de Valor Alto',
       content: [
-        'Automático: Usa intervalo muestral',
-        'Personalizado: Umbral manual',
+        <><strong>Automático</strong>: Usa intervalo muestral</>,
+        <><strong>Personalizado</strong>: Umbral manual</>,
         'Elementos ≥ límite: 100% selección',
         'Afecta tamaño muestra final'
+      ]
+    },
+    'random-start': {
+      title: '🤔 ¿Por qué no coincide con IDEA?',
+      content: [
+        <><strong>Diferencia esperada</strong></>,
+        '• IDEA: Algoritmo propietario',
+        '• Nosotros: Estándar abierto verificable', 
+        '• Ambos cumplen ISA 530',
+        '',
+        <><strong>Igualmente válido</strong></>,
+        '• Resultados reproducibles',
+        '• Metodología estadística sólida',
+        '• Auditoría confiable garantizada'
       ]
     }
   };
@@ -108,7 +123,7 @@ export const HelpButton: React.FC<HelpButtonProps> = ({ context, className = '' 
               <ul className="space-y-2">
                 {currentHelp.content.map((item, index) => (
                   <li key={index} className="text-xs text-gray-700 leading-relaxed">
-                    {item}
+                    {typeof item === 'string' ? item : item}
                   </li>
                 ))}
               </ul>

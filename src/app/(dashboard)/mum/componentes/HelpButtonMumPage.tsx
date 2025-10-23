@@ -1,11 +1,11 @@
-// components/HelpButtonMumPage.tsx - VERSIÓN OPTIMIZADA
+// components/HelpButtonMumPage.tsx - VERSIÓN BALANCEADA
 import React, { useState } from 'react';
 import { HelpCircle } from 'lucide-react';
 
 interface HelpButtonProps {
   context: 
     | 'general' 
-    | 'file-upload'
+    | 'file-upload';
   className?: string;
 }
 
@@ -14,18 +14,18 @@ export const HelpButton: React.FC<HelpButtonProps> = ({ context, className = '' 
 
   const helpContent = {
     'general': {
-      title: 'Módulo Muestreo por Unidad Monetaria (MUS)',
+      title: '📊 Módulo Muestreo por Unidad Monetaria (MUS)',
       content: [
+        '🔄 Flujo: Cargar archivo → Planificar → Extraer → Evaluar',
         'Sistema completo para muestreo estadístico MUS',
-        'Flujo: Cargar archivo → Planificar → Extraer → Evaluar',
         'Datos consistentes entre todas las etapas',
-        'Exporta reportes profesionales'
+        '📋 Exporta reportes profesionales'
       ]
     },
     'file-upload': {
-      title: 'Carga de Archivo Excel',
+      title: '📁 Carga de Archivo Excel',
       content: [
-        'Formatos: Excel (.xlsx, .xls), CSV, XML, DBF, Access',
+        '✅ Formatos: Excel (.xlsx, .xls), CSV, XML, DBF, Access',
         'Requiere datos numéricos para el campo de valor',
         'Headers detectados automáticamente',
         'Habilita demás funcionalidades al cargar'
