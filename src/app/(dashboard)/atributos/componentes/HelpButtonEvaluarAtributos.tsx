@@ -1,34 +1,45 @@
-// components/HelpButtonMumPage.tsx - VERSIÓN OPTIMIZADA
+// components/HelpButtonEvaluarAtributos.tsx
 import React, { useState } from 'react';
 import { HelpCircle } from 'lucide-react';
 
 interface HelpButtonProps {
   context: 
     | 'general' 
-    | 'file-upload'
+    | 'inputs'
+    | 'results';
   className?: string;
 }
 
-export const HelpButton: React.FC<HelpButtonProps> = ({ context, className = '' }) => {
+export const HelpButtonEvaluarAtributos: React.FC<HelpButtonProps> = ({ context, className = '' }) => {
   const [isOpen, setIsOpen] = useState(false);
 
   const helpContent = {
     'general': {
-      title: 'Módulo Muestreo por Unidad Monetaria (MUS)',
+      title: 'Evaluación del Muestreo por Atributos',
       content: [
-        'Sistema completo para muestreo estadístico MUS',
-        'Flujo: Cargar archivo → Planificar → Extraer → Evaluar',
-        'Datos consistentes entre todas las etapas',
-        'Exporta reportes profesionales'
+        'Evalúa resultados del muestreo aleatorio realizado',
+        'Calcula intervalos de confianza para la población',
+        'Determina si el control es efectivo estadísticamente',
+        'Basado en distribución binomial y tablas de confianza'
       ]
     },
-    'file-upload': {
-      title: 'Carga de Archivo Excel',
+    'inputs': {
+      title: 'Parámetros de Evaluación',
       content: [
-        'Formatos: Excel (.xlsx, .xls), CSV, XML, DBF, Access',
-        'Requiere datos numéricos para el campo de valor',
-        'Headers detectados automáticamente',
-        'Habilita demás funcionalidades al cargar'
+        'Desviaciones Observadas: Número real de errores encontrados en la muestra',
+        'Confianza Deseada: Nivel de certeza para la estimación (90%, 95%, 99%)',
+        'Tamaño Población/Muestra: Automáticamente cargados de etapas anteriores',
+        'La evaluación considera el riesgo de muestreo y variabilidad estadística'
+      ]
+    },
+    'results': {
+      title: 'Interpretación de Resultados',
+      content: [
+        'Tasa Desviación Muestra: % de errores en la muestra examinada',
+        'Límite Unilateral Superior: Máxima desviación posible en población con confianza dada',
+        'Límites Bilaterales: Intervalo de confianza para la tasa real de desviación',
+        'Si límite superior ≤ desviación tolerable → Control efectivo',
+        'Si límite superior > desviación tolerable → Control requiere atención'
       ]
     }
   };

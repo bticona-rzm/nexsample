@@ -14,7 +14,8 @@ import Aleatorio from "./componentes/Aleatorio";
 import Evaluar from "./componentes/Evaluar";
 
 // Importa el componente AnimatedTabs
-import AnimatedTabs from "../../../components/visual/AnimatedTabs"; // Ajusta la ruta según tu estructura
+import AnimatedTabs from "../../../components/visual/AnimatedTabs";
+import { HelpButtonAtributos } from './componentes/HelpButtonAtributes';
 
 export default function AtributosPage() {
     // 1. CORRECCIÓN: Desestructurar TODAS las propiedades y funciones del hook 'useAtributosFlow'
@@ -170,39 +171,59 @@ export default function AtributosPage() {
     return (
         <main className="min-h-screen bg-gray-100 p-8">
             <div className="max-w-7xl mx-auto">
-                <h1 className="text-3xl font-bold text-gray-800 mb-6">Muestreo por Atributos</h1>
-
-                {/* Sección de carga de archivo */}
-                <div className="flex justify-between items-center mb-4">
-                    <label
-                        htmlFor="file-upload"
-                        className={`cursor-pointer font-semibold py-2 px-4 rounded shadow transition-colors ${
-                            isExcelLoaded
-                                ? "bg-[#008795] hover:bg-emerald-700 text-white"
-                                : "bg-[#0f3c73] hover:bg-blue-800 text-white"
-                        }`}
-                    >
-                        {isExcelLoaded ? "Archivo Cargado ✅" : "Cargar Archivo Excel"}
-                    </label>
-                    <input
-                        id="file-upload"
-                        type="file"
-                        accept=".xlsx,.xls,.csv,.xml,.dbf,.accdb,.mdb"
-                        onChange={handleFileUpload}
-                        className="hidden"
-                        ref={fileInputRef}
-                    />
+                {/* Título con ayuda general */}
+                <div className="flex items-center justify-between mb-6">
+                    <h1 className="text-3xl font-bold text-gray-800">
+                        Muestreo por Atributos
+                    </h1>
                 </div>
 
-                <hr className="my-5 border-t border-gray-300" />
+                {/* Sección de carga de archivo con ayuda */}
+                <div className="flex justify-between items-center mb-4">
+                    <div className="flex items-center gap-4">
+                        <div>
+                            <label
+                                htmlFor="file-upload"
+                                className={`cursor-pointer font-semibold py-2 px-4 rounded shadow transition-colors ${
+                                    isExcelLoaded
+                                        ? "bg-[#008795] hover:bg-emerald-700 text-white"
+                                        : "bg-[#0f3c73] hover:bg-blue-800 text-white"
+                                }`}
+                            >
+                                {isExcelLoaded ? "Archivo Cargado ✅" : "Cargar Archivo Excel"}
+                            </label>
+                            <input
+                                id="file-upload"
+                                type="file"
+                                accept=".xlsx,.xls,.csv,.xml,.dbf,.accdb,.mdb"
+                                onChange={handleFileUpload}
+                                className="hidden"
+                                ref={fileInputRef}
+                            />
+                        </div>
+                        <HelpButtonAtributos context="file-upload" />
+                    </div>
+                    
+                    {/* Botón de ayuda general */}
+                    <div className="w-32">
+                        <HelpButtonAtributos 
+                            context="general" 
+                            className="bg-gray-400 hover:bg-gray-500 text-white font-semibold py-2 px-4 rounded-full shadow w-full" 
+                        />
+                    </div>
+                </div>
 
-                {/* Navegación por pestañas animadas - REEMPLAZA la navegación anterior */}
-                <AnimatedTabs
-                  tabs={tabs}
-                  activeTab={activeTab}
-                  onTabChange={setActiveTab}
-                  className="mb-8"
-                />
+                {/* Navegación por pestañas animadas con ayuda */}
+                <div className="flex items-center justify-between mb-8">
+                    <div className="flex-1">
+                        <AnimatedTabs
+                            tabs={tabs}
+                            activeTab={activeTab}
+                            onTabChange={setActiveTab}
+                            className="mb-0"
+                        />
+                    </div>
+                </div>
 
                 {/* Contenido de la pestaña activa con animación */}
                 <div>

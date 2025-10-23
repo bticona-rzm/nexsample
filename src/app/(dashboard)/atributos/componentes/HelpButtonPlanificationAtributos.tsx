@@ -1,34 +1,55 @@
-// components/HelpButtonMumPage.tsx - VERSIÓN OPTIMIZADA
+// components/HelpButtonPlanificationAtributos.tsx
 import React, { useState } from 'react';
 import { HelpCircle } from 'lucide-react';
 
 interface HelpButtonProps {
   context: 
     | 'general' 
-    | 'file-upload'
+    | 'control-type'
+    | 'key-parameters'
+    | 'results';
   className?: string;
 }
 
-export const HelpButton: React.FC<HelpButtonProps> = ({ context, className = '' }) => {
+export const HelpButtonPlanificationAtributos: React.FC<HelpButtonProps> = ({ context, className = '' }) => {
   const [isOpen, setIsOpen] = useState(false);
 
   const helpContent = {
     'general': {
-      title: 'Módulo Muestreo por Unidad Monetaria (MUS)',
+      title: 'Planificación de Muestreo por Atributos',
       content: [
-        'Sistema completo para muestreo estadístico MUS',
-        'Flujo: Cargar archivo → Planificar → Extraer → Evaluar',
-        'Datos consistentes entre todas las etapas',
-        'Exporta reportes profesionales'
+        'Calcula tamaño de muestra para controles de cumplimiento',
+        'Basado en tablas de muestreo estadístico estándar',
+        'Define parámetros de riesgo y confianza',
+        'Genera conclusión sobre suficiencia muestral'
       ]
     },
-    'file-upload': {
-      title: 'Carga de Archivo Excel',
+    'control-type': {
+      title: 'Tipo de Control de Riesgo',
       content: [
-        'Formatos: Excel (.xlsx, .xls), CSV, XML, DBF, Access',
-        'Requiere datos numéricos para el campo de valor',
-        'Headers detectados automáticamente',
-        'Habilita demás funcionalidades al cargar'
+        'Riesgo Beta (Muestreo): Solo considera riesgo de muestreo',
+        'Riesgo Beta y Alfa (Control Interno): Considera ambos riesgos',
+        'Beta: Riesgo de concluir que el control funciona cuando no es así',
+        'Alfa: Riesgo de rechazar incorrectamente un control que funciona'
+      ]
+    },
+    'key-parameters': {
+      title: 'Parámetros Clave del Muestreo',
+      content: [
+        'Tamaño Población: Número total de elementos',
+        'Desviación Esperada: % de errores anticipados (0-5% típico)',
+        'Desviación Tolerable: Máximo % aceptable (5-10% típico)',
+        'Confianza Beta: Probabilidad de detección (90%, 95%, 99%)',
+        'Confianza Alfa: Solo para controles internos'
+      ]
+    },
+    'results': {
+      title: 'Interpretación de Resultados',
+      content: [
+        'Tamaño Muestra: Elementos a examinar',
+        'Desviaciones Críticas: Límite para considerar control efectivo',
+        'Tabla Confianza: Relación desviaciones vs. nivel confianza',
+        'Conclusión: Si no se excede el límite crítico, el control es efectivo'
       ]
     }
   };

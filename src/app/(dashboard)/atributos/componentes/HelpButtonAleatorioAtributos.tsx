@@ -1,34 +1,46 @@
-// components/HelpButtonMumPage.tsx - VERSIÓN OPTIMIZADA
+// components/HelpButtonAleatorioAtributos.tsx
 import React, { useState } from 'react';
 import { HelpCircle } from 'lucide-react';
 
 interface HelpButtonProps {
   context: 
     | 'general' 
-    | 'file-upload'
+    | 'parameters'
+    | 'results';
   className?: string;
 }
 
-export const HelpButton: React.FC<HelpButtonProps> = ({ context, className = '' }) => {
+export const HelpButtonAleatorioAtributos: React.FC<HelpButtonProps> = ({ context, className = '' }) => {
   const [isOpen, setIsOpen] = useState(false);
 
   const helpContent = {
     'general': {
-      title: 'Módulo Muestreo por Unidad Monetaria (MUS)',
+      title: 'Generación de Muestra Aleatoria',
       content: [
-        'Sistema completo para muestreo estadístico MUS',
-        'Flujo: Cargar archivo → Planificar → Extraer → Evaluar',
-        'Datos consistentes entre todas las etapas',
-        'Exporta reportes profesionales'
+        'Genera muestra aleatoria simple del dataset',
+        'Usa algoritmo de selección aleatoria reproducible',
+        'Permite controlar rango y duplicados',
+        'Exporta resultados a Excel para auditoría'
       ]
     },
-    'file-upload': {
-      title: 'Carga de Archivo Excel',
+    'parameters': {
+      title: 'Parámetros de la Muestra',
       content: [
-        'Formatos: Excel (.xlsx, .xls), CSV, XML, DBF, Access',
-        'Requiere datos numéricos para el campo de valor',
-        'Headers detectados automáticamente',
-        'Habilita demás funcionalidades al cargar'
+        'Número de Registros: Cantidad de elementos a seleccionar',
+        'Semilla Aleatoria: Número para reproducir misma muestra',
+        'Registro Inicial/Final: Define subconjunto de la población',
+        'Permitir Duplicados: Habilita selección con reemplazo',
+        'Nombre Archivo: Identificador para el archivo de salida'
+      ]
+    },
+    'results': {
+      title: 'Resultados y Exportación',
+      content: [
+        'Muestra visualizada en tabla interactiva',
+        'Scroll horizontal/vertical para navegar datos',
+        'Exportación a Excel mantiene formato original',
+        'Muestra reproducible usando misma semilla',
+        'Ideal para procedimientos de auditoría'
       ]
     }
   };

@@ -1,12 +1,10 @@
 import React from 'react';
-import { ConfidenceFactor, CONFIDENCE_FACTORS } from '../../../../components/atributos/constants'; // Importa la constante
+import { ConfidenceFactor, CONFIDENCE_FACTORS } from '../../../../components/atributos/constants';
+import { HelpButtonPlanificationAtributos } from './HelpButtonPlanificationAtributos';
 
-// Tipos requeridos para el componente
 type ControlType = 'beta' | 'beta-alpha';
 
-// Interfaz de Propiedades (tal como son pasadas desde useAtributosFlow)
 interface PlanificationProps {
-    // Estados del formulario (inputs)
     isExcelLoaded: boolean;
     controlType: ControlType;
     setControlType: (type: ControlType) => void;
@@ -16,17 +14,13 @@ interface PlanificationProps {
     setExpectedDeviation: (rate: number) => void;
     tolerableDeviation: number;
     setTolerableDeviation: (rate: number) => void;
-    confidenceLevel: number; // Nivel de confianza Beta
+    confidenceLevel: number;
     setConfidenceLevel: (level: number) => void;
-    alphaConfidenceLevel: number; // Nivel de confianza Alfa
+    alphaConfidenceLevel: number;
     setAlphaConfidenceLevel: (level: number) => void;
-
-    // Estados de resultados (outputs)
     isPlanificacionDone: boolean;
     calculatedSampleSize: number;
     criticalDeviation: number;
-
-    // Manejadores de eventos (botón)
     handleCalculatePlanification: () => void;
     handlePrint: () => void;
     handleClose: () => void;
@@ -55,7 +49,6 @@ const Planification: React.FC<PlanificationProps> = ({
     handleClose,
     handleHelp,
 }) => {
-    // Muestra el mensaje de advertencia si no hay archivo cargado
     if (!isExcelLoaded) {
         return (
             <div className="p-8 text-center bg-white rounded-lg shadow-md mt-4">
@@ -66,18 +59,23 @@ const Planification: React.FC<PlanificationProps> = ({
         );
     }
 
-    // El resto del código de renderizado es *exactamente* el mismo que proporcionaste, 
-    // pero encapsulado en el componente funcional y usando las props.
     return (
         <div className="flex space-x-6 p-4">
             {/* Columna Izquierda: Formulario de Planificación y Resultados */}
             <div className="flex-1 space-y-6">
                 <div className="bg-white p-6 rounded-lg shadow-xl border border-gray-200">
-                    <h3 className="text-xl font-bold mb-4">Planificación del Muestreo por Atributos</h3>
+                    {/* Título con ayuda general */}
+                    <div className="flex items-center justify-between mb-6">
+                        <h3 className="text-xl font-bold">Planificación del Muestreo por Atributos</h3>
+                        <HelpButtonPlanificationAtributos context="general" />
+                    </div>
 
-                    {/* Selector de tipo de control */}
+                    {/* Selector de tipo de control con ayuda */}
                     <div className="mb-6 border p-4 rounded-lg">
-                        <label className="text-xl font-bold mb-4">Tipo de Control de Riesgo:</label>
+                        <div className="flex items-center gap-2 mb-2">
+                            <label className="text-lg font-semibold">Tipo de Control de Riesgo:</label>
+                            <HelpButtonPlanificationAtributos context="control-type" />
+                        </div>
                         <div className="flex mt-1 space-x-8">
                             <label className="inline-flex items-center cursor-pointer">
                                 <input
@@ -103,64 +101,79 @@ const Planification: React.FC<PlanificationProps> = ({
                             </label>
                         </div>
                     </div>
-                    {/* Fin del selector */}
 
-                    <div className="grid grid-cols-2 gap-6">
-                        <div className="flex flex-col space-y-2">
-                            <label className="text-sm font-medium text-gray-700">Tamaño de la población:</label>
-                            <input
-                                type="number"
-                                value={populationSize}
-                                onChange={(e) => setPopulationSize(Number(e.target.value))}
-                                className="block w-full rounded-md border-gray-300 shadow-sm sm:text-sm p-2 focus:border-purple-500 focus:ring-purple-500"
-                            />
+                    {/* Parámetros del muestreo con ayuda general */}
+                    <div className="mb-6">
+                        <div className="flex items-center gap-2 mb-4">
+                            <h4 className="text-lg font-semibold">Parámetros del Muestreo</h4>
+                            <HelpButtonPlanificationAtributos context="key-parameters" />
                         </div>
-                        <div className="flex flex-col space-y-2">
-                            <label className="text-sm font-medium text-gray-700">Tasa de desviación esperada (%):</label>
-                            <input
-                                type="number"
-                                value={expectedDeviation}
-                                onChange={(e) => setExpectedDeviation(Number(e.target.value))}
-                                className={`block w-full rounded-md border-gray-300 shadow-sm sm:text-sm p-2 focus:border-purple-500 focus:ring-purple-500'}`}
-                            />
-                        </div>
-                        <div className="flex flex-col space-y-2">
-                            <label className="text-sm font-medium text-gray-700">Tasa de desviación tolerable (%):</label>
-                            <input
-                                type="number"
-                                value={tolerableDeviation}
-                                onChange={(e) => setTolerableDeviation(Number(e.target.value))}
-                                className="block w-full rounded-md border-gray-300 shadow-sm sm:text-sm p-2 focus:border-purple-500 focus:ring-purple-500"
-                            />
-                        </div>
-                        <div className="flex flex-col space-y-2">
-                            <label className="text-sm font-medium text-gray-700">Nivel de confianza Beta (%):</label>
-                            <input
-                                type="number"
-                                value={confidenceLevel}
-                                onChange={(e) => setConfidenceLevel(Number(e.target.value))}
-                                className="block w-full rounded-md border-gray-300 shadow-sm sm:text-sm p-2 focus:border-purple-500 focus:ring-purple-500"
-                                min="0" 
-                                max="100"
-                            />
-                        </div>
-                        {controlType === 'beta-alpha' && (
-                            <div className="flex flex-col space-y-2 col-span-1">
-                                <label className="text-sm font-medium text-gray-700">Nivel de confianza Alfa (%):</label>
+                        
+                        <div className="grid grid-cols-2 gap-6">
+                            <div className="flex flex-col space-y-2">
+                                <label className="text-sm font-medium text-gray-700">Tamaño de la población:</label>
                                 <input
                                     type="number"
-                                    value={alphaConfidenceLevel}
-                                    onChange={(e) => setAlphaConfidenceLevel(Number(e.target.value))}
+                                    value={populationSize}
+                                    onChange={(e) => setPopulationSize(Number(e.target.value))}
                                     className="block w-full rounded-md border-gray-300 shadow-sm sm:text-sm p-2 focus:border-purple-500 focus:ring-purple-500"
                                 />
                             </div>
-                        )}
+
+                            <div className="flex flex-col space-y-2">
+                                <label className="text-sm font-medium text-gray-700">Tasa de desviación esperada (%):</label>
+                                <input
+                                    type="number"
+                                    value={expectedDeviation}
+                                    onChange={(e) => setExpectedDeviation(Number(e.target.value))}
+                                    className="block w-full rounded-md border-gray-300 shadow-sm sm:text-sm p-2 focus:border-purple-500 focus:ring-purple-500"
+                                />
+                            </div>
+
+                            <div className="flex flex-col space-y-2">
+                                <label className="text-sm font-medium text-gray-700">Tasa de desviación tolerable (%):</label>
+                                <input
+                                    type="number"
+                                    value={tolerableDeviation}
+                                    onChange={(e) => setTolerableDeviation(Number(e.target.value))}
+                                    className="block w-full rounded-md border-gray-300 shadow-sm sm:text-sm p-2 focus:border-purple-500 focus:ring-purple-500"
+                                />
+                            </div>
+
+                            <div className="flex flex-col space-y-2">
+                                <label className="text-sm font-medium text-gray-700">Nivel de confianza Beta (%):</label>
+                                <input
+                                    type="number"
+                                    value={confidenceLevel}
+                                    onChange={(e) => setConfidenceLevel(Number(e.target.value))}
+                                    className="block w-full rounded-md border-gray-300 shadow-sm sm:text-sm p-2 focus:border-purple-500 focus:ring-purple-500"
+                                    min="0" 
+                                    max="100"
+                                />
+                            </div>
+
+                            {controlType === 'beta-alpha' && (
+                                <div className="flex flex-col space-y-2 col-span-1">
+                                    <label className="text-sm font-medium text-gray-700">Nivel de confianza Alfa (%):</label>
+                                    <input
+                                        type="number"
+                                        value={alphaConfidenceLevel}
+                                        onChange={(e) => setAlphaConfidenceLevel(Number(e.target.value))}
+                                        className="block w-full rounded-md border-gray-300 shadow-sm sm:text-sm p-2 focus:border-purple-500 focus:ring-purple-500"
+                                    />
+                                </div>
+                            )}
+                        </div>
                     </div>
 
                     {/* Sección de Resultados */}
                     {isPlanificacionDone && (
                         <div className="mt-8 pt-6 border-t border-gray-200">
-                            <h4 className="text-xl font-bold mb-4 text-gray-800">Resultados del Cálculo:</h4>
+                            <div className="flex items-center justify-between mb-4">
+                                <h4 className="text-xl font-bold text-gray-800">Resultados del Cálculo</h4>
+                                <HelpButtonPlanificationAtributos context="results" />
+                            </div>
+                            
                             <div className="grid grid-cols-2 gap-4 mb-6 bg-blue-50 p-4 rounded-lg border border-blue-200">
                                 <div className="flex flex-col">
                                     <label className="text-sm font-medium text-gray-700">Tamaño de la muestra:</label>
@@ -174,6 +187,7 @@ const Planification: React.FC<PlanificationProps> = ({
 
                             {/* Tabla de Confianza */}
                             <div className="overflow-x-auto bg-gray-50 rounded-lg shadow-inner mt-4">
+                                <h5 className="text-lg font-semibold text-gray-700 mb-3">Tabla de Confianza</h5>
                                 <table className="min-w-full divide-y divide-gray-200">
                                     <thead className="bg-gray-100">
                                         <tr>
@@ -235,12 +249,10 @@ const Planification: React.FC<PlanificationProps> = ({
                 >
                     Cerrar
                 </button>
-                <button
-                    onClick={handleHelp}
-                    className="bg-gray-400 hover:bg-gray-500 text-white font-semibold py-3 px-4 rounded-full shadow transition-colors"
-                >
-                    ? Ayuda
-                </button>
+                <HelpButtonPlanificationAtributos 
+                    context="general" 
+                    className="bg-gray-400 hover:bg-gray-500 text-white font-semibold py-3 px-4 rounded-full shadow transition-colors" 
+                />
             </div>
         </div>
     );

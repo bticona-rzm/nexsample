@@ -1,4 +1,4 @@
-// components/HelpButtonMumPage.tsx - VERSIÓN OPTIMIZADA
+// components/HelpButtonAtributos.tsx
 import React, { useState } from 'react';
 import { HelpCircle } from 'lucide-react';
 
@@ -9,26 +9,26 @@ interface HelpButtonProps {
   className?: string;
 }
 
-export const HelpButton: React.FC<HelpButtonProps> = ({ context, className = '' }) => {
+export const HelpButtonAtributos: React.FC<HelpButtonProps> = ({ context, className = '' }) => {
   const [isOpen, setIsOpen] = useState(false);
 
   const helpContent = {
     'general': {
-      title: 'Módulo Muestreo por Unidad Monetaria (MUS)',
+      title: 'Módulo Muestreo por Atributos',
       content: [
-        'Sistema completo para muestreo estadístico MUS',
-        'Flujo: Cargar archivo → Planificar → Extraer → Evaluar',
-        'Datos consistentes entre todas las etapas',
-        'Exporta reportes profesionales'
+        'Sistema completo para muestreo estadístico por atributos',
+        'Flujo: Cargar archivo → Planificar → Muestra Aleatoria → Evaluar',
+        'Ideal para controles de cumplimiento y auditorías',
+        'Basado en tablas de muestreo estadístico estándar'
       ]
     },
     'file-upload': {
       title: 'Carga de Archivo Excel',
       content: [
-        'Formatos: Excel (.xlsx, .xls), CSV, XML, DBF, Access',
-        'Requiere datos numéricos para el campo de valor',
-        'Headers detectados automáticamente',
-        'Habilita demás funcionalidades al cargar'
+        'Formatos soportados: Excel (.xlsx, .xls), CSV, XML, DBF, Access',
+        'La primera fila debe contener los nombres de columnas',
+        'Los datos pueden ser de cualquier tipo (texto, números, fechas)',
+        'Habilita las demás funcionalidades al cargar exitosamente'
       ]
     }
   };
