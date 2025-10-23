@@ -1,17 +1,35 @@
-// ✅ FACTORES UNIFICADOS PARA TODOS LOS MÉTODOS
+// utils/tables.ts
+
+// ✅ FACTORES BÁSICOS DE CONFIANZA (para todos los métodos)
 export const confidenceFactors: { [confidenceLevel: number]: number } = {
-    50: 0.70,
-    55: 0.80,
-    60: 0.92,
-    65: 1.06,
-    70: 1.21,
-    75: 1.38,
-    80: 1.61,
-    85: 1.90,
-    90: 2.31,
-    95: 3.00,
-    98: 3.75,
-    99: 4.61,
+    50: 0.70, 55: 0.80, 60: 0.92, 65: 1.06, 70: 1.21,
+    75: 1.38, 80: 1.61, 85: 1.90, 90: 2.31, 95: 3.00,
+    98: 3.75, 99: 4.61,
+};
+
+// ✅ FACTORES PARA MUESTREO POR ATRIBUTOS (Poisson)
+export const attributesFactors: { deviations: number; factor: number; confidence: number }[] = [
+    { deviations: 0, factor: 3.00, confidence: 95.00 },
+    { deviations: 1, factor: 4.75, confidence: 94.97 },
+    { deviations: 2, factor: 6.30, confidence: 94.99 },
+    { deviations: 3, factor: 7.76, confidence: 94.99 },
+    { deviations: 4, factor: 9.16, confidence: 94.99 },
+    { deviations: 5, factor: 10.52, confidence: 94.99 },
+    { deviations: 6, factor: 11.85, confidence: 94.99 },
+    { deviations: 7, factor: 13.15, confidence: 94.99 },
+    { deviations: 8, factor: 14.44, confidence: 94.99 },
+    { deviations: 9, factor: 15.71, confidence: 94.99 },
+    { deviations: 10, factor: 16.97, confidence: 94.99 },
+];
+
+// ✅ FACTORES MUS (Monetary Unit Sampling) para planificación
+export const musPlanificationFactors: { [confidenceLevel: number]: number[] } = {
+    75: [1.39, 1.85, 2.23, 2.57],
+    80: [1.61, 2.09, 2.48, 2.83],
+    85: [1.90, 2.39, 2.79, 3.16],
+    90: [2.31, 2.80, 3.22, 3.61],
+    95: [3.00, 3.47, 3.88, 4.25],
+    99: [4.61, 4.98, 5.32, 5.64],
 };
 
 // ✅ FACTORES DE IDEA PARA CELL & CLASSICAL (completos)
@@ -41,7 +59,7 @@ export const stringerBoundFactors: { [confidenceLevel: number]: number[] } = {
     99: [4.61, 1.36, 0.95, 0.77, 0.66, 0.58, 0.52, 0.48, 0.44, 0.41]
 };
 
-// ✅ INTERFACES BÁSICAS (solo las esenciales para las tablas)
+// ✅ INTERFACES BÁSICAS
 export interface ProcessedError {
     reference: string;
     bookValue: number;
@@ -64,29 +82,64 @@ export interface StageData {
     maxStageUEL: number;
 }
 
-// ✅ FUNCIONES BÁSICAS DE ACCESO A TABLAS
+export interface AttributesConfidenceFactor {
+    deviations: number;
+    factor: number;
+    confidence: number;
+}
 
-// Obtener factores para Cell & Classical
-export const getCellClassicalFactors = (confidenceLevel: number): number[] => {
-    return ideaCellClassicalFactors[confidenceLevel] || ideaCellClassicalFactors[90];
-};
+// ✅ FUNCIONES DE ACCESO A TABLAS (UNIFICADAS)
 
-// Obtener factores para Stringer Bound
-export const getStringerBoundFactors = (confidenceLevel: number): number[] => {
-    return stringerBoundFactors[confidenceLevel] || stringerBoundFactors[90];
-};
-
-// Obtener factores incrementales
-export const getIncrementalFactors = (confidenceLevel: number): number[] => {
-    return incrementalFactors[confidenceLevel] || incrementalFactors[90];
-};
-
-// Función para obtener el factor de confianza básico
+// Factores básicos de confianza
 export const getConfidenceFactor = (confidenceLevel: number): number => {
     return confidenceFactors[confidenceLevel] || confidenceFactors[90];
 };
 
-// Función para obtener los niveles de confianza disponibles
+// Factores para Muestreo por Atributos
+export const getAttributesFactors = (): AttributesConfidenceFactor[] => {
+    return attributesFactors;
+};
+
+export const getAttributesFactorForConfidence = (confidenceLevel: number): number => {
+    const factor = attributesFactors.find(f => f.confidence >= confidenceLevel);
+    return factor ? factor.factor : attributesFactors[0].factor;
+};
+
+export const getCriticalDeviationForConfidence = (confidenceLevel: number): number => {
+    const factor = attributesFactors.find(f => f.confidence >= confidenceLevel);
+    return factor ? factor.deviations : 0;
+};
+
+// Factores para MUS (Planificación)
+export const getMusPlanificationFactors = (confidenceLevel: number): number[] => {
+    return musPlanificationFactors[confidenceLevel] || musPlanificationFactors[90];
+};
+
+export const getMusPlanificationFactor = (confidenceLevel: number, expectedErrorsCount: number = 0): number => {
+    const factors = getMusPlanificationFactors(confidenceLevel);
+    return factors[Math.min(expectedErrorsCount, factors.length - 1)] || factors[0];
+};
+
+// Factores para Cell & Classical (ya existentes)
+export const getCellClassicalFactors = (confidenceLevel: number): number[] => {
+    return ideaCellClassicalFactors[confidenceLevel] || ideaCellClassicalFactors[90];
+};
+
+// Factores para Stringer Bound (ya existentes)
+export const getStringerBoundFactors = (confidenceLevel: number): number[] => {
+    return stringerBoundFactors[confidenceLevel] || stringerBoundFactors[90];
+};
+
+// Factores incrementales (ya existentes)
+export const getIncrementalFactors = (confidenceLevel: number): number[] => {
+    return incrementalFactors[confidenceLevel] || incrementalFactors[90];
+};
+
+// Niveles de confianza disponibles
 export const getAvailableConfidenceLevels = (): number[] => {
     return Object.keys(confidenceFactors).map(Number).sort((a, b) => a - b);
+};
+
+export const getAvailableMusConfidenceLevels = (): number[] => {
+    return Object.keys(musPlanificationFactors).map(Number).sort((a, b) => a - b);
 };

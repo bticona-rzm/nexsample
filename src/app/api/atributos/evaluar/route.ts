@@ -1,85 +1,110 @@
+// /api/atributos/evaluar/route.ts - VERSIÓN MEJORADA
 import { NextResponse } from 'next/server';
 import { jStat } from 'jstat';
 
-// Constante para la precisión de la búsqueda (0.0001 = 0.01%)
-const SEARCH_TOLERANCE = 0.0001; 
+// ✅ CONSTANTES MEJORADAS
+const SEARCH_TOLERANCE = 1e-6; // Mayor precisión
+const MAX_ITERATIONS = 1000;   // Más iteraciones para convergencia
+const MAX_LAMBDA = 1000;       // Límite razonable para lambda
 
 /**
- * Busca la tasa media de Poisson (lambda) que satisface P(X <= k) = P_target.
- * Se usa para encontrar los límites superiores de confianza.
- * @param k - Desviaciones observadas (observedDeviations)
- * @param P_target - Probabilidad acumulada deseada (e.g., 1 - alpha)
+ * ✅ FUNCIÓN MEJORADA - Límite superior de Poisson
+ * Encuentra lambda tal que P(X ≤ k) = targetProbability
  */
-const findLambdaUpper = (k: number, P_target: number): number => {
-    // Si hay 0 desviaciones, usamos la solución analítica: -ln(1 - P_target)
-    // Esto es mucho más estable y evita la búsqueda.
+const findPoissonUpperLimit = (k: number, targetProbability: number): number => {
+    // ✅ CASO ESPECIAL: k = 0 (solución analítica)
     if (k === 0) {
-        return -Math.log(1 - P_target);
+        return -Math.log(1 - targetProbability);
     }
     
-    // Si k > 0, usamos búsqueda por bisección
-    let low = 0;
-    // Límite superior de búsqueda ajustado: (k + 1) * 3 veces el factor inicial, 
-    // pero con un máximo de 1000 para prevenir valores absurdamente altos.
-    let high = Math.min(1000, (k + 1) * 50); 
+    // ✅ BÚSQUEDA POR BISECCIÓN MEJORADA
+    let lowerBound = 0;
+    let upperBound = Math.min(MAX_LAMBDA, (k + 1) * 10);
     let lambda = 0;
 
-    for (let i = 0; i < 100; i++) { // Límite de 100 iteraciones para la convergencia
-        lambda = (low + high) / 2;
-        const cdf = jStat.poisson.cdf(k, lambda);
+    for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
+        lambda = (lowerBound + upperBound) / 2;
+        const currentCDF = jStat.poisson.cdf(k, lambda);
+        const error = currentCDF - targetProbability;
         
-        if (Math.abs(cdf - P_target) < SEARCH_TOLERANCE) {
+        if (Math.abs(error) < SEARCH_TOLERANCE) {
             return lambda;
         }
         
-        if (cdf < P_target) {
-            low = lambda; // Necesitamos un lambda mayor (mayor media -> menor cola superior)
+        if (error < 0) {
+            lowerBound = lambda; // CDF muy pequeño, necesitamos lambda mayor
         } else {
-            high = lambda; // Necesitamos un lambda menor
+            upperBound = lambda; // CDF muy grande, necesitamos lambda menor
         }
     }
-    return lambda; // Devolver el mejor estimado
+    
+    console.warn(`Búsqueda de límite superior no convergió después de ${MAX_ITERATIONS} iteraciones`);
+    return lambda;
 };
 
 /**
- * Busca la tasa media de Poisson (lambda) que satisface P(X < k) = P_target.
- * Se usa para encontrar el límite inferior de confianza.
- * @param k - Desviaciones observadas (observedDeviations)
- * @param P_target - Probabilidad acumulada deseada (e.g., alpha/2)
+ * ✅ FUNCIÓN MEJORADA - Límite inferior de Poisson  
+ * Encuentra lambda tal que P(X ≤ k-1) = targetProbability
  */
-const findLambdaLower = (k: number, P_target: number): number => {
-    // Si hay 0 desviaciones, el límite inferior de la tasa de error es 0.
-    if (k <= 0) return 0;
+const findPoissonLowerLimit = (k: number, targetProbability: number): number => {
+    // ✅ CASO ESPECIAL: k = 0 (límite inferior es 0)
+    if (k === 0) {
+        return 0;
+    }
     
-    // Para P(X < k), usamos P(X <= k-1). 
-    const k_prime = k - 1; 
-
-    // Aquí usamos el algoritmo de búsqueda para el límite inferior (lambda_BUS), 
-    // donde la probabilidad P_target está en la cola inferior.
+    // Para límite inferior: P(X ≤ k-1) = targetProbability
+    const kAdjusted = k - 1;
     
-    let low = 0;
-    let high = Math.min(1000, (k_prime + 1) * 50); // Ajustamos el límite superior de la búsqueda
+    let lowerBound = 0;
+    let upperBound = Math.min(MAX_LAMBDA, (kAdjusted + 1) * 10);
     let lambda = 0;
 
-    for (let i = 0; i < 100; i++) {
-        lambda = (low + high) / 2;
-        // P_target ahora es la probabilidad de la cola *izquierda*
-        const cdf = jStat.poisson.cdf(k_prime, lambda); 
+    for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
+        lambda = (lowerBound + upperBound) / 2;
+        const currentCDF = jStat.poisson.cdf(kAdjusted, lambda);
+        const error = currentCDF - targetProbability;
         
-        if (Math.abs(cdf - P_target) < SEARCH_TOLERANCE) {
+        if (Math.abs(error) < SEARCH_TOLERANCE) {
             return lambda;
         }
         
-        // En este caso, si cdf < P_target, el lambda es muy pequeño y necesitamos un lambda mayor
-        if (cdf < P_target) {
-            low = lambda; 
+        if (error < 0) {
+            lowerBound = lambda; // CDF muy pequeño
         } else {
-            high = lambda; 
+            upperBound = lambda; // CDF muy grande
         }
     }
-    return lambda; // Devolver el mejor estimado
+    
+    console.warn(`Búsqueda de límite inferior no convergió después de ${MAX_ITERATIONS} iteraciones`);
+    return lambda;
 };
 
+/**
+ * ✅ FUNCIÓN VALIDACIÓN - Verifica parámetros de entrada
+ */
+const validateEvaluationParameters = (
+    evaluatedSampleSize: number, 
+    observedDeviations: number, 
+    desiredConfidence: number
+): string | null => {
+    if (!evaluatedSampleSize || evaluatedSampleSize <= 0) {
+        return "El tamaño de la muestra evaluada debe ser mayor a 0.";
+    }
+    
+    if (observedDeviations < 0) {
+        return "El número de desviaciones observadas no puede ser negativo.";
+    }
+    
+    if (observedDeviations > evaluatedSampleSize) {
+        return `Las desviaciones observadas (${observedDeviations}) no pueden exceder el tamaño de la muestra (${evaluatedSampleSize}).`;
+    }
+    
+    if (!desiredConfidence || desiredConfidence <= 0 || desiredConfidence >= 100) {
+        return "El nivel de confianza debe estar entre 0.01% y 99.99%.";
+    }
+    
+    return null;
+};
 
 export async function POST(request: Request) {
     try {
@@ -87,54 +112,78 @@ export async function POST(request: Request) {
             evaluatedSampleSize,
             observedDeviations,
             desiredConfidence,
-        } = await request.json() as {
-            evaluatedSampleSize: number;
-            observedDeviations: number;
-            desiredConfidence: number;
-        };
+        } = await request.json();
 
-        if (evaluatedSampleSize <= 0) {
-             return NextResponse.json({ error: "El tamaño de la muestra debe ser mayor a cero." }, { status: 400 });
+        // ✅ VALIDACIÓN MEJORADA
+        const validationError = validateEvaluationParameters(
+            evaluatedSampleSize, 
+            observedDeviations, 
+            desiredConfidence
+        );
+        
+        if (validationError) {
+            return NextResponse.json({ error: validationError }, { status: 400 });
         }
 
-        // 1. Tasa de desviación de la muestra (porcentaje)
+        // ✅ 1. TASA DE DESVIACIÓN DE LA MUESTRA
         const sampleDeviationRate = (observedDeviations / evaluatedSampleSize) * 100;
 
-        // 2. Definición de Alfa
-        const confidenceFactor = desiredConfidence / 100;
-        const alpha = 1 - confidenceFactor;
-
-        // --- CÁLCULO DE LÍMITES DE CONFIANZA ---
-        // A. Límite unilateral superior
-        // P(X <= observedDeviations | lambda_UL) = 1 - alpha
-        const lambdaUL = findLambdaUpper(observedDeviations, 1 - alpha);
+        // ✅ 2. CÁLCULO DE PARÁMETROS ESTADÍSTICOS
+        const confidenceLevel = desiredConfidence / 100;
+        const alpha = 1 - confidenceLevel;
+        
+        // ✅ 3. LÍMITES DE CONFIANZA MEJORADOS
+        
+        // A. Límite Unilateral Superior (Upper Limit)
+        // P(X ≤ observedDeviations) = 1 - alpha
+        const lambdaUL = findPoissonUpperLimit(observedDeviations, 1 - alpha);
         const unilateralUpperLimit = (lambdaUL / evaluatedSampleSize) * 100;
 
-        // B. Límites bilaterales
-        const alphaBilateral = alpha / 2;
+        // B. Límites Bilaterales
+        const alphaHalf = alpha / 2;
         
-        // Límite Bilateral Superior: P(X <= observedDeviations | lambda_BUS) = 1 - alpha/2
-        const lambdaBUS = findLambdaUpper(observedDeviations, 1 - alphaBilateral);
+        // Límite Bilateral Superior
+        // P(X ≤ observedDeviations) = 1 - alpha/2
+        const lambdaBUS = findPoissonUpperLimit(observedDeviations, 1 - alphaHalf);
         const bilateralUpperLimit = (lambdaBUS / evaluatedSampleSize) * 100;
 
-        // Límite Bilateral Inferior: P(X < observedDeviations | lambda_BLI) = alpha/2
-        const lambdaBLI = findLambdaLower(observedDeviations, alphaBilateral);
-        const bilateralLowerLimit = (lambdaBLI / evaluatedSampleSize) * 100;
-        
-        // Asegurar que el límite inferior no sea negativo
-        const finalBilateralLowerLimit = Math.max(0, bilateralLowerLimit);
+        // Límite Bilateral Inferior
+        // P(X ≤ observedDeviations - 1) = alpha/2
+        const lambdaBLI = findPoissonLowerLimit(observedDeviations, alphaHalf);
+        const bilateralLowerLimit = Math.max(0, (lambdaBLI / evaluatedSampleSize) * 100);
 
-        return NextResponse.json({
-            sampleDeviationRate,
-            unilateralUpperLimit,
-            bilateralLowerLimit: finalBilateralLowerLimit,
-            bilateralUpperLimit,
-        });
+        // ✅ 4. RESULTADOS CON PRECISIÓN CONTROLADA
+        const results = {
+            // Datos de entrada
+            inputParameters: {
+                sampleSize: evaluatedSampleSize,
+                observedDeviations,
+                confidenceLevel: desiredConfidence
+            },
+            // Resultados principales
+            sampleDeviationRate: Math.round(sampleDeviationRate * 100) / 100,
+            unilateralUpperLimit: Math.round(unilateralUpperLimit * 100) / 100,
+            bilateralLowerLimit: Math.round(bilateralLowerLimit * 100) / 100,
+            bilateralUpperLimit: Math.round(bilateralUpperLimit * 100) / 100,
+            // Información adicional
+            statisticalParameters: {
+                alpha,
+                alphaHalf,
+                lambdaUL: Math.round(lambdaUL * 1000) / 1000,
+                lambdaBUS: Math.round(lambdaBUS * 1000) / 1000,
+                lambdaBLI: Math.round(lambdaBLI * 1000) / 1000
+            }
+        };
+
+        console.log("Resultados de evaluación:", results);
+
+        return NextResponse.json(results);
+
     } catch (error: any) {
-        console.error("Error en la evaluación de la muestra:", error);
-        return new NextResponse(JSON.stringify({
-            message: "Error al evaluar la muestra.",
-            error: error.message || "Error desconocido."
-        }), { status: 500 });
+        console.error("Error en evaluación de muestra:", error);
+        return NextResponse.json({ 
+            error: "Error interno del servidor durante la evaluación estadística.",
+            details: error.message 
+        }, { status: 500 });
     }
 }
