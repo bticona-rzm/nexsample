@@ -5,6 +5,19 @@ import {
     getCriticalDeviationForConfidence 
 } from '@/utils/tables';
 
+// ✅ LÓGICA DE NEGOCIO EN BACKEND
+export function calcularSemillaIDEA(intervaloMuestreo: number, poblacionTotal: number): number {
+    const timestamp = Date.now();
+    const factorUnico = Math.floor(Math.random() * 10000);
+    const semilla = (intervaloMuestreo * timestamp + factorUnico) % 1000000;
+    return Math.floor(semilla);
+}
+
+export function calcularIntervaloMuestreo(poblacionSize: number, muestraSize: number): number {
+    if (muestraSize <= 0 || poblacionSize <= 0) return 0;
+    return poblacionSize / muestraSize;
+}
+
 export async function POST(request: Request) {
     try {
         const formData = await request.formData();

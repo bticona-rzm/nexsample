@@ -18,24 +18,6 @@ import { fetchDataWithHeaders, apiClient } from '@/lib/apiClient';
 type ControlType = 'beta' | 'beta-alpha';
 type ExcelRow = Record<string, string | number | null>;
 
-// ✅ FUNCIÓN PARA CALCULAR SEMILLA (método IDEA)
-function calcularSemillaIDEA(intervaloMuestreo: number, poblacionTotal: number): number {
-    // IDEA usa una combinación del intervalo + timestamp + factores únicos
-    const timestamp = Date.now();
-    const factorUnico = Math.floor(Math.random() * 10000);
-    
-    // Fórmula común: (intervalo * timestamp) mod factorGrande
-    const semilla = (intervaloMuestreo * timestamp + factorUnico) % 1000000;
-    
-    return Math.floor(semilla);
-}
-
-// ✅ FUNCIÓN PARA CALCULAR INTERVALO DE MUESTREO
-function calcularIntervaloMuestreo(poblacionSize: number, muestraSize: number): number {
-    if (muestraSize <= 0 || poblacionSize <= 0) return 0;
-    return poblacionSize / muestraSize;
-}
-
 export default function AtributosPage() {
     // Estados básicos
     const [activeTab, setActiveTab] = useState("visualizar");
@@ -123,16 +105,11 @@ export default function AtributosPage() {
             };
 
             const result = await apiClient.atributos.planification(planificationData, selectedDataFile);
-
+            // El backend debe calcular la semilla automáticamente
+            setSemillaAleatoria(result.semillaCalculada); // ← ahora viene del backend
             setCalculatedSampleSize(result.calculatedSampleSize);
             setCriticalDeviation(result.criticalDeviation);
             setIsPlanificacionDone(true);
-
-            // ✅ CALCULAR SEMILLA AUTOMÁTICAMENTE después de la planificación
-            const intervalo = calcularIntervaloMuestreo(populationSize, result.calculatedSampleSize);
-            const semillaCalculada = calcularSemillaIDEA(intervalo, populationSize);
-            setSemillaAleatoria(semillaCalculada);
-            
         } catch (error) {
             console.error("Error en planificación:", error);
             alert("Error al calcular la planificación: " + (error instanceof Error ? error.message : "Error desconocido"));

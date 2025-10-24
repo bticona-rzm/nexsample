@@ -214,11 +214,11 @@ const Planification: React.FC<PlanificationProps> = ({
                             <div className="mt-6 p-4 bg-yellow-100 rounded-lg border border-yellow-300">
                                 <h4 className="font-bold text-yellow-900 text-lg mb-1">Conclusión:</h4>
                                 <p className="text-sm text-yellow-900 mt-1">
-                                    Si no se observan más de **{criticalDeviation}** desviaciones en una muestra de tamaño **{calculatedSampleSize}**, puede estar por lo menos seguro en un **{confidenceLevel}%** de que la tasa de desviación de la población no será mayor que el **{tolerableDeviation}%**.
+                                    Si no se observan más de <strong>{criticalDeviation}</strong> desviaciones en una muestra de tamaño <strong>{calculatedSampleSize}</strong>, puede estar por lo menos seguro en un <strong>{confidenceLevel}%</strong> de que la tasa de desviación de la población no será mayor que el <strong>{tolerableDeviation}%</strong>.
                                 </p>
                                 {controlType === 'beta-alpha' && (
                                     <p className="text-sm text-yellow-900 mt-2 italic border-t border-yellow-300 pt-2">
-                                        Adicionalmente, con una confianza del **{alphaConfidenceLevel}%**, la muestra no será erróneamente rechazada.
+                                        Adicionalmente, con una confianza del <strong>{alphaConfidenceLevel}%</strong>, la muestra no será erróneamente rechazada.
                                     </p>
                                 )}
                             </div>
