@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { HelpButtonEvaluarAtributos } from './HelpButtonEvaluarAtributos';
 
-// ✅ INTERFACE SIMPLIFICADA
+// ✅ INTERFACE MEJORADA
 type EvaluarProps = {
     isAleatorioDone: boolean;
     populationSize: number;
@@ -16,9 +16,113 @@ type EvaluarProps = {
     handlePrint: () => void;
     handleClose: () => void;
     handleHelp: () => void;
-    unilateralUpperLimit: number;        // ✅ NUEVO
-    bilateralLowerLimit: number;         // ✅ NUEVO
-    bilateralUpperLimit: number;         // ✅ NUEVO
+    unilateralUpperLimit: number;
+    bilateralLowerLimit: number;
+    bilateralUpperLimit: number;
+    randomSample?: any[];  // ✅ NUEVO - Para el conteo visual
+    headers?: string[];    // ✅ NUEVO - Para el conteo visual
+};
+
+// ✅ COMPONENTE PARA CONTEO VISUAL MEJORADO
+const DeviationCounter: React.FC<{
+    sample: any[];
+    headers: string[];
+    deviations: number;
+    onDeviationsChange: (count: number) => void;
+    containerWidth: string;
+}> = ({ sample, headers, deviations, onDeviationsChange, containerWidth }) => {
+    const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set());
+
+    const toggleSelection = (index: number) => {
+        const newSelected = new Set(selectedItems);
+        if (newSelected.has(index)) {
+            newSelected.delete(index);
+        } else {
+            newSelected.add(index);
+        }
+        setSelectedItems(newSelected);
+        onDeviationsChange(newSelected.size);
+    };
+
+    return (
+        <div className="bg-white p-6 rounded-lg shadow-md">
+            <div className="flex items-center justify-between mb-4">
+                <h4 className="text-lg font-semibold">Conteo Visual de Desviaciones</h4>
+                <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
+                    {selectedItems.size} seleccionados
+                </span>
+            </div>
+            
+            <p className="text-sm text-gray-600 mb-4">
+                Haz clic en los registros que representan desviaciones. Cada registro seleccionado se contará como una desviación.
+            </p>
+
+            {/* ✅ CONTENEDOR CON ANCHO CALCULADO DINÁMICAMENTE */}
+            <div className={`overflow-auto border rounded-lg max-h-96 ${containerWidth}`}>
+                <table className="min-w-full">
+                    <thead className="bg-gray-50 sticky top-0">
+                        <tr>
+                            <th className="px-4 py-3 border-b text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-12">
+                                ✓
+                            </th>
+                            <th className="px-4 py-3 border-b text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-16">
+                                #
+                            </th>
+                            {headers?.map(header => (
+                                <th key={header} className="px-4 py-3 border-b text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                                    {header}
+                                </th>
+                            ))}
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                        {sample.map((record, index) => (
+                            <tr 
+                                key={index}
+                                className={`hover:bg-gray-50 cursor-pointer transition-colors ${
+                                    selectedItems.has(index) ? 'bg-red-50 border-l-4 border-l-red-500' : ''
+                                }`}
+                                onClick={() => toggleSelection(index)}
+                            >
+                                <td className="px-4 py-3 whitespace-nowrap text-center">
+                                    <div className={`w-6 h-6 rounded border-2 flex items-center justify-center ${
+                                        selectedItems.has(index) 
+                                            ? 'bg-green-500 border-green-600 text-white' 
+                                            : 'bg-white border-gray-300'
+                                    }`}>
+                                        {selectedItems.has(index) ? '✓' : ''}
+                                    </div>
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                                    {index + 1}
+                                </td>
+                                {headers?.map(header => (
+                                    <td key={header} className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                                        {record[header]?.toString() || '-'}
+                                    </td>
+                                ))}
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+
+            <div className="mt-4 flex justify-between items-center">
+                <span className="text-sm text-gray-600">
+                    {selectedItems.size} de {sample.length} registros seleccionados como desviaciones
+                </span>
+                <button
+                    onClick={() => {
+                        setSelectedItems(new Set());
+                        onDeviationsChange(0);
+                    }}
+                    className="px-3 py-1 bg-gray-200 text-gray-700 rounded text-sm hover:bg-gray-300"
+                >
+                    Limpiar selección
+                </button>
+            </div>
+        </div>
+    );
 };
 
 const Evaluar: React.FC<EvaluarProps> = ({
@@ -37,12 +141,30 @@ const Evaluar: React.FC<EvaluarProps> = ({
     handleHelp,
     unilateralUpperLimit,
     bilateralLowerLimit,
-    bilateralUpperLimit
+    bilateralUpperLimit,
+    randomSample = [],  // ✅ Valor por defecto
+    headers = [],       // ✅ Valor por defecto
 }) => {
+    const [countMethod, setCountMethod] = useState<'manual' | 'visual'>('manual'); // ✅ Método por defecto: visual
+
+    // ✅ CALCULAR EL ANCHO DEL CONTENEDOR BASADO EN EL LAYOUT
+    // La columna izquierda es flex-1 (ocupa el espacio restante)
+    // La columna derecha es w-48 (192px)
+    // Restamos los paddings y márgenes: p-4 (16px) + space-x-6 (24px) = ~40px
+    const calculateContainerWidth = () => {
+        if (typeof window !== 'undefined') {
+            const screenWidth = window.innerWidth;
+            if (screenWidth < 768) return "max-w-full"; // móvil
+            if (screenWidth < 1024) return "max-w-2xl"; // tablet
+            return "max-w-3xl"; // desktop
+        }
+        return "max-w-3xl"; // default
+    };
+
     if (!isAleatorioDone) {
         return (
             <div className="p-4 text-center text-gray-500">
-                Debes completar el paso de Muestreo Aleatorio primero.
+                Debes completar el paso de Muestreo Aleatorio   primero.
             </div>
         );
     }
@@ -58,6 +180,43 @@ const Evaluar: React.FC<EvaluarProps> = ({
                         <HelpButtonEvaluarAtributos context="general" />
                     </div>
                     
+                    {/* Selector de método de conteo */}
+                    <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Método de conteo de desviaciones:
+                        </label>
+                        <div className="flex space-x-4">
+                            <button
+                                type="button"
+                                onClick={() => setCountMethod('manual')}
+                                className={`px-4 py-2 rounded-md text-sm font-medium ${
+                                    countMethod === 'manual'
+                                        ? 'bg-blue-600 text-white shadow-sm'
+                                        : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                                }`}
+                            >
+                                ⌨️ Ingreso Manual
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setCountMethod('visual')}
+                                className={`px-4 py-2 rounded-md text-sm font-medium ${
+                                    countMethod === 'visual'
+                                        ? 'bg-blue-600 text-white shadow-sm'
+                                        : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                                }`}
+                            >
+                                📊 Conteo Visual
+                            </button>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-2">
+                            {countMethod === 'visual' 
+                                ? 'Selecciona visualmente los registros que representan desviaciones'
+                                : 'Ingresa manualmente el número total de desviaciones encontradas'
+                            }
+                        </p>
+                    </div>
+                    
                     {/* Sección de parámetros con ayuda */}
                     <div className="mb-6">
                         <div className="flex items-center gap-2 mb-4">
@@ -68,29 +227,55 @@ const Evaluar: React.FC<EvaluarProps> = ({
                         <div className="grid grid-cols-2 gap-4">
                             <div className="flex flex-col">
                                 <label className="text-sm font-medium text-gray-700">Tamaño de la población:</label>
-                                <span className="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 bg-gray-100">{populationSize.toLocaleString()}</span>
+                                <span className="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 bg-gray-100">
+                                    {populationSize.toLocaleString()}
+                                </span>
                             </div>
                             <div className="flex flex-col">
                                 <label className="text-sm font-medium text-gray-700">Tamaño de la muestra evaluada:</label>
-                                <span className="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 bg-gray-100">{evaluatedSampleSize.toLocaleString()}</span>
-                            </div>
-                            <div className="flex flex-col">
-                                <label className="text-sm font-medium text-gray-700">
-                                    Número de desviaciones observadas:
-                                </label>
-                                <input
-                                    type="number"
-                                    min="0"
-                                    max={evaluatedSampleSize}
-                                    value={observedDeviations}
-                                    onChange={(e) => setObservedDeviations(Math.max(0, Number(e.target.value)))}
-                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border"
-                                    placeholder="Ej: 2"
-                                />
-                                <span className="text-xs text-gray-500 mt-1">
-                                    Máximo: {evaluatedSampleSize} desviaciones
+                                <span className="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 bg-gray-100">
+                                    {evaluatedSampleSize.toLocaleString()}
                                 </span>
                             </div>
+                            
+                            {/* Método de conteo seleccionado */}
+                            {countMethod === 'manual' ? (
+                                <div className="flex flex-col">
+                                    <label className="text-sm font-medium text-gray-700">
+                                        Número de desviaciones observadas:
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        max={evaluatedSampleSize}
+                                        value={observedDeviations}
+                                        onChange={(e) => setObservedDeviations(Math.max(0, Number(e.target.value)))}
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border"
+                                        placeholder="Ej: 2"
+                                    />
+                                    <span className="text-xs text-gray-500 mt-1">
+                                        Máximo: {evaluatedSampleSize} desviaciones
+                                    </span>
+                                </div>
+                            ) : (
+                                <div className="flex flex-col">
+                                    <label className="text-sm font-medium text-gray-700">
+                                        Desviaciones encontradas:
+                                    </label>
+                                    <div className="mt-1 p-2 bg-green-50 border border-green-200 rounded-md">
+                                        <span className="text-lg font-bold text-green-700">
+                                            {observedDeviations}
+                                        </span>
+                                        <span className="text-sm text-green-600 ml-2">
+                                            registros seleccionados
+                                        </span>
+                                    </div>
+                                    <span className="text-xs text-gray-500 mt-1">
+                                        Usa la tabla inferior para seleccionar desviaciones
+                                    </span>
+                                </div>
+                            )}
+                            
                             <div className="flex flex-col">
                                 <label className="text-sm font-medium text-gray-700">
                                     Nivel de confianza deseado (%):
@@ -110,6 +295,17 @@ const Evaluar: React.FC<EvaluarProps> = ({
                             </div>
                         </div>
                     </div>
+
+                    {/* Conteo visual (solo se muestra cuando el método es visual) */}
+                    {countMethod === 'visual' && randomSample && randomSample.length > 0 && (
+                        <DeviationCounter
+                            sample={randomSample}
+                            headers={headers}
+                            deviations={observedDeviations}
+                            onDeviationsChange={setObservedDeviations}
+                            containerWidth={calculateContainerWidth()}
+                        />
+                    )}
 
                     {/* Sección de resultados con ayuda */}
                     {isEvaluarDone && (

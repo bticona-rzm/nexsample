@@ -297,6 +297,8 @@ export default function AtributosPage() {
                             unilateralUpperLimit={unilateralUpperLimit}
                             bilateralLowerLimit={bilateralLowerLimit}
                             bilateralUpperLimit={bilateralUpperLimit}
+                            randomSample={randomSample}  // ✅ Pasar la muestra
+                            headers={headers}            // ✅ Pasar los headers
                         />
                     </motion.div>
                 );
