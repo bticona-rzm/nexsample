@@ -22,6 +22,18 @@ const createBase64ExcelWithMetadata = (
 ): string => {
     const workbook = XLSX.utils.book_new();
     
+    // ✅ HOJA 2: DATOS DE LA MUESTRA (como en MUM)
+    if (data.length > 0) {
+        // Agregar número de muestra como primera columna
+        const dataWithSampleNumber = data.map((row, index) => ({
+            '#_MUESTRA': index + 1,
+            ...row
+        }));
+        
+        const dataSheet = XLSX.utils.json_to_sheet(dataWithSampleNumber);
+        XLSX.utils.book_append_sheet(workbook, dataSheet, sheetName);
+    }
+
     // ✅ HOJA 1: METADATOS (como en MUM)
     const metadataRows = [
         ['INFORMACIÓN DE LA MUESTRA ALEATORIA', '', '', ''],
@@ -37,18 +49,6 @@ const createBase64ExcelWithMetadata = (
     
     const metadataSheet = XLSX.utils.aoa_to_sheet(metadataRows);
     XLSX.utils.book_append_sheet(workbook, metadataSheet, "Metadatos");
-    
-    // ✅ HOJA 2: DATOS DE LA MUESTRA (como en MUM)
-    if (data.length > 0) {
-        // Agregar número de muestra como primera columna
-        const dataWithSampleNumber = data.map((row, index) => ({
-            '#_MUESTRA': index + 1,
-            ...row
-        }));
-        
-        const dataSheet = XLSX.utils.json_to_sheet(dataWithSampleNumber);
-        XLSX.utils.book_append_sheet(workbook, dataSheet, sheetName);
-    }
     
     // Generar archivo
     const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });

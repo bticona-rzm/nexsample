@@ -30,6 +30,21 @@ interface SelectedItem {
     selectionPosition: number;
 }
 
+// Interfaz para metadatos (similar a Atributos)
+interface ExtractionMetadata {
+    fechaGeneracion: string;
+    tamanoMuestra: number;
+    tamanoPoblacion: number;
+    intervaloMuestreo: number;
+    puntoInicioAleatorio: number;
+    limiteValorAlto: number;
+    gestionValoresAltos: string;
+    campoMuestreo: string;
+    tipoExtraccion: string;
+    valorPoblacionalEstimado: number;
+    semillaUtilizada?: number;
+}
+
 // Interfaz para el objeto de retorno de la extracción
 interface ExtractionResult {
     sampleFileBase64: string;
@@ -38,13 +53,43 @@ interface ExtractionResult {
     highValueFilename: string | null;
 }
 
-// Función auxiliar para generar el buffer de Excel y convertirlo a Base64
-const createBase64Excel = (data: ExcelRow[], sheetName: string = "Hoja1"): string => {
-    const worksheet = XLSX.utils.json_to_sheet(data);
+// ✅ FUNCIÓN MEJORADA: Crear Excel con metadatos (como en Atributos)
+const createBase64ExcelWithMetadata = (
+    data: ExcelRow[], 
+    sheetName: string = "Muestra",
+    metadata: ExtractionMetadata,
+    isHighValues: boolean = false
+): string => {
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
-    const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
     
+    // ✅ HOJA 1: DATOS DE LA MUESTRA
+    if (data.length > 0) {
+        const dataSheet = XLSX.utils.json_to_sheet(data);
+        XLSX.utils.book_append_sheet(workbook, dataSheet, sheetName);
+    }
+
+    // ✅ HOJA 2: METADATOS (como en Atributos)
+    const metadataRows = [
+        ['INFORMACIÓN DE LA EXTRACCIÓN MUM', '', '', ''],
+        ['Fecha de generación:', metadata.fechaGeneracion, '', ''],
+        ['Tamaño de muestra:', metadata.tamanoMuestra, '', ''],
+        ['Tamaño de población:', metadata.tamanoPoblacion, '', ''],
+        ['Intervalo de muestreo:', metadata.intervaloMuestreo, '', ''],
+        ['Punto de inicio aleatorio:', metadata.puntoInicioAleatorio, '', ''],
+        ['Límite para valores altos:', metadata.limiteValorAlto, '', ''],
+        ['Gestión de valores altos:', metadata.gestionValoresAltos, '', ''],
+        ['Campo de muestreo:', metadata.campoMuestreo, '', ''],
+        ['Tipo de extracción:', metadata.tipoExtraccion, '', ''],
+        ['Valor poblacional estimado:', metadata.valorPoblacionalEstimado, '', ''],
+        ['', '', '', ''],
+        [isHighValues ? 'VALORES ALTOS IDENTIFICADOS' : 'MUESTRA SISTEMÁTICA GENERADA', '', '', ''] // Encabezado para los datos
+    ];
+    
+    const metadataSheet = XLSX.utils.aoa_to_sheet(metadataRows);
+    XLSX.utils.book_append_sheet(workbook, metadataSheet, "Metadatos");
+    
+    // Generar archivo
+    const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
     const buffer = Buffer.from(excelBuffer);
     return buffer.toString('base64');
 };
@@ -77,16 +122,21 @@ export const executeExtraction = (params: {
     extractionType: "intervaloFijo" | "seleccionCelda";
     extractionFilename: string;
     highValueFilename: string;
+    seed?: number; // ✅ NUEVO: Semilla para reproducibilidad
 }): any => {
     
     const { 
         excelData, 
+        estimatedSampleSize,
         sampleInterval, 
         highValueManagement, 
         sampleField, 
         randomStartPoint,
+        estimatedPopulationValue,
+        extractionType,
         extractionFilename,
-        highValueFilename
+        highValueFilename,
+        seed
     } = params;
     
     // ✅ CORRECCIÓN: USAR ENTEROS COMO IDEA
@@ -100,6 +150,21 @@ export const executeExtraction = (params: {
         correctedRandomStart = roundToInteger(randomStartPoint);
     }
     
+    // ✅ METADATOS (similar a Atributos)
+    const metadata: ExtractionMetadata = {
+        fechaGeneracion: new Date().toLocaleString('es-ES'),
+        tamanoMuestra: estimatedSampleSize,
+        tamanoPoblacion: excelData.length,
+        intervaloMuestreo: correctedSampleInterval,
+        puntoInicioAleatorio: correctedRandomStart,
+        limiteValorAlto: correctedHighValueLimit,
+        gestionValoresAltos: highValueManagement === 'agregados' ? 'Incluidos en muestra' : 'Archivo separado',
+        campoMuestreo: sampleField,
+        tipoExtraccion: extractionType === 'intervaloFijo' ? 'Intervalo Fijo' : 'Selección por Celda',
+        valorPoblacionalEstimado: estimatedPopulationValue,
+        semillaUtilizada: seed
+    };
+
     // DETECCIÓN DE VALORES ALTOS
     let highValues = excelData.filter((row: any) => {
         const rawValue = row[sampleField];
@@ -120,7 +185,6 @@ export const executeExtraction = (params: {
     const dataForSampling = highValueManagement === 'agregados' 
         ? excelData
         : remainingData;
-
 
     // Crear acumulación con valores enteros
     dataForSampling.forEach((row: any, originalIndex: number) => {
@@ -147,7 +211,7 @@ export const executeExtraction = (params: {
     let currentPosition = correctedRandomStart;
     const selectedItems: any[] = [];
 
-    while (currentPosition <= cumulativeValue && selectedItems.length < params.estimatedSampleSize) {
+    while (currentPosition <= cumulativeValue && selectedItems.length < estimatedSampleSize) {
         const selectedItem = accumulatedData.find((item: any) => 
             currentPosition >= item.cumulativeStart && currentPosition < item.cumulativeEnd
         );
@@ -166,8 +230,6 @@ export const executeExtraction = (params: {
             const mumRecHit = roundToInteger(currentPosition - selectedItem.cumulativeStart);
             
             // ✅ CORRECCIÓN: MUM_EXCESS - CÁLCULO CORREGIDO
-            // Según IDEA, MUM_EXCESS parece ser: (valor del item - (intervalo - posición_relativa))
-            // O podría ser: el exceso cuando el valor es mayor que el intervalo
             let mumExcess = 0;
             
             // Si el valor del item es mayor que el intervalo, calculamos el exceso
@@ -175,13 +237,11 @@ export const executeExtraction = (params: {
                 mumExcess = roundToInteger(absoluteValue - correctedSampleInterval);
             } else {
                 // Para valores menores, IDEA parece calcular algo diferente
-                // Basado en los datos, podría ser la diferencia entre el valor y algún cálculo
                 const relativePosition = currentPosition - selectedItem.cumulativeStart;
                 mumExcess = roundToInteger(absoluteValue - relativePosition);
             }
             
             // ✅ ALTERNATIVA: Basado en el análisis de datos de IDEA
-            // MUM_EXCESS parece relacionarse con la diferencia entre el valor y la posición
             const mumExcessAlternative = roundToInteger(absoluteValue - mumRecHit);
             
             // Usamos la alternativa que parece coincidir mejor con IDEA
@@ -199,9 +259,7 @@ export const executeExtraction = (params: {
         }
         
         currentPosition = roundToInteger(currentPosition + correctedSampleInterval);
-
     }
-
 
     // 4. ✅ CORRECCIÓN: PROCESAR MUESTRA FINAL
     const finalSample = selectedItems.map(({ item, mumRecno, mumTotal, mumExcess, mumHit, mumRecHit }) => {
@@ -225,8 +283,8 @@ export const executeExtraction = (params: {
         };
     });
 
-    // 5. GENERACIÓN DE ARCHIVOS
-    const sampleFileBase64 = createBase64Excel(finalSample, "Muestra");
+    // 5. ✅ GENERACIÓN MEJORADA DE ARCHIVOS CON METADATOS
+    const sampleFileBase64 = createBase64ExcelWithMetadata(finalSample, "Muestra", metadata);
     let highValueFileBase64: string | null = null;
 
     // PROCESAR VALORES ALTOS
@@ -250,7 +308,13 @@ export const executeExtraction = (params: {
                 };
             });
             
-            highValueFileBase64 = createBase64Excel(processedHighValues, "Valores Altos");
+            // ✅ ARCHIVO DE VALORES ALTOS CON METADATOS
+            highValueFileBase64 = createBase64ExcelWithMetadata(
+                processedHighValues, 
+                "Valores Altos", 
+                metadata,
+                true // Indicar que es archivo de valores altos
+            );
         } else {
             
             const emptyHighValueRow: any = {};
@@ -273,7 +337,14 @@ export const executeExtraction = (params: {
             };
             
             const emptyHighValues = [emptyHighValuesWithAuditColumns];
-            highValueFileBase64 = createBase64Excel(emptyHighValues, "Valores Altos");
+            
+            // ✅ ARCHIVO VACÍO DE VALORES ALTOS CON METADATOS
+            highValueFileBase64 = createBase64ExcelWithMetadata(
+                emptyHighValues, 
+                "Valores Altos", 
+                metadata,
+                true
+            );
         }
     }
 
@@ -285,3 +356,43 @@ export const executeExtraction = (params: {
     };
 };
 
+// ✅ FUNCIÓN PARA DESCARGA (compatible con ambos sistemas)
+export const descargarExcelDesdeBase64 = (base64: string, filename: string) => {
+    try {
+        // Convertir base64 a blob
+        const byteCharacters = atob(base64);
+        const byteNumbers = new Array(byteCharacters.length);
+        
+        for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { 
+            type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+        });
+        
+        // Crear enlace de descarga
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        link.style.display = 'none';
+        
+        document.body.appendChild(link);
+        
+        link.click();
+        
+        // Limpiar
+        setTimeout(() => {
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(url);
+        }, 100);
+        
+        return true;
+        
+    } catch (error) {
+        console.error('❌ Error al descargar Excel:', error);
+        return false;
+    }
+};
