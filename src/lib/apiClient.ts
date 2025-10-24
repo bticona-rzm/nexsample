@@ -300,7 +300,17 @@ export const apiClient = {
             });
 
             if (!response.ok) {
-                throw new Error('Error al generar la muestra aleatoria.');
+                // ✅ CAPTURAR EL ERROR ESPECÍFICO DEL SERVIDOR
+                let errorMessage = 'Error al generar la muestra aleatoria.';
+                try {
+                    const errorData = await response.json();
+                    errorMessage = errorData.error || errorMessage;
+                    console.error("❌ Error del servidor:", errorData);
+                } catch (e) {
+                    console.error("❌ Error parsing response:", e);
+                    errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+                }
+                throw new Error(errorMessage);
             }
 
             return response.json();

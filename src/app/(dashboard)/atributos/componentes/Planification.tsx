@@ -24,7 +24,7 @@ interface PlanificationProps {
     handleCalculatePlanification: () => void;
     handlePrint: () => void;
     handleClose: () => void;
-    handleHelp: () => void;
+    handleAcceptPlanification: () => void; // ✅ NUEVA PROP
 }
 
 const Planification: React.FC<PlanificationProps> = ({
@@ -47,7 +47,7 @@ const Planification: React.FC<PlanificationProps> = ({
     handleCalculatePlanification,
     handlePrint,
     handleClose,
-    handleHelp,
+    handleAcceptPlanification, // ✅ NUEVA PROP
 }) => {
     if (!isExcelLoaded) {
         return (
@@ -235,6 +235,18 @@ const Planification: React.FC<PlanificationProps> = ({
                     className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-4 rounded-lg shadow transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
                 >
                     Calcular
+                </button>
+                {/* ✅ NUEVO BOTÓN ACEPTAR */}
+                <button
+                    onClick={handleAcceptPlanification}
+                    disabled={!isPlanificacionDone}
+                    className={`font-semibold py-3 px-4 rounded-lg shadow transition-colors ${
+                        !isPlanificacionDone 
+                            ? "bg-gray-400 text-gray-700 cursor-not-allowed" 
+                            : "bg-green-600 hover:bg-green-700 text-white"
+                    }`}
+                >
+                    Aceptar
                 </button>
                 <button
                     onClick={handlePrint}

@@ -120,8 +120,7 @@ const Visualizer: React.FC<VisualizerProps> = ({ excelData, headers }) => {
                         </table>
                     </div>
 
-                    //Controles de paginación mejorados - REEMPLAZAR esta sección
-
+                    {/*Controles de paginación mejorados - REEMPLAZAR esta sección*/}
                     <div className="flex justify-between items-center px-2">
                         <button
                             onClick={() => table.previousPage()}

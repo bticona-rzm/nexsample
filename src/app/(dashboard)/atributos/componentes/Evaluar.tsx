@@ -1,7 +1,7 @@
-// /app/dashboard/atributos/components/Evaluar.tsx
 import React from 'react';
 import { HelpButtonEvaluarAtributos } from './HelpButtonEvaluarAtributos';
 
+// ✅ INTERFACE SIMPLIFICADA
 type EvaluarProps = {
     isAleatorioDone: boolean;
     populationSize: number;
@@ -9,9 +9,6 @@ type EvaluarProps = {
     observedDeviations: number;
     desiredConfidence: number;
     sampleDeviationRate: number;
-    unilateralUpperLimit: number;
-    bilateralLowerLimit: number;
-    bilateralUpperLimit: number;
     isEvaluarDone: boolean;
     setObservedDeviations: (value: number) => void;
     setDesiredConfidence: (value: number) => void;
@@ -19,6 +16,9 @@ type EvaluarProps = {
     handlePrint: () => void;
     handleClose: () => void;
     handleHelp: () => void;
+    unilateralUpperLimit: number;        // ✅ NUEVO
+    bilateralLowerLimit: number;         // ✅ NUEVO
+    bilateralUpperLimit: number;         // ✅ NUEVO
 };
 
 const Evaluar: React.FC<EvaluarProps> = ({
@@ -28,9 +28,6 @@ const Evaluar: React.FC<EvaluarProps> = ({
     observedDeviations,
     desiredConfidence,
     sampleDeviationRate,
-    unilateralUpperLimit,
-    bilateralLowerLimit,
-    bilateralUpperLimit,
     isEvaluarDone,
     setObservedDeviations,
     setDesiredConfidence,
@@ -38,8 +35,10 @@ const Evaluar: React.FC<EvaluarProps> = ({
     handlePrint,
     handleClose,
     handleHelp,
+    unilateralUpperLimit,
+    bilateralLowerLimit,
+    bilateralUpperLimit
 }) => {
-    // Bloqueo si la etapa anterior no está lista
     if (!isAleatorioDone) {
         return (
             <div className="p-4 text-center text-gray-500">
@@ -78,7 +77,6 @@ const Evaluar: React.FC<EvaluarProps> = ({
                             <div className="flex flex-col">
                                 <label className="text-sm font-medium text-gray-700">
                                     Número de desviaciones observadas:
-                                    <span className="text-red-500 ml-1">*</span>
                                 </label>
                                 <input
                                     type="number"
@@ -96,7 +94,6 @@ const Evaluar: React.FC<EvaluarProps> = ({
                             <div className="flex flex-col">
                                 <label className="text-sm font-medium text-gray-700">
                                     Nivel de confianza deseado (%):
-                                    <span className="text-red-500 ml-1">*</span>
                                 </label>
                                 <input
                                     type="number"
@@ -123,6 +120,7 @@ const Evaluar: React.FC<EvaluarProps> = ({
                             </div>
                             
                             <div className="grid grid-cols-2 gap-4">
+                                {/* Tasa de desviación muestral */}
                                 <div className="flex flex-col">
                                     <label className="text-sm font-medium text-gray-700">Tasa de desviación de la muestra:</label>
                                     <span className="mt-1 text-lg font-bold text-gray-900">{sampleDeviationRate.toFixed(2)}%</span>
@@ -130,23 +128,29 @@ const Evaluar: React.FC<EvaluarProps> = ({
                                         {observedDeviations} / {evaluatedSampleSize} registros
                                     </span>
                                 </div>
+
+                                {/* Límite unilateral superior */}
                                 <div className="flex flex-col">
                                     <label className="text-sm font-medium text-gray-700">Límite unilateral superior:</label>
-                                    <span className="mt-1 text-lg font-bold text-gray-900">{unilateralUpperLimit.toFixed(2)}%</span>
+                                    <span className="mt-1 text-lg font-bold text-orange-600">{unilateralUpperLimit.toFixed(2)}%</span>
                                     <span className="text-xs text-gray-500 mt-1">
                                         Máxima desviación poblacional
                                     </span>
                                 </div>
+
+                                {/* Límite bilateral inferior */}
                                 <div className="flex flex-col">
                                     <label className="text-sm font-medium text-gray-700">Límite bilateral inferior:</label>
-                                    <span className="mt-1 text-lg font-bold text-gray-900">{bilateralLowerLimit.toFixed(2)}%</span>
+                                    <span className="mt-1 text-lg font-bold text-green-600">{bilateralLowerLimit.toFixed(2)}%</span>
                                     <span className="text-xs text-gray-500 mt-1">
                                         Mínimo del intervalo
                                     </span>
                                 </div>
+
+                                {/* Límite bilateral superior */}
                                 <div className="flex flex-col">
                                     <label className="text-sm font-medium text-gray-700">Límite bilateral superior:</label>
-                                    <span className="mt-1 text-lg font-bold text-gray-900">{bilateralUpperLimit.toFixed(2)}%</span>
+                                    <span className="mt-1 text-lg font-bold text-blue-600">{bilateralUpperLimit.toFixed(2)}%</span>
                                     <span className="text-xs text-gray-500 mt-1">
                                         Máximo del intervalo
                                     </span>
@@ -155,10 +159,11 @@ const Evaluar: React.FC<EvaluarProps> = ({
 
                             {/* Conclusión automática */}
                             <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                                <h5 className="font-semibold text-blue-900 text-sm mb-1">Interpretación:</h5>
+                                <h5 className="font-semibold text-blue-900 text-sm mb-1">Interpretación Estadística:</h5>
                                 <p className="text-xs text-blue-800">
-                                    Con un {desiredConfidence}% de confianza, la tasa real de desviación en la población 
+                                    Con un <strong>{desiredConfidence}% de confianza</strong>, la tasa real de desviación en la población 
                                     está entre <strong>{bilateralLowerLimit.toFixed(2)}%</strong> y <strong>{bilateralUpperLimit.toFixed(2)}%</strong>.
+                                    El límite superior máximo es <strong>{unilateralUpperLimit.toFixed(2)}%</strong>.
                                 </p>
                             </div>
                         </div>
