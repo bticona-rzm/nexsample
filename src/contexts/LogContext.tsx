@@ -6,7 +6,7 @@ export interface LogEntry {
   action: string;
   details: string;
   user: string;
-  module: 'planificación' | 'extracción' | 'evaluación' | 'cabecera' | 'visualización' | 'general';
+  module: 'planificación' | 'extracción' | 'evaluación' | 'cabecera' | 'visualización' | 'general' | 'resumen';
   type: 'user' | 'system';
 }
 

@@ -328,8 +328,8 @@ function MumPageContentWithLogs() {
     const handleEvaluation = async (method: 'cell-classical' | 'stringer-bound') => {
         try {
             addLog(
-                'Usuario inició evaluación',
-                `Método: ${method}`,
+                'Usuario inició proceso de evaluación',
+                `Método seleccionado: ${method}`,
                 'evaluación',
                 'user'
             );
@@ -361,13 +361,6 @@ function MumPageContentWithLogs() {
             setHighValueTotal(result.highValueTotal);
             setPopulationExcludingHigh(result.populationExcludingHigh);
             setPopulationIncludingHigh(result.populationIncludingHigh);
-
-            addLog(
-                'Evaluación completada exitosamente',
-                `Método: ${method}\nError más probable: ${result.errorMasProbableNeto}`,
-                'evaluación',
-                'system'
-            );
 
             return result;
         } catch (error) {

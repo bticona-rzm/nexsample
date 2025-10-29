@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { readExcelFile } from '@/lib/apiClient';
 import { HelpButton } from './HelpButtonEvaluation';
 import {handleErrorChange, formatNumber, formatErrorValue} from '../../../../lib/apiClient';
+import { useLog } from '@/contexts/LogContext'; // ✅ Agregar importación
 
 // Props para el formulario de Cell & Classical PPS
 interface CellClassicalPPSFormProps {
@@ -14,7 +15,7 @@ interface CellClassicalPPSFormProps {
     sampleInterval: number;
     tolerableError: number;
     highValueLimit: number;
-    selectedField: string | null; // ✅ MODIFICADO: acepta string | null
+    selectedField: string | null;
 }
 
 const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({ 
@@ -27,7 +28,7 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({
     sampleInterval,
     tolerableError,
     highValueLimit,
-    selectedField // ✅ Ahora puede ser string | null
+    selectedField
 }) => {
     // Estados para la lógica del formulario
     const [isClassical, setIsClassical] = useState(false);
@@ -57,6 +58,9 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({
     const [highValueReferenceField, setHighValueReferenceField] = useState<string>('');
     const [highValueItems, setHighValueItems] = useState<any[]>([]);
 
+    // ✅ Agregar hook de logs
+    const { addLog } = useLog();
+
     // Efecto para la lógica del método y para el manejo de archivos
     useEffect(() => {
         if (!isClassical) {
@@ -73,28 +77,29 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({
             setMainFile(file);
             
             // Simular la extracción de headers del archivo
-            // En producción, esto vendría de readExcelFile
             const fileHeaders = selectedField ? [selectedField, 'AUDIT_AMT', 'REFERENCE'] : ['AUDIT_AMT', 'REFERENCE'];
             setHeaders(fileHeaders);
             
-            // ✅ CORREGIDO: Manejar el caso cuando selectedField es null
             if (selectedField && fileHeaders.includes(selectedField)) {
                 setBookValueField(selectedField);
             } else if (fileHeaders.includes('AUDIT_AMT')) {
-                setBookValueField(fileHeaders[0]); // Usar primer header disponible
+                setBookValueField(fileHeaders[0]);
             }
             
             if (fileHeaders.includes('AUDIT_AMT')) setAuditedValueField('AUDIT_AMT');
             if (fileHeaders.includes('REFERENCE')) setReferenceField('REFERENCE');
 
-            // Si no hay selectedField o no existe en los headers, usar el primero disponible
             if ((!selectedField || !fileHeaders.includes(selectedField)) && fileHeaders.length > 0) {
                 setBookValueField(fileHeaders[0]);
-                console.warn(selectedField ? 
-                    `El campo seleccionado "${selectedField}" no se encontró en el archivo. Usando "${fileHeaders[0]}" en su lugar.` :
-                    `No se especificó un campo seleccionado. Usando "${fileHeaders[0]}" como Book Value Field.`
-                );
             }
+
+            // ✅ LOG: Archivo principal cargado
+            addLog(
+                'Usuario cargó archivo principal para evaluación',
+                `Archivo: ${file.name}\nTamaño: ${(file.size / 1024 / 1024).toFixed(2)} MB`,
+                'evaluación',
+                'user'
+            );
 
         } else {
             setMainFile(null);
@@ -112,10 +117,8 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({
             setHighValueFile(file);
             
             try {
-                // Leer y procesar el archivo de valores altos
                 const fileData = await readExcelFile(file);
                 
-                // Extraer headers del archivo de valores altos
                 if (fileData.length > 0) {
                     const headers = Object.keys(fileData[0]);
                     setHighValueHeaders(headers);
@@ -135,12 +138,25 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({
                         setHighValueReferenceField(headers.find(h => h.includes('REF') || h.includes('ID')) || '');
                     }
 
-                    // ✅ GUARDAR LOS DATOS PARA ENVIAR AL BACKEND
                     setHighValueItems(fileData);
+
+                    // ✅ LOG: Archivo de valores altos cargado
+                    addLog(
+                        'Usuario cargó archivo de valores altos',
+                        `Archivo: ${file.name}\nElementos: ${fileData.length}\nCampos detectados: ${headers.length}`,
+                        'evaluación',
+                        'user'
+                    );
                 }
                 
             } catch (error) {
                 console.error("Error procesando archivo de valores altos:", error);
+                addLog(
+                    'Error al cargar archivo de valores altos',
+                    `Archivo: ${file.name}\nError: ${error}`,
+                    'evaluación',
+                    'system'
+                );
                 alert("Error al procesar el archivo de valores altos");
             }
         } else {
@@ -170,6 +186,61 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({
         };
     };
 
+    // ✅ MANEJAR CAMBIO DE MÉTODO CON LOG
+    const handleMethodChange = (method: boolean) => {
+        setIsClassical(method);
+        addLog(
+            'Usuario cambió método de evaluación',
+            `Nuevo método: ${method ? 'PPS Clásico' : 'Evaluación de Celda'}`,
+            'evaluación',
+            'user'
+        );
+    };
+
+    // ✅ MANEJAR CAMBIO DE PRECISIÓN CON LOG
+    const handlePrecisionChange = (enabled: boolean) => {
+        setChangePrecision(enabled);
+        addLog(
+            'Usuario modificó configuración de precisión',
+            `Cambiar precisión básica: ${enabled ? 'Activado' : 'Desactivado'}`,
+            'evaluación',
+            'user'
+        );
+    };
+
+    // ✅ MANEJAR CAMBIO DE LÍMITE DE PRECISIÓN CON LOG
+    const handlePrecisionLimitChange = (limit: 'upper' | 'upper-lower') => {
+        setPrecisionLimit(limit);
+        addLog(
+            'Usuario cambió límite de precisión',
+            `Nuevo límite: ${limit === 'upper' ? 'Superior' : 'Superior e Inferior'}`,
+            'evaluación',
+            'user'
+        );
+    };
+
+    // ✅ MANEJAR CAMBIO DE VALOR DE PRECISIÓN CON LOG
+    const handlePrecisionValueChange = (value: number) => {
+        setPrecisionValue(value);
+        addLog(
+            'Usuario modificó valor de precisión básica',
+            `Nuevo valor: ${value}%`,
+            'evaluación',
+            'user'
+        );
+    };
+
+    // ✅ MANEJAR CAMBIO DE GESTIÓN DE VALORES ALTOS CON LOG
+    const handleHighValueManagementChange = (enabled: boolean) => {
+        setUseHighValueFile(enabled);
+        addLog(
+            'Usuario modificó gestión de valores altos',
+            `Archivo separado para valores altos: ${enabled ? 'Activado' : 'Desactivado'}`,
+            'evaluación',
+            'user'
+        );
+    };
+
     /**
      * FUNCIÓN CORREGIDA: Usa el campo seleccionado correctamente
      */
@@ -189,6 +260,14 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({
         setIsLoading(true);
 
         try {
+            // ✅ LOG: Inicio de evaluación
+            addLog(
+                'Iniciando evaluación Cell & Classical PPS',
+                `Método: ${isClassical ? 'PPS Clásico' : 'Evaluación de Celda'}\nArchivo principal: ${mainFile.name}\nValores altos: ${useHighValueFile ? 'Sí' : 'No'}`,
+                'evaluación',
+                'system'
+            );
+
             // 1. LEER Y PROCESAR ARCHIVO PRINCIPAL
             const fileData = await readExcelFile(mainFile);
             
@@ -230,7 +309,7 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({
                     selectedFieldFromPlanning: selectedField,
                     
                     // ✅ DATOS DE VALORES ALTOS
-                    highValueItems: highValueData, // ENVIAR ELEMENTOS DE VALOR ALTO PROCESADOS
+                    highValueItems: highValueData,
                     highValueTotal: highValueStats.total,
                     highValueCountResume: highValueStats.count,
                     
@@ -245,6 +324,14 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({
 
             const results = await response.json();
             
+            // ✅ LOG: Evaluación completada exitosamente
+            addLog(
+                'Evaluación Cell & Classical PPS completada',
+                `Elementos procesados: ${sampleData.length}\nValores altos: ${highValueStats.count}\nError más probable: ${results.errorMasProbableNeto}`,
+                'evaluación',
+                'system'
+            );
+
             await onOk('cell-classical', {
                 cellClassicalData: results.cellClassicalData,
                 numErrores: results.numErrores,
@@ -255,12 +342,22 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({
                 limiteErrorSuperiorNeto: results.limiteErrorSuperiorNeto,
                 highValueCountResume: results.highValueCountResume,
                 highValueTotal: results.highValueTotal,
-                // ✅ INCLUIR DATOS DE ERRORES EN VALOR ALTO
-                highValueErrors: results.highValueErrors
+                highValueErrors: results.highValueErrors,
+                sampleSize: sampleData.length,
+                highValueCount: highValueStats.count
             }); 
 
         } catch (error: any) {
             console.error("Error en evaluación:", error);
+            
+            // ✅ LOG: Error en evaluación
+            addLog(
+                'Error en evaluación Cell & Classical PPS',
+                `Error: ${error.message}`,
+                'evaluación',
+                'system'
+            );
+            
             alert(`Error: ${error.message}`);
         } finally {
             setIsLoading(false);
@@ -310,7 +407,7 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({
                                     name="method"
                                     value="cell"
                                     checked={!isClassical}
-                                    onChange={() => setIsClassical(false)}
+                                    onChange={() => handleMethodChange(false)}
                                     className="h-4 w-4 text-blue-600"
                                 />
                                 <span className="ml-2 text-sm text-gray-700">Evaluación de Celda</span>
@@ -321,7 +418,7 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({
                                     name="method"
                                     value="classical-pps"
                                     checked={isClassical}
-                                    onChange={() => setIsClassical(true)}
+                                    onChange={() => handleMethodChange(true)}
                                     className="h-4 w-4 text-blue-600"
                                 />
                                 <span className="ml-2 text-sm text-gray-700">Evaluación de PPS Clásico</span>
@@ -339,7 +436,15 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({
                                 <label className="text-sm font-medium text-gray-700 w-48">Book value field:</label>
                                 <select 
                                     value={bookValueField}
-                                    onChange={(e) => setBookValueField(e.target.value)}
+                                    onChange={(e) => {
+                                        setBookValueField(e.target.value);
+                                        addLog(
+                                            'Usuario cambió campo de book value',
+                                            `Nuevo campo: ${e.target.value}`,
+                                            'evaluación',
+                                            'user'
+                                        );
+                                    }}
                                     className="block w-48 rounded-md border-gray-300 shadow-sm sm:text-sm"
                                     disabled={headers.length === 0}
                                 >
@@ -353,7 +458,15 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({
                                 <label className="text-sm font-medium text-gray-700 w-48">Audited value field:</label>
                                 <select 
                                     value={auditedValueField}
-                                    onChange={(e) => setAuditedValueField(e.target.value)}
+                                    onChange={(e) => {
+                                        setAuditedValueField(e.target.value);
+                                        addLog(
+                                            'Usuario cambió campo de audited value',
+                                            `Nuevo campo: ${e.target.value}`,
+                                            'evaluación',
+                                            'user'
+                                        );
+                                    }}
                                     className="block w-48 rounded-md border-gray-300 shadow-sm sm:text-sm"
                                     disabled={headers.length === 0}
                                 >
@@ -367,7 +480,17 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({
                                 <label className="text-sm font-medium text-gray-700 w-48">Reference (optional):</label>
                                 <select 
                                     value={referenceField}
-                                    onChange={(e) => setReferenceField(e.target.value)}
+                                    onChange={(e) => {
+                                        setReferenceField(e.target.value);
+                                        if (e.target.value) {
+                                            addLog(
+                                                'Usuario cambió campo de referencia',
+                                                `Nuevo campo: ${e.target.value}`,
+                                                'evaluación',
+                                                'user'
+                                            );
+                                        }
+                                    }}
                                     className="block w-48 rounded-md border-gray-300 shadow-sm sm:text-sm"
                                     disabled={headers.length === 0}
                                 >
@@ -380,6 +503,7 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({
                         </div>
                     </div>
 
+                    {/* Resto del componente permanece igual pero con handlers actualizados */}
                     <div className="bg-gray-50 p-6 rounded-lg shadow-inner">
                         <div className="flex items-center justify-between mb-2">
                             <h3 className="text-lg font-bold text-gray-800">Configuración de Muestra</h3>
@@ -417,14 +541,14 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({
                                 <input
                                     type="checkbox"
                                     checked={changePrecision}
-                                    onChange={() => setChangePrecision(!changePrecision)}
+                                    onChange={(e) => handlePrecisionChange(e.target.checked)}
                                     className="h-4 w-4 text-blue-600 rounded"
                                 />
                                 <label className="text-sm font-medium text-gray-700">Cambiar la precisión básica del 100%:</label>
                                 <input
                                     type="text"
                                     value={formatNumber(precisionValue)}
-                                    onChange={(e) => setPrecisionValue(Number(e.target.value))}
+                                    onChange={(e) => handlePrecisionValueChange(Number(e.target.value))}
                                     disabled={!changePrecision}
                                     className={`block w-41 rounded-md border-gray-300 shadow-sm sm:text-sm text-center ${!changePrecision ? 'bg-gray-200 cursor-not-allowed' : ''}`}
                                 />
@@ -441,7 +565,7 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({
                             <input
                                 type="checkbox"
                                 checked={useHighValueFile}
-                                onChange={(e) => setUseHighValueFile(e.target.checked)}
+                                onChange={(e) => handleHighValueManagementChange(e.target.checked)}
                                 className="h-4 w-4 text-blue-600 rounded"
                             />
                             <label className="text-sm font-medium text-gray-700">Los elementos de valor alto están en un archivo</label>
@@ -469,12 +593,20 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({
                             <div className="flex items-center space-x-4">
                                 <label className="text-sm font-medium text-gray-700 w-48">Book value field:</label>
                                 <select className="block w-48 rounded-md border-gray-300 shadow-sm sm:text-sm"
-                                    value={bookValueField}
-                                    onChange={(e) => setBookValueField(e.target.value)}
+                                    value={highValueBookField}
+                                    onChange={(e) => {
+                                        setHighValueBookField(e.target.value);
+                                        addLog(
+                                            'Usuario cambió campo de book value para valores altos',
+                                            `Nuevo campo: ${e.target.value}`,
+                                            'evaluación',
+                                            'user'
+                                        );
+                                    }}
                                     disabled={!useHighValueFile}
                                 >
                                     <option value="">Selecciona una columna</option>
-                                    {headers.map(header => (
+                                    {highValueHeaders.map(header => (
                                         <option key={header} value={header}>{header}</option>
                                     ))}
                                 </select>
@@ -482,12 +614,20 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({
                             <div className="flex items-center space-x-4">
                                 <label className="text-sm font-medium text-gray-700 w-48">Audited value field:</label>
                                 <select className="block w-48 rounded-md border-gray-300 shadow-sm sm:text-sm"
-                                    value={auditedValueField}
-                                    onChange={(e) => setAuditedValueField(e.target.value)}
+                                    value={highValueAuditedField}
+                                    onChange={(e) => {
+                                        setHighValueAuditedField(e.target.value);
+                                        addLog(
+                                            'Usuario cambió campo de audited value para valores altos',
+                                            `Nuevo campo: ${e.target.value}`,
+                                            'evaluación',
+                                            'user'
+                                        );
+                                    }}
                                     disabled={!useHighValueFile}
                                 >
                                     <option value="">Selecciona una columna</option>
-                                    {headers.map(header => (
+                                    {highValueHeaders.map(header => (
                                         <option key={header} value={header}>{header}</option>
                                     ))}
                                 </select>
@@ -495,12 +635,22 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({
                             <div className="flex items-center space-x-4">
                                 <label className="text-sm font-medium text-gray-700 w-48">Reference (optional):</label>
                                 <select className="block w-48 rounded-md border-gray-300 shadow-sm sm:text-sm"
-                                    value={referenceField}
-                                    onChange={(e) => setReferenceField(e.target.value)}
+                                    value={highValueReferenceField}
+                                    onChange={(e) => {
+                                        setHighValueReferenceField(e.target.value);
+                                        if (e.target.value) {
+                                            addLog(
+                                                'Usuario cambió campo de referencia para valores altos',
+                                                `Nuevo campo: ${e.target.value}`,
+                                                'evaluación',
+                                                'user'
+                                            );
+                                        }
+                                    }}
                                     disabled={!useHighValueFile}
                                 >
                                     <option value="">Selecciona una columna</option>
-                                    {headers.map(header => (
+                                    {highValueHeaders.map(header => (
                                         <option key={header} value={header}>{header}</option>
                                     ))}
                                 </select>
@@ -520,7 +670,7 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({
                                     name="precision-limit"
                                     value="upper"
                                     checked={precisionLimit === 'upper'}
-                                    onChange={() => setPrecisionLimit('upper')}
+                                    onChange={() => handlePrecisionLimitChange('upper')}
                                     disabled={!isClassical}
                                     className={`h-4 w-4 text-blue-600 ${!isClassical ? 'opacity-50 cursor-not-allowed' : ''}`}
                                 />
@@ -532,7 +682,7 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({
                                     name="precision-limit"
                                     value="upper-lower"
                                     checked={precisionLimit === 'upper-lower'}
-                                    onChange={() => setPrecisionLimit('upper-lower')}
+                                    onChange={() => handlePrecisionLimitChange('upper-lower')}
                                     disabled={!isClassical}
                                     className={`h-4 w-4 text-blue-600 ${!isClassical ? 'opacity-50 cursor-not-allowed' : ''}`}
                                 />
@@ -558,7 +708,6 @@ const CellClassicalPPSForm: React.FC<CellClassicalPPSFormProps> = ({
                     <button className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 px-6 rounded-md shadow transition-colors">
                         Cancelar
                     </button>
-                    {/* Reemplazar el botón de ayuda existente */}
                     <div className="flex justify-center">
                         <HelpButton 
                             context="general" 

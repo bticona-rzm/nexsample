@@ -2,6 +2,7 @@ import React, { Dispatch, SetStateAction } from 'react';
 import { formatNumber } from '@/lib/apiClient';
 import { PDFExportService } from '@/lib/pdfService';
 import { HelpButton } from './HelpButtonSummary';
+import { useLog } from '@/contexts/LogContext';
 
 interface CellClassicalData {
     overstatements: Array<{
@@ -96,10 +97,18 @@ const Summary: React.FC<SummaryProps> = ({
     cellClassicalData,
     highValueErrors,
 }) => {
+    const {addLog} = useLog();
     // ELIMINADA la función formatNumber local - ahora usamos la importada
 
      const handleSavePDF = () => {
         try {
+            // ✅ LOG: Usuario intenta guardar PDF
+            addLog(
+                'Usuario inició generación de PDF',
+                `Método: ${evaluationMethod}\nArchivo: Resumen de evaluación`,
+                'resumen',
+                'user'
+            );
         const pdfData = {
             mainTitle,
             confidenceLevel,
@@ -132,12 +141,38 @@ const Summary: React.FC<SummaryProps> = ({
         const filename = `Muestreo_${evaluationMethod}_${timestamp}.pdf`;
         
         pdf.save(filename);
+
+        addLog(
+                'PDF generado exitosamente',
+                `Archivo: ${filename}\nMétodo: ${evaluationMethod}\nElementos: ${estimatedSampleSize}`,
+                'resumen',
+                'system'
+            );
         
         console.log('✅ PDF generado exitosamente:', filename);
         } catch (error) {
         console.error('❌ Error al generar PDF:', error);
+        // ✅ LOG: Error al generar PDF
+            addLog(
+                'Error al generar PDF',
+                `Método: ${evaluationMethod}\nError: ${error}`,
+                'resumen',
+                'system'
+            );
         alert('Error al generar el PDF. Por favor, intenta nuevamente.');
         }
+    };
+
+    // ✅ FUNCIÓN MEJORADA PARA MANEJAR EL BOTÓN ATRÁS
+    const handleBackClick = () => {
+       // ✅ SOLO UN LOG - desde el componente que el usuario realmente interactúa
+        addLog(
+            'Usuario volvió al formulario de evaluación',
+            `Desde resumen hacia ${evaluationMethod}`,
+            'evaluación', // ✅ Mantener en 'evaluación' ya que es la navegación entre componentes
+            'user'
+        );
+        onBack();
     };
 
     // ✅ FORZAR USO DE DATOS REALES
@@ -347,6 +382,27 @@ const Summary: React.FC<SummaryProps> = ({
             </tbody>
         );
     };
+
+    // ✅ CORREGIR: Usar useRef para evitar duplicación
+    const hasLoggedSummary = React.useRef(false);
+
+    // ✅ LOG: Resumen cargado cuando el componente se monta - SOLO UNA VEZ
+    React.useEffect(() => {
+        if (isEvaluationDone && !hasLoggedSummary.current) {
+            addLog(
+                'Resumen de evaluación cargado',
+                `Método: ${evaluationMethod}\nElementos: ${estimatedSampleSize}\nErrores detectados: ${numErrores}`,
+                'resumen',
+                'system'
+            );
+            hasLoggedSummary.current = true;
+        }
+
+        // ✅ Resetear cuando el componente se desmonta (cuando el usuario va atrás)
+        return () => {
+            hasLoggedSummary.current = false;
+        };
+    }, [isEvaluationDone, evaluationMethod, estimatedSampleSize, numErrores, addLog]);
 
     // ✅ CORRECCIÓN: Tablas detalladas con datos REALES para Cell & Classical PPS
     // Componente para la tabla detallada de Understatements
@@ -954,7 +1010,7 @@ const Summary: React.FC<SummaryProps> = ({
                     {isEvaluationDone && (
                         <div className="flex justify-center mt-6 space-x-4 print-hidden">
                             <button
-                                onClick={onBack}
+                                onClick={handleBackClick}
                                 className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-6 rounded-lg shadow-md transition-all duration-300 transform hover:scale-105"
                             >
                                 Atrás

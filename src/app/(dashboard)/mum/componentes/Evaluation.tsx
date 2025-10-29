@@ -6,6 +6,7 @@ import CellClassicalPPSForm from './CellClassicalPPS';
 import StringerBoundForm from './StringerBound'; 
 import Summary from './Summary'; 
 import { HelpButton } from './HelpButtonEvaluation';
+import { useLog } from '@/contexts/LogContext';
 
 // ✅ ACTUALIZAR la interfaz
 interface EvaluationProps {
@@ -40,6 +41,8 @@ const Evaluation: React.FC<EvaluationProps> = (props) => {
     const [showSummary, setShowSummary] = useState(false);
     const [evaluationResults, setEvaluationResults] = useState<any>(null);
 
+    const {addLog} = useLog();
+
     // ✅ CORREGIDO - Manejar datos de evaluación
     const handleEvaluationProcess = async (method: 'cell-classical' | 'stringer-bound', result?: any) => {
         try {
@@ -57,12 +60,40 @@ const Evaluation: React.FC<EvaluationProps> = (props) => {
             }
         } catch (error) {
             console.error("Error durante la evaluación:", error);
+            addLog(
+                'Error en proceso de evaluación',
+                `Método: ${method}\nError: ${error}`,
+                'evaluación',
+                'system'
+            );
             alert("Ocurrió un error al realizar la evaluación.");
         }
     };
 
     const handleBack = () => {
         setShowSummary(false); 
+    };
+
+    // ✅ Manejar cambio de método con log
+    const handleMethodChange = (method: 'cell-classical' | 'stringer-bound') => {
+        setSelectedMethod(method);
+        addLog(
+            'Usuario cambió método de evaluación',
+            `Nuevo método: ${method === 'cell-classical' ? 'Cell & Classical PPS' : 'Stringer Bound'}`,
+            'evaluación',
+            'user'
+        );
+    };
+
+    // ✅ Manejar cambio de precisión con log
+    const handlePrecisionChange = (value: number) => {
+        props.setPrecisionValue(value);
+        addLog(
+            'Usuario modificó valor de precisión',
+            `Nuevo valor: ${value}`,
+            'evaluación',
+            'user'
+        );
     };
 
     return (
@@ -102,7 +133,7 @@ const Evaluation: React.FC<EvaluationProps> = (props) => {
                             
                             {/* Botones */}
                             <button
-                                onClick={() => setSelectedMethod('cell-classical')}
+                                onClick={() => handleMethodChange('cell-classical')}
                                 className={`relative z-10 py-3 px-8 rounded-full text-sm font-medium transition-colors duration-200 ${
                                     selectedMethod === 'cell-classical' 
                                         ? 'text-white' 
@@ -113,7 +144,7 @@ const Evaluation: React.FC<EvaluationProps> = (props) => {
                             </button>
                             
                             <button
-                                onClick={() => setSelectedMethod('stringer-bound')}
+                                onClick={() => handleMethodChange('stringer-bound')}
                                 className={`relative z-10 py-3 px-8 rounded-full text-sm font-medium transition-colors duration-200 ${
                                     selectedMethod === 'stringer-bound' 
                                         ? 'text-white' 
@@ -146,7 +177,7 @@ const Evaluation: React.FC<EvaluationProps> = (props) => {
                                 onOk={handleEvaluationProcess} // ← Esta función ahora acepta 2 parámetros
                                 confidenceLevel={props.confidenceLevel}
                                 precisionValue={props.precisionValue}
-                                setPrecisionValue={props.setPrecisionValue}
+                                setPrecisionValue={handlePrecisionChange}
                                 estimatedPopulationValue={props.estimatedPopulationValue}
                                 estimatedSampleSize={props.estimatedSampleSize}
                                 sampleInterval={props.sampleInterval}
@@ -165,7 +196,7 @@ const Evaluation: React.FC<EvaluationProps> = (props) => {
                                 tolerableError={props.tolerableError}
                                 highValueLimit={props.highValueLimit}
                                 precisionValue={props.precisionValue}
-                                setPrecisionValue={props.setPrecisionValue}
+                                setPrecisionValue={handlePrecisionChange}
                                 selectedField={props.selectedField}
                             />
                         )}
