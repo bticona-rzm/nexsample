@@ -1,5 +1,5 @@
 // components/mum/HistoryPanel.tsx
-import React, { useState } from 'react'; // Agregar useState aquí
+import React, { useState } from 'react';
 import { useLog } from '@/contexts/LogContext';
 
 interface HistoryPanelProps {
@@ -9,7 +9,14 @@ interface HistoryPanelProps {
 
 export const HistoryPanel: React.FC<HistoryPanelProps> = ({ isOpen, onClose }) => {
   const { logs, getFormattedLogs, clearLogs } = useLog();
-  const [showClearConfirm, setShowClearConfirm] = useState(false); // Ahora useState está disponible
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [filter, setFilter] = useState<'all' | 'user' | 'system'>('all'); // ✅ NUEVO: Filtro
+
+  // ✅ NUEVO: Filtrar logs según el tipo seleccionado
+  const filteredLogs = logs.filter(log => {
+    if (filter === 'all') return true;
+    return log.type === filter;
+  });
 
   const handlePrint = () => {
     const formattedLogs = getFormattedLogs();
@@ -60,8 +67,33 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ isOpen, onClose }) =
                 font-size: 11px; 
                 margin-left: 10px;
               }
+              .type-user {
+                display: inline-block;
+                padding: 2px 8px;
+                background: #4CAF50;
+                color: white;
+                border-radius: 4px;
+                font-size: 11px;
+                margin-left: 10px;
+              }
+              .type-system {
+                display: inline-block;
+                padding: 2px 8px;
+                background: #2196F3;
+                color: white;
+                border-radius: 4px;
+                font-size: 11px;
+                margin-left: 10px;
+              }
               .page-break {
                 page-break-after: always;
+              }
+              .filter-info {
+                background: #e3f2fd;
+                padding: 8px;
+                border-radius: 4px;
+                margin-bottom: 15px;
+                font-size: 12px;
               }
             </style>
           </head>
@@ -71,12 +103,16 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ isOpen, onClose }) =
               <p><strong>Generado:</strong> ${new Date().toLocaleString()}</p>
               <p><strong>Usuario:</strong> Usuario</p>
               <p><strong>Total de acciones:</strong> ${logs.length}</p>
+              ${filter !== 'all' ? `<div class="filter-info"><strong>Filtro aplicado:</strong> ${filter === 'user' ? 'Solo acciones del usuario' : 'Solo acciones del sistema'}</div>` : ''}
             </div>
             ${logs.map((log, index) => `
               <div class="log-entry">
                 <div class="timestamp">
                   ${index + 1}. ${log.timestamp.toLocaleString()} - ${log.user}
                   <span class="module">${log.module}</span>
+                  <span class="${log.type === 'user' ? 'type-user' : 'type-system'}">
+                    ${log.type === 'user' ? 'USUARIO' : 'SISTEMA'}
+                  </span>
                 </div>
                 <div class="action">${log.action}</div>
                 <div class="details">${log.details}</div>
@@ -117,6 +153,16 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ isOpen, onClose }) =
         <div className="flex justify-between items-center p-4 border-b">
           <h2 className="text-xl font-bold">Historial de Auditoría MUM</h2>
           <div className="space-x-2">
+            {/* ✅ NUEVO: Filtros */}
+            <select
+              value={filter}
+              onChange={(e) => setFilter(e.target.value as 'all' | 'user' | 'system')}
+              className="border rounded px-2 py-1 text-sm"
+            >
+              <option value="all">Todos los logs</option>
+              <option value="user">Solo usuario</option>
+              <option value="system">Solo sistema</option>
+            </select>
             <button
               onClick={handlePrint}
               className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm"
@@ -149,18 +195,28 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ isOpen, onClose }) =
             <p><strong>Generado:</strong> {new Date().toLocaleString()}</p>
             <p><strong>Usuario:</strong> Usuario</p>
             <p><strong>Total de acciones registradas:</strong> {logs.length}</p>
+            {filter !== 'all' && (
+              <p><strong>Filtro aplicado:</strong> {filter === 'user' ? 'Solo acciones del usuario' : 'Solo acciones del sistema'}</p>
+            )}
+            <p><strong>Mostrando:</strong> {filteredLogs.length} de {logs.length} registros</p>
           </div>
           
-          {logs.length > 0 ? (
-            logs.map((log, index) => (
+          {filteredLogs.length > 0 ? (
+            filteredLogs.map((log, index) => (
               <div key={index} className="mb-4 p-3 border-l-4 border-blue-500 bg-gray-50 rounded">
-                <div className="text-sm text-gray-500 flex items-center">
-                  <span className="font-mono bg-gray-200 px-2 py-1 rounded mr-2">
+                <div className="text-sm text-gray-500 flex items-center flex-wrap gap-2">
+                  <span className="font-mono bg-gray-200 px-2 py-1 rounded">
                     #{index + 1}
                   </span>
                   {log.timestamp.toLocaleString()} - {log.user}
-                  <span className="ml-2 inline-block bg-gray-200 px-2 py-1 rounded text-xs capitalize">
+                  <span className="inline-block bg-gray-200 px-2 py-1 rounded text-xs capitalize">
                     {log.module}
+                  </span>
+                  {/* ✅ NUEVO: Mostrar tipo de log */}
+                  <span className={`inline-block px-2 py-1 rounded text-xs text-white ${
+                    log.type === 'user' ? 'bg-green-500' : 'bg-blue-500'
+                  }`}>
+                    {log.type === 'user' ? 'USUARIO' : 'SISTEMA'}
                   </span>
                 </div>
                 <div className="font-semibold text-gray-800 mt-1">{log.action}</div>
@@ -173,6 +229,11 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ isOpen, onClose }) =
             <div className="text-center text-gray-500 py-8">
               <div className="text-4xl mb-2">📝</div>
               <p>No hay acciones registradas en el historial</p>
+              {filter !== 'all' && (
+                <p className="text-sm mt-2">
+                  No hay logs {filter === 'user' ? 'del usuario' : 'del sistema'} con el filtro aplicado
+                </p>
+              )}
               <p className="text-sm mt-2">Las acciones se registrarán automáticamente mientras usas el sistema</p>
             </div>
           )}

@@ -16,7 +16,7 @@ type VisualizerProps = {
     headers: string[];
 };
 
-const Visualizer: React.FC<VisualizerProps> = ({ excelData, headers }) => {
+const Visualizer: React.FC<VisualizerProps> = ({ excelData, headers}) => {
     // COMPROBACIÓN RÁPIDA AL INICIO
     if (!headers || !excelData || excelData.length === 0) {
         return (
@@ -31,7 +31,7 @@ const Visualizer: React.FC<VisualizerProps> = ({ excelData, headers }) => {
     }
 
     const columns = useMemo<ColumnDef<ExcelRow>[]>(() => {
-        if (!headers || headers.length === 0) {
+        if (!headers || headers.length === 0) { 
             return [];
         }
         return headers.map((header) => ({

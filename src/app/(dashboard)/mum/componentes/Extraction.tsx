@@ -1,10 +1,23 @@
 // En Extraction.tsx - agrega la importación de useState
-import React, { useEffect, useState } from 'react'; // Agregar useState aquí
+import React, { useEffect, useState, useRef, useCallback} from 'react'; // Agregar useState aquí
 import { saveAs } from 'file-saver';
 import { useLog } from '@/contexts/LogContext';
 import { HistoryPanel } from '@/components/mum/HistoryPanel';
 import {handleErrorChange, formatNumber, formatErrorValue} from '../../../../lib/apiClient';
 import { HelpButton } from './HelpButtonExtraction';
+
+// ✅ Función debounce helper
+function debounce<T extends (...args: any[]) => void>(
+  func: T,
+  wait: number
+): (...args: Parameters<T>) => void {
+  let timeout: NodeJS.Timeout;
+  return (...args: Parameters<T>) => {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func(...args), wait);
+  };
+}
+
 
 // Define the shape of a single row in your Excel data
 interface ExcelRow {
@@ -58,6 +71,7 @@ interface ExtractionProps {
     estimatedPopulationValue: number;
     populationRecords: number;
     handleExtraction: () => void; // Nueva prop
+    onOpenHistory?: () => void; // ✅ Agregar esta prop
 }
 
 const Extraction: React.FC<ExtractionProps> = ({
@@ -109,6 +123,56 @@ const Extraction: React.FC<ExtractionProps> = ({
 }) => {
     const [showHistory, setShowHistory] = useState(false); // Ahora useState está importado
     const { addLog } = useLog();
+    const hasInitializedField = useRef(false); // ✅ NUEVO: controlar ejecución única
+
+    // ✅ Debounced log functions - se ejecutan solo después de 1 segundo sin cambios
+    const debouncedLogHighValueFilename = useCallback(
+        debounce((newName: string) => {
+            addLog(
+                'Usuario modificó nombre archivo valores altos',
+                `Nuevo nombre: ${newName}`,
+                'extracción',
+                'user'
+            );
+        }, 1000), // 1 segundo de delay
+        [addLog]
+    );
+
+     const debouncedLogExtractionFilename = useCallback(
+        debounce((newName: string) => {
+            addLog(
+                'Usuario modificó nombre de archivo de extracción',
+                `Nuevo nombre: ${newName}`,
+                'extracción',
+                'user'
+            );
+        }, 1000), // 1 segundo de delay
+        [addLog]
+    );
+
+    const debouncedLogRandomStartPoint = useCallback(
+        debounce((newValue: string) => {
+            addLog(
+                'Usuario modificó punto de inicio aleatorio',
+                `Nuevo valor: ${newValue}`,
+                'extracción',
+                'user'
+            );
+        }, 1000), // 1 segundo de delay
+        [addLog]
+    );
+
+    const debouncedLogHighValueLimit = useCallback(
+        debounce((newValue: string) => {
+            addLog(
+                'Usuario modificó monto de valor alto',
+                `Nuevo monto: ${newValue}`,
+                'extracción',
+                'user'
+            );
+        }, 1000), // 1 segundo de delay
+        [addLog]
+    );
 
     const calculateTableValues = () => {
         if (!sampleField || !excelData || excelData.length === 0) {
@@ -154,19 +218,22 @@ const Extraction: React.FC<ExtractionProps> = ({
     
     // Efecto para inicializar con el campo heredado
     useEffect(() => {
-        if (selectedField && isPlanificacionDone && !sampleField) {
+        if (selectedField && isPlanificacionDone && !sampleField && !hasInitializedField.current) {
             setSampleField(selectedField);
+            hasInitializedField.current = true; // ✅ Marcar como ejecutado
+            
             addLog(
                 'Campo heredado de planificación aplicado',
                 `Campo seleccionado automáticamente: ${selectedField}`,
-                'extraction'
+                'extracción',
+                'system' 
             );
         }
-    }, [selectedField, isPlanificacionDone, sampleField]);
+    }, [selectedField, isPlanificacionDone, sampleField]); // ✅ Este se ejecuta una vez
 
-    // ✅ CORREGIDO: Todo dentro del useEffect
+    // ✅ CORREGIDO: Separar el efecto de cálculos
     useEffect(() => {
-        if (sampleField && excelData.length > 0) {
+        if (sampleField && excelData.length > 0 && hasInitializedField.current) {
             // Función corregida para IDEA
             const generateIDEARandom = (seed: number) => {
                 const a = 1103515245;
@@ -205,10 +272,11 @@ const Extraction: React.FC<ExtractionProps> = ({
             addLog(
                 'Cálculos de extracción con semilla',
                 `Campo: ${sampleField}\nSemilla: ${sampleInterval}\nPunto inicio: ${newRandomStartPoint}\nValores altos: ${highValueRecords.length}`,
-                'extraction'
+                'extracción',
+                'system'
             );
         }
-    }, [sampleField, excelData, sampleInterval, modifyHighValueLimit]);
+    }, [sampleField, excelData, sampleInterval, modifyHighValueLimit]); // ✅ Dependencias correctas
 
     // ✅ CORRECCIÓN: Mejorar el texto informativo sobre valores altos
     const getHighValueText = () => {
@@ -267,7 +335,15 @@ const Extraction: React.FC<ExtractionProps> = ({
                                     type="radio"
                                     value="intervaloFijo"
                                     checked={extractionType === 'intervaloFijo'}
-                                    onChange={() => setExtractionType('intervaloFijo')}
+                                    onChange={() => {
+                                        setExtractionType('intervaloFijo');
+                                        addLog(
+                                            'Usuario cambió tipo de extracción',
+                                            'Nuevo tipo: Intervalo fijo',
+                                            'extracción',
+                                            'user' // ✅ LOG DEL USUARIO
+                                        );
+                                    }}
                                     className="h-4 w-4 text-blue-600"
                                 />
                                 <span className="text-sm text-gray-700">Intervalo fijo</span>
@@ -277,7 +353,15 @@ const Extraction: React.FC<ExtractionProps> = ({
                                     type="radio"
                                     value="seleccionCelda"
                                     checked={extractionType === 'seleccionCelda'}
-                                    onChange={() => setExtractionType('seleccionCelda')}
+                                    onChange={(e) => {
+                                        setExtractionType('seleccionCelda');
+                                        addLog(
+                                            'Usuario cambió tipo de extracción',
+                                            'Nuevo tipo: Selección de celda',
+                                            'extracción',
+                                            'user' // ✅ LOG DEL USUARIO
+                                        );
+                                    }}
                                     className="h-4 w-4 text-blue-600"
                                 />
                                 <span className="text-sm text-gray-700">Selección de celda</span>
@@ -293,7 +377,15 @@ const Extraction: React.FC<ExtractionProps> = ({
                                     type="radio"
                                     value="agregados"
                                     checked={highValueManagement === 'agregados'}
-                                    onChange={() => setHighValueManagement('agregados')}
+                                    onChange={(e) => {
+                                        setHighValueManagement('agregados');
+                                        addLog(
+                                            'Usuario cambió gestión de valores altos',
+                                            'Nueva gestión: Valores altos como agregados',
+                                            'extracción',
+                                            'user' // ✅ LOG DEL USUARIO
+                                        );
+                                    }}
                                     className="h-4 w-4 text-blue-600"
                                 />
                                 <span className="text-sm text-gray-700">Valores altos como agregados a la muestra</span>
@@ -303,7 +395,15 @@ const Extraction: React.FC<ExtractionProps> = ({
                                     type="radio"
                                     value="separado"
                                     checked={highValueManagement === 'separado'}
-                                    onChange={() => setHighValueManagement('separado')}
+                                    onChange={(e) => {
+                                        setHighValueManagement('separado');
+                                        addLog(
+                                            'Usuario cambió gestión de valores altos',
+                                            'Nueva gestión: Archivo separado',
+                                            'extracción',
+                                            'user' // ✅ LOG DEL USUARIO
+                                        );
+                                    }}
                                     className="h-4 w-4 text-blue-600"
                                 />
                                 <span className="ml-2 text-sm text-gray-700">En un archivo por separado</span>
@@ -318,7 +418,13 @@ const Extraction: React.FC<ExtractionProps> = ({
                                     <input
                                         type="text"
                                         value={highValueFilename}
-                                        onChange={(e) => setHighValueFilename(e.target.value)}
+                                        onChange={(e) => {
+                                            setHighValueFilename(e.target.value);
+                                            if (e.target.value.trim() !== '') {
+                                                // ✅ REEMPLAZAR: Usar la función debounced
+                                                debouncedLogHighValueFilename(e.target.value);
+                                            }
+                                        }}
                                         className="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm"
                                         placeholder="ej. valores_altos.xlsx"
                                     />
@@ -346,9 +452,10 @@ const Extraction: React.FC<ExtractionProps> = ({
                                     onChange={(e) => {
                                         setSampleField(e.target.value);
                                         addLog(
-                                            'Campo de muestra cambiado',
+                                            'Usuario cambió campo de muestra',
                                             `Nuevo campo seleccionado: ${e.target.value}`,
-                                            'extraction'
+                                            'extracción',
+                                            'user' // ✅ LOG DEL USUARIO
                                         );
                                     }}
                                     className="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm"
@@ -395,6 +502,10 @@ const Extraction: React.FC<ExtractionProps> = ({
                                     onChange={(e) => {
                                         // Usar handleErrorChange que ya sabe parsear formato español
                                         handleErrorChange(e.target.value, setRandomStartPoint, false);
+                                        if (e.target.value.trim() !== '') {
+                                            // ✅ REEMPLAZAR: Usar la función debounced
+                                            debouncedLogRandomStartPoint(e.target.value);
+                                        }
                                     }}
                                     className="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm"
                                 />
@@ -403,7 +514,15 @@ const Extraction: React.FC<ExtractionProps> = ({
                                 <input
                                     type="checkbox"
                                     checked={modifyHighValueLimit}
-                                    onChange={(e) => setModifyHighValueLimit(e.target.checked)}
+                                    onChange={(e) => {
+                                        setModifyHighValueLimit(e.target.checked);
+                                        addLog(
+                                            'Usuario modificó configuración de valor alto',
+                                            `Modificar límite de valor alto: ${e.target.checked ? 'Activado' : 'Desactivado'}`,
+                                            'extracción',
+                                            'user' // ✅ LOG DEL USUARIO
+                                        );
+                                    }}
                                     className="h-4 w-4 text-blue-600 rounded"
                                 />
                                 <div className="flex items-center gap-2 ml-2">
@@ -416,8 +535,11 @@ const Extraction: React.FC<ExtractionProps> = ({
                                     type="text"
                                     value={formatNumber(highValueLimit, 2)}
                                     onChange={(e) => {
-                                        // Usar handleErrorChange que ya sabe parsear formato español
                                         handleErrorChange(e.target.value, setHighValueLimit, false);
+                                        if (e.target.value.trim() !== '' && modifyHighValueLimit) {
+                                            // ✅ REEMPLAZAR: Usar la función debounced
+                                            debouncedLogHighValueLimit(e.target.value);
+                                        }
                                     }}
                                     disabled={!modifyHighValueLimit}
                                     className={`ml-2 block w-48 rounded-md border-gray-300 shadow-sm sm:text-sm text-right ${!modifyHighValueLimit && 'bg-gray-200 cursor-not-allowed'}`}
@@ -451,7 +573,15 @@ const Extraction: React.FC<ExtractionProps> = ({
                                             type="radio"
                                             value="positive"
                                             checked={selectedTableType === 'positive'}
-                                            onChange={() => setSelectedTableType('positive')}
+                                            onChange={() => {
+                                                setSelectedTableType('positive');
+                                                addLog(
+                                                    'Usuario seleccionó tipo de valor',
+                                                    'Tipo seleccionado: Valores positivos',
+                                                    'extracción',
+                                                    'user' // ✅ LOG DEL USUARIO
+                                                );
+                                            }}
                                             className="h-4 w-4 text-blue-600"
                                         />
                                         <span className="ml-2 text-sm text-gray-900">Valores positivos</span>
@@ -469,7 +599,15 @@ const Extraction: React.FC<ExtractionProps> = ({
                                             type="radio"
                                             value="negative"
                                             checked={selectedTableType === 'negative'}
-                                            onChange={() => setSelectedTableType('negative')}
+                                            onChange={() => {
+                                                setSelectedTableType('negative');
+                                                addLog(
+                                                    'Usuario seleccionó tipo de valor',
+                                                    'Tipo seleccionado: Valores negativos',
+                                                    'extracción',
+                                                    'user' // ✅ LOG DEL USUARIO
+                                                );
+                                            }}
                                             disabled={true}
                                             className="h-4 w-4 text-gray-400 cursor-not-allowed"
                                         />
@@ -488,7 +626,15 @@ const Extraction: React.FC<ExtractionProps> = ({
                                             type="radio"
                                             value="absolute"
                                             checked={selectedTableType === 'absolute'}
-                                            onChange={() => setSelectedTableType('absolute')}
+                                            onChange={() => {
+                                                setSelectedTableType('absolute');
+                                                addLog(
+                                                    'Usuario seleccionó tipo de valor',
+                                                    'Tipo seleccionado: Valores absolutos',
+                                                    'extracción',
+                                                    'user' // ✅ LOG DEL USUARIO
+                                                );
+                                            }}
                                             disabled={true}
                                             className="h-4 w-4 text-gray-400 cursor-not-allowed"
                                         />
@@ -515,7 +661,13 @@ const Extraction: React.FC<ExtractionProps> = ({
                         <input
                             type="text"
                             value={extractionFilename}
-                            onChange={(e) => setExtractionFilename(e.target.value)}
+                             onChange={(e) => {
+                                setExtractionFilename(e.target.value);
+                                if (e.target.value.trim() !== '') {
+                                    // ✅ REEMPLAZAR: Usar la función debounced
+                                    debouncedLogExtractionFilename(e.target.value);
+                                }
+                            }}
                             className="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm"
                             placeholder="ej. muestra_auditoria.xlsx"
                         />
@@ -525,7 +677,15 @@ const Extraction: React.FC<ExtractionProps> = ({
                 {/* Right Column: Action Buttons */}
                 <div className="w-48 flex-none flex flex-col space-y-4">
                     <button
-                        onClick={handleExtraction}
+                        onClick={() => {
+                            addLog(
+                                'Usuario inició proceso de extracción',
+                                `Tipo: ${extractionType}\nGestión valores altos: ${highValueManagement}\nArchivo: ${extractionFilename}`,
+                                'extracción',
+                                'user' // ✅ LOG DEL USUARIO
+                            );
+                            handleExtraction();
+                        }}
                         className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded shadow"
                     >
                         Aceptar
@@ -533,12 +693,13 @@ const Extraction: React.FC<ExtractionProps> = ({
                     
                     {/* NUEVO BOTÓN DE HISTORIAL */}
                     <button
-                        onClick={() => {
+                         onClick={() => {
                             setShowHistory(true);
                             addLog(
                                 'Usuario visualizó historial',
                                 'Historial de auditoría abierto desde módulo de extracción',
-                                'extraction'
+                                'extracción',
+                                'user' // ✅ LOG DEL USUARIO
                             );
                         }}
                         className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded shadow"
@@ -547,7 +708,15 @@ const Extraction: React.FC<ExtractionProps> = ({
                     </button>
 
                     <button
-                        onClick={() => setActiveTab('planificacion')}
+                        onClick={() => {
+                            addLog(
+                                'Usuario canceló extracción',
+                                'Navegación de regreso a planificación',
+                                'extracción',
+                                'user' // ✅ LOG DEL USUARIO
+                            );
+                            setActiveTab('planificacion');
+                        }}
                         className="bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded shadow"
                     >
                         Cancelar

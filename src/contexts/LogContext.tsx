@@ -6,14 +6,17 @@ export interface LogEntry {
   action: string;
   details: string;
   user: string;
-  module: 'planification' | 'extraction' | 'evaluation';
+  module: 'planificación' | 'extracción' | 'evaluación' | 'cabecera' | 'visualización' | 'general';
+  type: 'user' | 'system';
 }
 
 interface LogContextType {
   logs: LogEntry[];
-  addLog: (action: string, details: string, module: LogEntry['module']) => void;
+  addLog: (action: string, details: string, module: LogEntry['module'], type: 'user' | 'system') => void;
   clearLogs: () => void;
   getFormattedLogs: () => string;
+  getUserLogs: () => LogEntry[]; // ✅ NUEVO: filtrar solo logs de usuario
+  getSystemLogs: () => LogEntry[]; // ✅ NUEVO: filtrar solo logs del sistema
 }
 
 const LogContext = createContext<LogContextType | undefined>(undefined);
@@ -21,13 +24,14 @@ const LogContext = createContext<LogContextType | undefined>(undefined);
 export const LogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [logs, setLogs] = useState<LogEntry[]>([]);
 
-  const addLog = useCallback((action: string, details: string, module: LogEntry['module']) => {
+  const addLog = useCallback((action: string, details: string, module: LogEntry['module'], type: 'user' | 'system' = 'user') => {
     const newLog: LogEntry = {
       timestamp: new Date(),
       action,
       details,
       user: 'Usuario',
       module,
+      type,
     };
     
     setLogs(prev => [...prev, newLog]);
@@ -43,7 +47,8 @@ export const LogProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     formatted += `Usuario: Usuario\n\n`;
     
     logs.forEach((log, index) => {
-      formatted += `${index + 1}. ${log.timestamp.toLocaleString()} - ${log.user}\n`;
+      const typeLabel = log.type === 'user' ? '[USUARIO]' : '[SISTEMA]'; // ✅ AGREGAR TIPO
+      formatted += `${index + 1}. ${log.timestamp.toLocaleString()} - ${typeLabel}\n`;
       formatted += `   Acción: ${log.action}\n`;
       formatted += `   Módulo: ${log.module}\n`;
       formatted += `   Detalles: ${log.details}\n\n`;
@@ -52,11 +57,23 @@ export const LogProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return formatted;
   }, [logs]);
 
+  // ✅ NUEVO: Filtrar logs de usuario
+  const getUserLogs = useCallback(() => {
+    return logs.filter(log => log.type === 'user');
+  }, [logs]);
+
+  // ✅ NUEVO: Filtrar logs del sistema
+  const getSystemLogs = useCallback(() => {
+    return logs.filter(log => log.type === 'system');
+  }, [logs]);
+
   const contextValue: LogContextType = {
     logs,
     addLog,
     clearLogs,
     getFormattedLogs,
+    getUserLogs,
+    getSystemLogs,
   };
 
   return (

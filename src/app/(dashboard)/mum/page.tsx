@@ -7,29 +7,31 @@ import Visualizer from "../atributos/componentes/Visualizer";
 import Planification from "./componentes/Planification";
 import Extraction from "./componentes/Extraction";
 import Evaluation from "./componentes/Evaluation";
-import { LogProvider } from '../../../contexts/LogContext'; // Importa el LogProvider
+import { LogProvider, useLog } from '../../../contexts/LogContext';
 import AnimatedTabs from '../../../components/visual/AnimatedTabs';
 import { motion } from 'framer-motion';
 import { HelpButton } from './componentes/HelpButtonMumPage';
+import { HistoryPanel } from '../../../components/mum/HistoryPanel';
 
-
-
-function MumPageContent() {
+// ✅ MOVER MumPageContent DENTRO del componente que usa LogProvider
+function MumPageContentWithLogs() {
     const [excelData, setExcelData] = useState<ExcelRow[]>([]);
     const [headers, setHeaders] = useState<string[]>([]);
     const [activeTab, setActiveTab] = useState("visualizar");
     const [isExcelLoaded, setIsExcelLoaded] = useState(false);
     const [isPlanificacionDone, setIsPlanificacionDone] = useState(false);
     const [isExtraccionDone, setIsExtraccionDone] = useState(false);
+    const [showHistory, setShowHistory] = useState(false);
+    const { addLog } = useLog(); // ✅ Ahora está DENTRO del proveedor
 
     // --- Estados de la Planificación ---
     const [useFieldValue, setUseFieldValue] = useState(false);
     const [selectedField, setSelectedField] = useState<string | null>(null);
     const [selectedPopulationType, setSelectedPopulationType] = useState<
         "positive" | "negative" | "absolute"
-    >("positive"); // Cambiado a "positive" como solicitaste
+    >("positive");
     const [confidenceLevel, setConfidenceLevel] = useState(90);
-    const [errorType, setErrorType] = useState<"importe" | "percentage">("importe"); // Cambiado a "importe" como solicitaste
+    const [errorType, setErrorType] = useState<"importe" | "percentage">("importe");
     const [tolerableError, setTolerableError] = useState(0);
     const [expectedError, setExpectedError] = useState(0);
     const [modifyPrecision, setModifyPrecision] = useState(false);
@@ -47,13 +49,13 @@ function MumPageContent() {
     
     // --- Estados para el módulo de Extracción ---
     const [extractionType, setExtractionType] = useState<"intervaloFijo" | "seleccionCelda">("intervaloFijo");
-    const [highValueManagement, setHighValueManagement] = useState<"agregados" | "separado">("separado"); // Cambiado a "separado" como solicitaste
+    const [highValueManagement, setHighValueManagement] = useState<"agregados" | "separado">("separado");
     const [highValueFilename, setHighValueFilename] = useState("Valores Altos");
     const [highValueCount, setHighValueCount] = useState(0);
     const [highValueLimit, setHighValueLimit] = useState(0);
     const [sampleField, setSampleField] = useState<string | null>(null);
     const [randomStartPoint, setRandomStartPoint] = useState(0);
-    const [selectedTableType, setSelectedTableType] = useState<"positive" | "negative" | "absolute">("positive"); // Cambiado a "positive" como solicitaste
+    const [selectedTableType, setSelectedTableType] = useState<"positive" | "negative" | "absolute">("positive");
     const [positiveTotal, setPositiveTotal] = useState(0);
     const [positiveRecords, setPositiveRecords] = useState(0);
     const [negativeTotal, setNegativeTotal] = useState(0);
@@ -77,7 +79,18 @@ function MumPageContent() {
     const [populationExcludingHigh, setPopulationExcludingHigh] = useState(0);
     const [populationIncludingHigh, setPopulationIncludingHigh] = useState(0);
 
-    // Manejador de carga de archivo SIN logs por ahora
+    // Función para abrir historial
+    const handleOpenHistory = () => {
+        setShowHistory(true);
+        addLog(
+            'Usuario visualizó historial',
+            `Historial abierto desde página principal - Pestaña: ${activeTab}`,
+            'general',
+            'user'
+        );
+    };
+
+    // Manejador de carga de archivo
     const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (!file) {
@@ -88,6 +101,13 @@ function MumPageContent() {
         }
 
         try {
+            addLog(
+                'Usuario cargó archivo Excel',
+                `Archivo: ${file.name}\nTamaño: ${(file.size / 1024 / 1024).toFixed(2)} MB`,
+                'visualización',
+                'user'
+            );
+
             const { headers, data } = await fetchDataWithHeaders(file);
             setHeaders(headers);
             setExcelData(data);
@@ -97,14 +117,34 @@ function MumPageContent() {
             setIsExtraccionDone(false);
             setExcelFilename(file.name);
             setPopulationRecords(data.length);
+
+            addLog(
+                'Archivo procesado exitosamente',
+                `Columnas: ${headers.length}\nRegistros: ${data.length}`,
+                'visualización',
+                'system'
+            );
+
+            addLog(
+            'Usuario visualizó datos del archivo',
+            `Registros: ${data.length}\nColumnas: ${headers.length}\nPrimeras columnas: ${headers.slice(0, 5).join(', ')}${headers.length > 5 ? '...' : ''}`,
+            'visualización',
+            'user'
+        );
+
         } catch (error) {
             console.error("Error al cargar el archivo:", error);
+            addLog(
+                'Error al cargar archivo',
+                `Archivo: ${file.name}\nError: ${error}`,
+                'visualización',
+                'system'
+            );
             alert("Hubo un problema al cargar el archivo. Asegúrate de que es un archivo Excel válido.");
             setIsExcelLoaded(false);
         }
     };
 
-    // --- Manejadores de las funciones de la API para MUM CON LOGS ---
     const handlePlanification = async () => {
         try {
             const body = {
@@ -127,23 +167,37 @@ function MumPageContent() {
             
             const result = await mumApi.planification(body);
             
+            // ✅ ACTUALIZAR ESTADO SINCRÓNICAMENTE
             setEstimatedPopulationValue(result.estimatedPopulationValue);
             setEstimatedSampleSize(result.estimatedSampleSize);
             setSampleInterval(result.sampleInterval);
             setTolerableContamination(result.tolerableContamination);
             setConclusion(result.conclusion);
             setMinSampleSize(result.minSampleSize);
-            
-            // ELIMINAR estas líneas para que no navegue automáticamente
-            // setIsPlanificacionDone(true);
-            // setActiveTab("extraccion");            
+
+            // ✅ RETORNAR LOS RESULTADOS explícitamente
+            return {
+                estimatedSampleSize: result.estimatedSampleSize,
+                sampleInterval: result.sampleInterval,
+                tolerableContamination: result.tolerableContamination,
+                estimatedPopulationValue: result.estimatedPopulationValue,
+                conclusion: result.conclusion,
+                minSampleSize: result.minSampleSize
+            };
 
         } catch (error) {
             console.error("Error en la planificación:", error);
-            alert("Hubo un problema con la planificación. Revisa los datos de entrada.");
+            
+            addLog(
+                'Error en proceso de planificación',
+                `Error del servidor: ${error}`,
+                'planificación',
+                'system'
+            );
+            
+            throw error;
         }
     };
-
 
     const handleExtraction = async () => {
         try {
@@ -167,7 +221,7 @@ function MumPageContent() {
                 excelData,
                 estimatedSampleSize,
                 sampleInterval,
-                highValueLimit: highValueLimit || sampleInterval, // ✅ Asegurar valor por defecto
+                highValueLimit: highValueLimit || sampleInterval,
                 highValueManagement,
                 sampleField,
                 randomStartPoint,
@@ -250,27 +304,45 @@ function MumPageContent() {
             setIsExtraccionDone(true);
             setActiveTab("evaluacion");
             
+            addLog(
+                'Extracción completada exitosamente',
+                `Archivos generados: ${extractionFilename}${highValueManagement === 'separado' ? `, ${highValueFilename}` : ''}`,
+                'extracción',
+                'system'
+            );
+
             alert("✅ Extracción completada correctamente");
 
         } catch (error) {
             console.error("❌ Error en la extracción:", error);
+            addLog(
+                'Error en extracción',
+                `Error: ${error}`,
+                'extracción',
+                'system'
+            );
             alert(`Hubo un problema con la extracción de la muestra: ${error}`);
         }
     };
 
     const handleEvaluation = async (method: 'cell-classical' | 'stringer-bound') => {
         try {
+            addLog(
+                'Usuario inició evaluación',
+                `Método: ${method}`,
+                'evaluación',
+                'user'
+            );
+
             // ✅ USAR EL ENDPOINT CORRECTO SEGÚN EL MÉTODO
             let result;
             if (method === 'cell-classical') {
-                // Aquí deberías enviar los datos reales de la muestra, no solo los parámetros
                 const evaluationData = {
-                    sampleData: [], // ← Esto debería venir del componente de evaluación
+                    sampleData: [],
                     sampleInterval,
                     confidenceLevel,
                     populationValue: estimatedPopulationValue,
                     tolerableError,
-                    // ... otros datos necesarios
                 };
                 result = await mumApi.cellClassicalEvaluation(evaluationData);
             } else {
@@ -290,11 +362,23 @@ function MumPageContent() {
             setPopulationExcludingHigh(result.populationExcludingHigh);
             setPopulationIncludingHigh(result.populationIncludingHigh);
 
-            // ✅ IMPORTANTE: RETORNAR LOS RESULTADOS
+            addLog(
+                'Evaluación completada exitosamente',
+                `Método: ${method}\nError más probable: ${result.errorMasProbableNeto}`,
+                'evaluación',
+                'system'
+            );
+
             return result;
         } catch (error) {
-            console.error("Error en el evaluacion:", error);
-            alert("Hubo un problema al generar la evaluacion.");
+            console.error("Error en la evaluación:", error);
+            addLog(
+                'Error en evaluación',
+                `Método: ${method}\nError: ${error}`,
+                'evaluación',
+                'system'
+            );
+            alert("Hubo un problema al generar la evaluación.");
         }
     };
 
@@ -341,21 +425,37 @@ function MumPageContent() {
                         <HelpButton context="file-upload" />
                     </div>
                     
-                    {/* Botón de ayuda general */}
-                    <div className="w-32">
-                        <HelpButton 
-                            context="general" 
-                            className="bg-gray-400 hover:bg-gray-500 text-white font-semibold py-2 px-4 rounded-full shadow w-full" 
-                        />
+                    {/* Botones de ayuda e historial */}
+                    <div className="flex gap-2">
+                        <button
+                            onClick={handleOpenHistory}
+                            className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-full shadow w-full"
+                        >
+                            Ver Historial
+                        </button>
+                        <div className="w-32">
+                            <HelpButton 
+                                context="general" 
+                                className="bg-gray-400 hover:bg-gray-500 text-white font-semibold py-2 px-4 rounded-full shadow w-full" 
+                            />
+                        </div>
                     </div>
                 </div>
 
+                {/* Panel de Historial */}
+                {showHistory && (
+                    <HistoryPanel 
+                        isOpen={showHistory} 
+                        onClose={() => setShowHistory(false)} 
+                    />
+                )}
+
                 {/* Navegación por pestañas */}
                 <AnimatedTabs
-                tabs={tabs}
-                activeTab={activeTab}
-                onTabChange={setActiveTab}
-                className="mb-8"
+                    tabs={tabs}
+                    activeTab={activeTab}
+                    onTabChange={setActiveTab}
+                    className="mb-8"
                 />
 
                 {/* Contenido de la pestaña activa */}
@@ -368,7 +468,11 @@ function MumPageContent() {
                         transition={{ duration: 0.3 }}
                     >
                         {activeTab === "visualizar" && (
-                            <Visualizer excelData={excelData} headers={headers} />
+                            <Visualizer 
+                                excelData={excelData} 
+                                headers={headers}
+                                //onOpenHistory={handleOpenHistory}
+                            />
                         )}
                         {activeTab === "planificacion" && (
                             <Planification
@@ -418,6 +522,7 @@ function MumPageContent() {
                                 setPopulationIncludingHigh={setPopulationIncludingHigh}
                                 highValueCount={highValueCount}
                                 setHighValueCount={setHighValueCount}
+                                onOpenHistory={handleOpenHistory}
                             />
                         )}
                         {activeTab === "extraccion" && (
@@ -467,6 +572,7 @@ function MumPageContent() {
                                 estimatedPopulationValue={estimatedPopulationValue}
                                 populationRecords={populationRecords}
                                 handleExtraction={handleExtraction}
+                                onOpenHistory={handleOpenHistory}
                             />
                         )}
                         {activeTab === "evaluacion" && (
@@ -494,6 +600,7 @@ function MumPageContent() {
                                 headers={headers} 
                                 tolerableError={tolerableError}
                                 selectedField={selectedField}
+                                onOpenHistory={handleOpenHistory}
                             />
                         )}
                     </motion.div>
@@ -507,7 +614,7 @@ function MumPageContent() {
 export default function MumPage() {
     return (
         <LogProvider>
-            <MumPageContent />
+            <MumPageContentWithLogs />
         </LogProvider>
     );
 }

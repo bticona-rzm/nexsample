@@ -32,6 +32,7 @@ interface EvaluationProps {
     handleEvaluation: (method: 'cell-classical' | 'stringer-bound', data?: any) => Promise<any>; // ← MODIFICADO
     tolerableError:number;
     selectedField: string | null;
+    onOpenHistory?: () => void; // ✅ Agregar esta prop
 }
 
 const Evaluation: React.FC<EvaluationProps> = (props) => {

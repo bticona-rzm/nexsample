@@ -41,7 +41,6 @@ interface PlanificationProps {
     excelData: any[];
     setIsPlanificacionDone: (value: boolean) => void;
     setActiveTab: (tabId: string) => void;
-    handlePlanification: () => void;
     highValueLimit: number;
     setHighValueLimit: (value: number) => void;
     populationExcludingHigh: number;
@@ -52,6 +51,16 @@ interface PlanificationProps {
     setPopulationIncludingHigh: (value: number) => void;
     highValueCount: number;
     setHighValueCount: (value: number) => void;
+    onOpenHistory: () => void;
+
+    handlePlanification: () => Promise<{
+        estimatedSampleSize: number;
+        sampleInterval: number;
+        tolerableContamination: number;
+        estimatedPopulationValue: number;
+        conclusion: string;
+        minSampleSize: number;
+    }>; // ✅ Especificar el tipo de retorno
 }
 
 const Planification: React.FC<PlanificationProps> = ({
@@ -100,7 +109,8 @@ const Planification: React.FC<PlanificationProps> = ({
     highValueCount,
     setHighValueCount,
     highValueTotal,
-    setHighValueTotal
+    setHighValueTotal,
+    onOpenHistory,
 }) => {
 
     const { addLog } = useLog();
@@ -153,10 +163,11 @@ const Planification: React.FC<PlanificationProps> = ({
             return;
         }
 
-        addLog(
+         addLog(
             'Planificación aceptada por usuario',
-            `Tamaño muestra: ${estimatedSampleSize}\nIntervalo: ${sampleInterval.toFixed(2)}`,
-            'planification'
+            `Tamaño muestra: ${estimatedSampleSize}\nIntervalo: ${formatNumber(sampleInterval, 2)}\nTipo error: ${errorType === "importe" ? "Importe" : "Porcentaje"}\nError tolerable: ${errorType === "percentage" ? `${tolerableError}%` : formatNumber(tolerableError, 2)}\nError esperado: ${errorType === "percentage" ? `${estimatedPopulationValue}%` : formatNumber(estimatedPopulationValue, 2)}`,
+            'planificación',
+            'user'
         );
 
         // Ahora SÍ llamar a las funciones que navegan
@@ -192,19 +203,41 @@ const Planification: React.FC<PlanificationProps> = ({
             return;
         }
 
+        // ✅ SOLO UN LOG - acción del usuario
         addLog(
             'Usuario inició estimación de planificación',
-            `Nivel confianza: ${confidenceLevel}%\nError tolerable: ${tolerableError}\nError esperado: ${expectedError}\nPoblación: ${estimatedPopulationValue}`,
-            'planification'
+            `Nivel confianza: ${confidenceLevel}%\nError tolerable: ${errorType === "percentage" ? `${tolerableError}%` : formatNumber(tolerableError, 2)}\nError esperado: ${errorType === "percentage" ? `${estimatedPopulationValue}%` : formatNumber(estimatedPopulationValue, 2)}`,
+            'planificación',
+            'user' // ✅ Cambiado a 'user' - es acción del usuario
         );
 
         try {
-            await handlePlanification();
+            const result = await handlePlanification();
             setHasEstimated(true);
-            addLog('Estimación completada exitosamente', '', 'planification');
+
+            // ✅ CORREGIDO: También mostrar correctamente en el log del sistema
+            const resultErrorTolerableDisplay = errorType === "percentage" 
+                ? `${tolerableError}%` 
+                : formatNumber(tolerableError, 2);
+            
+            // ✅ LOG DEL SISTEMA - resultado exitoso
+            addLog(
+                'Planificación completada exitosamente',
+                `Tamaño muestra: ${result.estimatedSampleSize}\nIntervalo: ${formatNumber(result.sampleInterval, 2)}\nContaminación tolerable: ${result.tolerableContamination}%\nTipo de error aplicado: ${errorType === "importe" ? "Importe" : "Porcentaje"}`,
+                'planificación',
+                'system'
+            );
         } catch (error) {
             console.error('Error en estimación:', error);
             setHasEstimated(false);
+            
+            // ✅ LOG DEL SISTEMA - error
+            addLog(
+                'Error en estimación de planificación',
+                `Error: ${error}`,
+                'planificación',
+                'system'
+            );
             alert("Error al realizar la estimación. Verifique los datos.");
         }
     };
@@ -481,6 +514,15 @@ const Planification: React.FC<PlanificationProps> = ({
                     >
                         Cancelar
                     </button>
+
+                     {/* NUEVO BOTÓN DE HISTORIAL */}
+                    <button
+                        onClick={onOpenHistory}
+                        className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded shadow"
+                    >
+                        Ver Historial
+                    </button>
+
                     
                     {/* Botón de ayuda general - CON TEXTO "AYUDA" */}
                     <div className="flex justify-center">
