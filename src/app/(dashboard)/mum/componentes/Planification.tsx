@@ -489,14 +489,14 @@ const Planification: React.FC<PlanificationProps> = ({
                             expectedError >= tolerableError ||
                             estimatedPopulationValue <= 0
                         }
-                        className={`bg-purple-600 ${
+                        className={`bg-blue-600  ${
                             !isExcelLoaded || 
                             tolerableError <= 0 || 
                             expectedError <= 0 || 
                             expectedError >= tolerableError ||
                             estimatedPopulationValue <= 0
                                 ? 'bg-gray-400 cursor-not-allowed' 
-                                : 'hover:bg-purple-700'
+                                : 'hover:bg-blue-700'
                         } text-white font-semibold py-2 px-4 rounded shadow`}
                     >
                         Estimar
@@ -518,7 +518,7 @@ const Planification: React.FC<PlanificationProps> = ({
                      {/* NUEVO BOTÓN DE HISTORIAL */}
                     <button
                         onClick={onOpenHistory}
-                        className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded shadow"
+                        className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded shadow"
                     >
                         Ver Historial
                     </button>
@@ -528,7 +528,7 @@ const Planification: React.FC<PlanificationProps> = ({
                     <div className="flex justify-center">
                         <HelpButton 
                             context="general" 
-                            className="bg-gray-400 hover:bg-gray-500 text-white font-semibold py-2 px-4 rounded-full shadow w-full" 
+                            className="bg-orange-400 hover:bg-orange-500 text-white font-semibold py-2 px-4 rounded-full shadow w-full" 
                         />
                     </div>
                 </div>
