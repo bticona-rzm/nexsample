@@ -236,7 +236,7 @@ const Planification: React.FC<PlanificationProps> = ({
                 'Error en estimación de planificación',
                 `Error: ${error}`,
                 'planificación',
-                'system'
+                'error'
             );
             alert("Error al realizar la estimación. Verifique los datos.");
         }
@@ -479,7 +479,7 @@ const Planification: React.FC<PlanificationProps> = ({
                 </div>
 
                 {/* Panel de botones lateral */}
-                <div className="w-48 flex-none flex flex-col space-y-4 mt-8">
+                <div className="w-48 flex-none flex flex-col space-y-4 mt-2">
                     <button
                         onClick={handleEstimate}
                         disabled={
@@ -528,7 +528,7 @@ const Planification: React.FC<PlanificationProps> = ({
                     <div className="flex justify-center">
                         <HelpButton 
                             context="general" 
-                            className="bg-orange-400 hover:bg-orange-500 text-white font-semibold py-2 px-4 rounded-full shadow w-full" 
+                            className="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold py-2 px-4 rounded-full shadow w-full" 
                         />
                     </div>
                 </div>

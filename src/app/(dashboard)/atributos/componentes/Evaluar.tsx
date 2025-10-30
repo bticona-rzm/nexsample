@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { HelpButtonEvaluarAtributos } from './HelpButtonEvaluarAtributos';
+import { useLogAtributos } from '@/contexts/LogContextAtributos'; // ✅ Añadir import
 
 // ✅ INTERFACE MEJORADA
 type EvaluarProps = {
@@ -19,11 +20,12 @@ type EvaluarProps = {
     unilateralUpperLimit: number;
     bilateralLowerLimit: number;
     bilateralUpperLimit: number;
-    randomSample?: any[];  // ✅ NUEVO - Para el conteo visual
-    headers?: string[];    // ✅ NUEVO - Para el conteo visual
+    randomSample?: any[];
+    headers?: string[];
+    onOpenHistory: () => void; // ✅ NUEVA PROP PARA HISTORIAL
 };
 
-// ✅ COMPONENTE PARA CONTEO VISUAL MEJORADO
+// ✅ COMPONENTE PARA CONTEO VISUAL MEJORADO CON LOGS
 const DeviationCounter: React.FC<{
     sample: any[];
     headers: string[];
@@ -32,16 +34,41 @@ const DeviationCounter: React.FC<{
     containerWidth: string;
 }> = ({ sample, headers, deviations, onDeviationsChange, containerWidth }) => {
     const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set());
+    const { addLog } = useLogAtributos(); // ✅ Añadir contexto de logs
 
     const toggleSelection = (index: number) => {
         const newSelected = new Set(selectedItems);
-        if (newSelected.has(index)) {
+        const wasSelected = newSelected.has(index);
+        
+        if (wasSelected) {
             newSelected.delete(index);
         } else {
             newSelected.add(index);
         }
+        
         setSelectedItems(newSelected);
         onDeviationsChange(newSelected.size);
+        
+        // ✅ LOG DE SELECCIÓN/DESELECCIÓN
+        addLog(
+            wasSelected ? 'Usuario deseleccionó desviación' : 'Usuario seleccionó desviación',
+            `Registro: ${index + 1}\nTotal desviaciones seleccionadas: ${newSelected.size}\nMuestra total: ${sample.length}`,
+            'evaluación',
+            'user'
+        );
+    };
+
+    const handleClearSelection = () => {
+        // ✅ LOG ANTES DE LIMPIAR
+        addLog(
+            'Usuario limpió todas las selecciones de desviaciones',
+            `Desviaciones limpiadas: ${selectedItems.size}\nNuevo total: 0`,
+            'evaluación',
+            'user'
+        );
+        
+        setSelectedItems(new Set());
+        onDeviationsChange(0);
     };
 
     return (
@@ -112,10 +139,7 @@ const DeviationCounter: React.FC<{
                     {selectedItems.size} de {sample.length} registros seleccionados como desviaciones
                 </span>
                 <button
-                    onClick={() => {
-                        setSelectedItems(new Set());
-                        onDeviationsChange(0);
-                    }}
+                    onClick={handleClearSelection}
                     className="px-3 py-1 bg-gray-200 text-gray-700 rounded text-sm hover:bg-gray-300"
                 >
                     Limpiar selección
@@ -142,29 +166,101 @@ const Evaluar: React.FC<EvaluarProps> = ({
     unilateralUpperLimit,
     bilateralLowerLimit,
     bilateralUpperLimit,
-    randomSample = [],  // ✅ Valor por defecto
-    headers = [],       // ✅ Valor por defecto
+    randomSample = [],
+    headers = [],
+    onOpenHistory, // ✅ NUEVA PROP
 }) => {
-    const [countMethod, setCountMethod] = useState<'manual' | 'visual'>('manual'); // ✅ Método por defecto: visual
+    // ✅ CONTEXTO DE LOGS
+    const { addLog } = useLogAtributos();
+
+    const [countMethod, setCountMethod] = useState<'manual' | 'visual'>('manual');
+
+    // ✅ FUNCIÓN MEJORADA PARA CAMBIAR MÉTODO DE CONTEO
+    const handleCountMethodChange = (method: 'manual' | 'visual') => {
+        setCountMethod(method);
+        
+        addLog(
+            'Usuario cambió método de conteo de desviaciones',
+            `Nuevo método: ${method === 'visual' ? 'Conteo Visual' : 'Ingreso Manual'}\nDesviaciones actuales: ${observedDeviations}`,
+            'evaluación',
+            'user'
+        );
+    };
+
+    // ✅ FUNCIÓN MEJORADA PARA CAMBIAR DESVIACIONES MANUALES
+    const handleManualDeviationsChange = (value: number) => {
+        const newValue = Math.max(0, Number(value));
+        setObservedDeviations(newValue);
+        
+        addLog(
+            'Usuario modificó desviaciones manualmente',
+            `Nuevo valor: ${newValue}\nMáximo posible: ${evaluatedSampleSize}`,
+            'evaluación',
+            'user'
+        );
+    };
+
+    // ✅ FUNCIÓN MEJORADA PARA CAMBIAR CONFIANZA
+    const handleConfidenceChange = (value: number) => {
+        const newValue = Math.min(100, Math.max(1, Number(value)));
+        setDesiredConfidence(newValue);
+        
+        addLog(
+            'Usuario modificó nivel de confianza',
+            `Nuevo valor: ${newValue}%`,
+            'evaluación',
+            'user'
+        );
+    };
+
+    // ✅ FUNCIÓN MEJORADA PARA CALCULAR EVALUACIÓN
+    const handleCalculateWithLog = () => {
+        addLog(
+            'Usuario inició cálculo de evaluación',
+            `Parámetros:\n- Desviaciones observadas: ${observedDeviations}\n- Confianza deseada: ${desiredConfidence}%\n- Tamaño muestra: ${evaluatedSampleSize}\n- Método conteo: ${countMethod === 'visual' ? 'Visual' : 'Manual'}`,
+            'evaluación',
+            'user'
+        );
+        handleCalculateEvaluation();
+    };
+
+    // ✅ FUNCIÓN MEJORADA PARA IMPRIMIR
+    const handlePrintWithLog = () => {
+        addLog(
+            'Usuario imprimió resultados de evaluación',
+            `Tasa desviación: ${sampleDeviationRate.toFixed(2)}%\nLímite superior: ${unilateralUpperLimit.toFixed(2)}%\nIntervalo: [${bilateralLowerLimit.toFixed(2)}%, ${bilateralUpperLimit.toFixed(2)}%]`,
+            'evaluación',
+            'user'
+        );
+        handlePrint();
+    };
+
+    // ✅ FUNCIÓN MEJORADA PARA CERRAR
+    const handleCloseWithLog = () => {
+        addLog(
+            'Usuario cerró módulo de evaluación',
+            `Estado final:\n- Evaluación completada: ${isEvaluarDone}\n- Desviaciones: ${observedDeviations}\n- Confianza: ${desiredConfidence}%`,
+            'evaluación',
+            'user'
+        );
+        handleClose();
+    };
 
     // ✅ CALCULAR EL ANCHO DEL CONTENEDOR BASADO EN EL LAYOUT
-    // La columna izquierda es flex-1 (ocupa el espacio restante)
-    // La columna derecha es w-48 (192px)
-    // Restamos los paddings y márgenes: p-4 (16px) + space-x-6 (24px) = ~40px
     const calculateContainerWidth = () => {
         if (typeof window !== 'undefined') {
             const screenWidth = window.innerWidth;
-            if (screenWidth < 768) return "max-w-full"; // móvil
-            if (screenWidth < 1024) return "max-w-2xl"; // tablet
-            return "max-w-3xl"; // desktop
+            if (screenWidth < 768) return "max-w-full";
+            if (screenWidth < 1024) return "max-w-2xl";
+            return "max-w-3xl";
         }
-        return "max-w-3xl"; // default
+        return "max-w-3xl";
     };
 
     if (!isAleatorioDone) {
         return (
             <div className="p-4 text-center text-gray-500">
-                Debes completar el paso de Muestreo Aleatorio   primero.
+                Debes completar el paso de Muestreo Aleatorio primero.
             </div>
         );
     }
@@ -177,7 +273,9 @@ const Evaluar: React.FC<EvaluarProps> = ({
                     {/* Título con ayuda general */}
                     <div className="flex items-center justify-between mb-4">
                         <h3 className="text-xl font-bold text-gray-800">Evaluación del Muestreo</h3>
-                        <HelpButtonEvaluarAtributos context="general" />
+                        <div className="flex items-center gap-2">
+                            <HelpButtonEvaluarAtributos context="general" />
+                        </div>
                     </div>
                     
                     {/* Selector de método de conteo */}
@@ -188,7 +286,7 @@ const Evaluar: React.FC<EvaluarProps> = ({
                         <div className="flex space-x-4">
                             <button
                                 type="button"
-                                onClick={() => setCountMethod('manual')}
+                                onClick={() => handleCountMethodChange('manual')}
                                 className={`px-4 py-2 rounded-md text-sm font-medium ${
                                     countMethod === 'manual'
                                         ? 'bg-blue-600 text-white shadow-sm'
@@ -199,7 +297,7 @@ const Evaluar: React.FC<EvaluarProps> = ({
                             </button>
                             <button
                                 type="button"
-                                onClick={() => setCountMethod('visual')}
+                                onClick={() => handleCountMethodChange('visual')}
                                 className={`px-4 py-2 rounded-md text-sm font-medium ${
                                     countMethod === 'visual'
                                         ? 'bg-blue-600 text-white shadow-sm'
@@ -249,7 +347,7 @@ const Evaluar: React.FC<EvaluarProps> = ({
                                         min="0"
                                         max={evaluatedSampleSize}
                                         value={observedDeviations}
-                                        onChange={(e) => setObservedDeviations(Math.max(0, Number(e.target.value)))}
+                                        onChange={(e) => handleManualDeviationsChange(Number(e.target.value))}
                                         className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border"
                                         placeholder="Ej: 2"
                                     />
@@ -285,7 +383,7 @@ const Evaluar: React.FC<EvaluarProps> = ({
                                     min="1"
                                     max="100"
                                     value={desiredConfidence}
-                                    onChange={(e) => setDesiredConfidence(Math.min(100, Math.max(1, Number(e.target.value))))}
+                                    onChange={(e) => handleConfidenceChange(Number(e.target.value))}
                                     className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border"
                                     placeholder="Ej: 95"
                                 />
@@ -369,19 +467,30 @@ const Evaluar: React.FC<EvaluarProps> = ({
             
             {/* Columna Derecha: Botones de Acción */}
             <div className="w-48 flex-none flex flex-col space-y-4 mt-2">
+                {/* ✅ BOTÓN CALCULAR CON LOGS */}
                 <button
-                    onClick={handleCalculateEvaluation}
+                    onClick={handleCalculateWithLog}
                     disabled={observedDeviations < 0 || desiredConfidence <= 0 || desiredConfidence > 100}
                     className={`font-semibold py-2 px-4 rounded shadow transition-colors ${
                         observedDeviations < 0 || desiredConfidence <= 0 || desiredConfidence > 100
                             ? "bg-gray-400 text-gray-700 cursor-not-allowed"
-                            : "bg-purple-600 hover:bg-purple-700 text-white"
+                            : "bg-green-600 hover:bg-green-700 text-white"
                     }`}
                 >
                     Calcular
                 </button>
+
+                {/* ✅ BOTÓN CERRAR CON LOGS */}
                 <button
-                    onClick={handlePrint}
+                    onClick={handleCloseWithLog}
+                    className="bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded shadow transition-colors"
+                >
+                    Cerrar
+                </button>
+                
+                {/* ✅ BOTÓN IMPRIMIR CON LOGS */}
+                <button
+                    onClick={handlePrintWithLog}
                     disabled={!isEvaluarDone}
                     className={`font-semibold py-2 px-4 rounded shadow transition-colors ${
                         !isEvaluarDone 
@@ -391,15 +500,18 @@ const Evaluar: React.FC<EvaluarProps> = ({
                 >
                     Imprimir
                 </button>
+                
+                {/* ✅ BOTÓN HISTORIAL */}
                 <button
-                    onClick={handleClose}
-                    className="bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded shadow transition-colors"
+                    onClick={onOpenHistory}
+                    className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded shadow transition-colors"
                 >
-                    Cerrar
+                    Ver Historial
                 </button>
+                
                 <HelpButtonEvaluarAtributos 
                     context="general" 
-                    className="bg-gray-400 hover:bg-gray-500 text-white font-semibold py-2 px-4 rounded-full shadow transition-colors" 
+                    className="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold py-2 px-4 rounded-full shadow transition-colors" 
                 />
             </div>
         </div>

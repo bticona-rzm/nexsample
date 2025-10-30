@@ -755,14 +755,14 @@ const StringerBoundForm: React.FC<StringerBoundFormProps> = ({
                     >
                         {isLoading ? 'Procesando...' : 'Ok'}
                     </button>
-                    <button className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 px-6 rounded-md shadow transition-colors">
+                    <button className="bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-6 rounded-md shadow transition-colors">
                         Cancelar
                     </button>
                     
                     <div className="flex justify-center">
                         <HelpButton 
                             context="stringer-bound-method" 
-                            className="bg-orange-400 hover:bg-orange-500 text-white font-semibold py-2 px-4 rounded-full shadow w-full" 
+                            className="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold py-2 px-4 rounded-full shadow w-full" 
                         />
                     </div>
                 </div>

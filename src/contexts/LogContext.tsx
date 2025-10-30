@@ -7,12 +7,12 @@ export interface LogEntry {
   details: string;
   user: string;
   module: 'planificación' | 'extracción' | 'evaluación' | 'cabecera' | 'visualización' | 'general' | 'resumen';
-  type: 'user' | 'system';
+  type: 'user' | 'system'| 'error';
 }
 
 interface LogContextType {
   logs: LogEntry[];
-  addLog: (action: string, details: string, module: LogEntry['module'], type: 'user' | 'system') => void;
+  addLog: (action: string, details: string, module: LogEntry['module'], type: 'user' | 'system'| 'error') => void;
   clearLogs: () => void;
   getFormattedLogs: () => string;
   getUserLogs: () => LogEntry[]; // ✅ NUEVO: filtrar solo logs de usuario
@@ -24,7 +24,7 @@ const LogContext = createContext<LogContextType | undefined>(undefined);
 export const LogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [logs, setLogs] = useState<LogEntry[]>([]);
 
-  const addLog = useCallback((action: string, details: string, module: LogEntry['module'], type: 'user' | 'system' = 'user') => {
+  const addLog = useCallback((action: string, details: string, module: LogEntry['module'], type: 'user' | 'system'| 'error' = 'user') => {
     const newLog: LogEntry = {
       timestamp: new Date(),
       action,

@@ -688,7 +688,7 @@ const Extraction: React.FC<ExtractionProps> = ({
                         }}
                         className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded shadow"
                     >
-                        Aceptar
+                        Generar Muestra
                     </button>
                     
                     {/* NUEVO BOTÓN DE HISTORIAL */}
@@ -726,7 +726,7 @@ const Extraction: React.FC<ExtractionProps> = ({
                     <div className="flex justify-center">
                         <HelpButton 
                             context="general" 
-                            className="bg-orange-400 hover:bg-orange-500 text-white font-semibold py-2 px-4 rounded-full shadow w-full" 
+                            className="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold py-2 px-4 rounded-full shadow w-full" 
                         />
                     </div>
                 </div>

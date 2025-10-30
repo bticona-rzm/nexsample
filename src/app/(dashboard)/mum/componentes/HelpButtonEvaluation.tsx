@@ -146,7 +146,7 @@ export const HelpButton: React.FC<HelpButtonProps> = ({ context, className = '' 
   };
 
   const currentHelp = helpContent[context];
-  const isMainButton = className.includes('bg-orange-400');
+  const isMainButton = className.includes('bg-emerald-500');
 
   return (
     <div className={`relative inline-block ${className}`}>
@@ -155,7 +155,7 @@ export const HelpButton: React.FC<HelpButtonProps> = ({ context, className = '' 
         className={`
           transition-colors duration-200
           ${isMainButton 
-            ? 'flex items-center justify-center gap-2 bg-orange-400 hover:bg-orange-500 text-white font-semibold py-2 px-4 rounded-full shadow w-full' 
+            ? 'flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold py-2 px-4 rounded-full shadow w-full' 
             : 'p-1 text-blue-600 hover:text-blue-800'
           }
         `}

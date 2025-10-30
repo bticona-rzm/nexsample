@@ -138,7 +138,7 @@ function MumPageContentWithLogs() {
                 'Error al cargar archivo',
                 `Archivo: ${file.name}\nError: ${error}`,
                 'visualización',
-                'system'
+                'error'
             );
             alert("Hubo un problema al cargar el archivo. Asegúrate de que es un archivo Excel válido.");
             setIsExcelLoaded(false);
@@ -192,7 +192,7 @@ function MumPageContentWithLogs() {
                 'Error en proceso de planificación',
                 `Error del servidor: ${error}`,
                 'planificación',
-                'system'
+                'error'
             );
             
             throw error;
@@ -319,7 +319,7 @@ function MumPageContentWithLogs() {
                 'Error en extracción',
                 `Error: ${error}`,
                 'extracción',
-                'system'
+                'error'
             );
             alert(`Hubo un problema con la extracción de la muestra: ${error}`);
         }
@@ -429,7 +429,7 @@ function MumPageContentWithLogs() {
                         <div className="">
                             <HelpButton 
                                 context="general" 
-                                className="bg-orange-400 hover:bg-orange-500 text-white font-semibold py-2 px-4 rounded-full shadow w-full" 
+                                className="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold py-2 px-4 rounded-full shadow w-full" 
                             />
                         </div>
                     </div>

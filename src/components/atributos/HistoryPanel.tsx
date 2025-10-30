@@ -1,6 +1,6 @@
 // components/mum/HistoryPanel.tsx
 import React, { useState } from 'react';
-import { useLog } from '@/contexts/LogContext';
+import { useLogAtributos } from '@/contexts/LogContextAtributos';
 
 interface HistoryPanelProps {
   isOpen: boolean;
@@ -8,7 +8,7 @@ interface HistoryPanelProps {
 }
 
 export const HistoryPanel: React.FC<HistoryPanelProps> = ({ isOpen, onClose }) => {
-  const { logs, getFormattedLogs, clearLogs } = useLog();
+  const { logs, getFormattedLogs, clearLogs } = useLogAtributos();
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [filter, setFilter] = useState<'all' | 'user' | 'system' | 'error'>('all'); // ✅ NUEVO: Filtro
 

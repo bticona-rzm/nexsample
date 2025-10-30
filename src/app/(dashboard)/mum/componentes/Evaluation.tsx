@@ -64,7 +64,7 @@ const Evaluation: React.FC<EvaluationProps> = (props) => {
                 'Error en proceso de evaluación',
                 `Método: ${method}\nError: ${error}`,
                 'evaluación',
-                'system'
+                'error'
             );
             alert("Ocurrió un error al realizar la evaluación.");
         }

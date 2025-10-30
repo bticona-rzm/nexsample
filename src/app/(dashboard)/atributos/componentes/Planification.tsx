@@ -1,6 +1,7 @@
 import React from 'react';
 import { ConfidenceFactor, CONFIDENCE_FACTORS } from '../../../../components/atributos/constants';
 import { HelpButtonPlanificationAtributos } from './HelpButtonPlanificationAtributos';
+import { useLogAtributos } from '../../../../contexts/LogContextAtributos'; // ✅ Añadir import
 
 type ControlType = 'beta' | 'beta-alpha';
 
@@ -24,7 +25,8 @@ interface PlanificationProps {
     handleCalculatePlanification: () => void;
     handlePrint: () => void;
     handleClose: () => void;
-    handleAcceptPlanification: () => void; // ✅ NUEVA PROP
+    handleAcceptPlanification: () => void;
+    onOpenHistory: () => void; // ✅ NUEVA PROP PARA HISTORIAL
 }
 
 const Planification: React.FC<PlanificationProps> = ({
@@ -47,8 +49,78 @@ const Planification: React.FC<PlanificationProps> = ({
     handleCalculatePlanification,
     handlePrint,
     handleClose,
-    handleAcceptPlanification, // ✅ NUEVA PROP
+    handleAcceptPlanification,
+    onOpenHistory, // ✅ NUEVA PROP
 }) => {
+    // ✅ CONTEXTO DE LOGS
+    const { addLog } = useLogAtributos();
+
+    // ✅ FUNCIÓN PARA MANEJAR CAMBIOS EN TIPO DE CONTROL
+    const handleControlTypeChange = (newType: ControlType) => {
+        setControlType(newType);
+        addLog(
+            'Usuario cambió tipo de control',
+            `Nuevo tipo: ${newType === 'beta' ? 'Riesgo Beta (Muestreo)' : 'Riesgo Beta y Alfa (Control Interno)'}`,
+            'planificación',
+            'user'
+        );
+    };
+
+    // ✅ FUNCIÓN PARA MANEJAR CAMBIOS EN PARÁMETROS
+    const handleParameterChange = (parameter: string, value: number, setter: (value: number) => void) => {
+        setter(value);
+        addLog(
+            'Usuario modificó parámetro de planificación',
+            `Parámetro: ${parameter}\nNuevo valor: ${value}`,
+            'planificación',
+            'user'
+        );
+    };
+
+    // ✅ FUNCIÓN MEJORADA PARA CALCULAR
+    const handleCalculate = () => {
+        addLog(
+            'Usuario inició cálculo de planificación',
+            `Parámetros:\n- Población: ${populationSize}\n- Desv. esperada: ${expectedDeviation}%\n- Desv. tolerable: ${tolerableDeviation}%\n- Confianza Beta: ${confidenceLevel}%\n- Confianza Alfa: ${controlType === 'beta-alpha' ? alphaConfidenceLevel + '%' : 'N/A'}`,
+            'planificación',
+            'user'
+        );
+        handleCalculatePlanification();
+    };
+
+    // ✅ FUNCIÓN MEJORADA PARA ACEPTAR
+    const handleAccept = () => {
+        addLog(
+            'Usuario aceptó planificación',
+            `Planificación aceptada:\n- Tamaño muestra: ${calculatedSampleSize}\n- Desviaciones críticas: ${criticalDeviation}\n- Avanzando a siguiente módulo`,
+            'planificación',
+            'user'
+        );
+        handleAcceptPlanification();
+    };
+
+    // ✅ FUNCIÓN MEJORADA PARA IMPRIMIR
+    const handlePrintWithLog = () => {
+        addLog(
+            'Usuario imprimió resultados de planificación',
+            `Tamaño muestra: ${calculatedSampleSize}\nDesviaciones críticas: ${criticalDeviation}`,
+            'planificación',
+            'user'
+        );
+        handlePrint();
+    };
+
+    // ✅ FUNCIÓN MEJORADA PARA CERRAR
+    const handleCloseWithLog = () => {
+        addLog(
+            'Usuario cerró módulo de planificación',
+            'Módulo de planificación cerrado',
+            'planificación',
+            'user'
+        );
+        handleClose();
+    };
+
     if (!isExcelLoaded) {
         return (
             <div className="p-8 text-center bg-white rounded-lg shadow-md mt-4">
@@ -67,7 +139,9 @@ const Planification: React.FC<PlanificationProps> = ({
                     {/* Título con ayuda general */}
                     <div className="flex items-center justify-between mb-6">
                         <h3 className="text-xl font-bold">Planificación del Muestreo por Atributos</h3>
-                        <HelpButtonPlanificationAtributos context="general" />
+                        <div className="flex items-center gap-2">
+                            <HelpButtonPlanificationAtributos context="general" />
+                        </div>
                     </div>
 
                     {/* Selector de tipo de control con ayuda */}
@@ -84,7 +158,7 @@ const Planification: React.FC<PlanificationProps> = ({
                                     name="controlType"
                                     value="beta"
                                     checked={controlType === 'beta'}
-                                    onChange={() => setControlType('beta')}
+                                    onChange={() => handleControlTypeChange('beta')}
                                 />
                                 <span className="ml-2 text-sm text-gray-700">Riesgo Beta (Muestreo)</span>
                             </label>
@@ -95,7 +169,7 @@ const Planification: React.FC<PlanificationProps> = ({
                                     name="controlType"
                                     value="beta-alpha"
                                     checked={controlType === 'beta-alpha'}
-                                    onChange={() => setControlType('beta-alpha')}
+                                    onChange={() => handleControlTypeChange('beta-alpha')}
                                 />
                                 <span className="ml-2 text-sm text-gray-700">Riesgo Beta y Alfa (Control Interno)</span>
                             </label>
@@ -115,7 +189,7 @@ const Planification: React.FC<PlanificationProps> = ({
                                 <input
                                     type="number"
                                     value={populationSize}
-                                    onChange={(e) => setPopulationSize(Number(e.target.value))}
+                                    onChange={(e) => handleParameterChange('Tamaño población', Number(e.target.value), setPopulationSize)}
                                     className="block w-full rounded-md border-gray-300 shadow-sm sm:text-sm p-2 focus:border-purple-500 focus:ring-purple-500"
                                 />
                             </div>
@@ -125,7 +199,7 @@ const Planification: React.FC<PlanificationProps> = ({
                                 <input
                                     type="number"
                                     value={expectedDeviation}
-                                    onChange={(e) => setExpectedDeviation(Number(e.target.value))}
+                                    onChange={(e) => handleParameterChange('Desviación esperada', Number(e.target.value), setExpectedDeviation)}
                                     className="block w-full rounded-md border-gray-300 shadow-sm sm:text-sm p-2 focus:border-purple-500 focus:ring-purple-500"
                                 />
                             </div>
@@ -135,7 +209,7 @@ const Planification: React.FC<PlanificationProps> = ({
                                 <input
                                     type="number"
                                     value={tolerableDeviation}
-                                    onChange={(e) => setTolerableDeviation(Number(e.target.value))}
+                                    onChange={(e) => handleParameterChange('Desviación tolerable', Number(e.target.value), setTolerableDeviation)}
                                     className="block w-full rounded-md border-gray-300 shadow-sm sm:text-sm p-2 focus:border-purple-500 focus:ring-purple-500"
                                 />
                             </div>
@@ -145,7 +219,7 @@ const Planification: React.FC<PlanificationProps> = ({
                                 <input
                                     type="number"
                                     value={confidenceLevel}
-                                    onChange={(e) => setConfidenceLevel(Number(e.target.value))}
+                                    onChange={(e) => handleParameterChange('Confianza Beta', Number(e.target.value), setConfidenceLevel)}
                                     className="block w-full rounded-md border-gray-300 shadow-sm sm:text-sm p-2 focus:border-purple-500 focus:ring-purple-500"
                                     min="0" 
                                     max="100"
@@ -158,7 +232,7 @@ const Planification: React.FC<PlanificationProps> = ({
                                     <input
                                         type="number"
                                         value={alphaConfidenceLevel}
-                                        onChange={(e) => setAlphaConfidenceLevel(Number(e.target.value))}
+                                        onChange={(e) => handleParameterChange('Confianza Alfa', Number(e.target.value), setAlphaConfidenceLevel)}
                                         className="block w-full rounded-md border-gray-300 shadow-sm sm:text-sm p-2 focus:border-purple-500 focus:ring-purple-500"
                                     />
                                 </div>
@@ -230,17 +304,18 @@ const Planification: React.FC<PlanificationProps> = ({
             {/* Columna Derecha: Botones de Acción */}
             <div className="w-48 flex-none flex flex-col space-y-4 mt-2">
                 <button
-                    onClick={handleCalculatePlanification}
+                    onClick={handleCalculate}
                     disabled={!isExcelLoaded || tolerableDeviation <= 0 || confidenceLevel <= 0}
-                    className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-4 rounded-lg shadow transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg shadow transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
                 >
                     Calcular
                 </button>
-                {/* ✅ NUEVO BOTÓN ACEPTAR */}
+                
+                {/* ✅ BOTÓN ACEPTAR CON LOGS */}
                 <button
-                    onClick={handleAcceptPlanification}
+                    onClick={handleAccept}
                     disabled={!isPlanificacionDone}
-                    className={`font-semibold py-3 px-4 rounded-lg shadow transition-colors ${
+                    className={`font-semibold py-2 px-4 rounded-lg shadow transition-colors ${
                         !isPlanificacionDone 
                             ? "bg-gray-400 text-gray-700 cursor-not-allowed" 
                             : "bg-green-600 hover:bg-green-700 text-white"
@@ -248,22 +323,35 @@ const Planification: React.FC<PlanificationProps> = ({
                 >
                     Aceptar
                 </button>
+                
+                {/* ✅ BOTÓN CERRAR CON LOGS */}
                 <button
-                    onClick={handlePrint}
+                    onClick={handleCloseWithLog}
+                    className="bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded-lg shadow transition-colors"
+                >
+                    Cancelar
+                </button>
+                
+                {/* ✅ BOTÓN HISTORIAL */}
+                <button
+                    onClick={onOpenHistory}
+                    className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-lg shadow transition-colors"
+                >
+                    Ver Historial
+                </button>
+
+                {/* ✅ BOTÓN IMPRIMIR CON LOGS */}
+                <button
+                    onClick={handlePrintWithLog}
                     disabled={!isPlanificacionDone}
-                    className={`font-semibold py-3 px-4 rounded-lg shadow transition-colors ${!isPlanificacionDone ? "bg-gray-400 text-gray-700 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700 text-white"}`}
+                    className={`font-semibold py-2 px-4 rounded-lg shadow transition-colors ${!isPlanificacionDone ? "bg-gray-400 text-gray-700 cursor-not-allowed" : "bg-gray-400 hover:bg-gray-500 text-white"}`}
                 >
                     Imprimir
                 </button>
-                <button
-                    onClick={handleClose}
-                    className="bg-red-500 hover:bg-red-600 text-white font-semibold py-3 px-4 rounded-lg shadow transition-colors"
-                >
-                    Cerrar
-                </button>
+                
                 <HelpButtonPlanificationAtributos 
                     context="general" 
-                    className="bg-gray-400 hover:bg-gray-500 text-white font-semibold py-3 px-4 rounded-full shadow transition-colors" 
+                    className="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold py-2 px-4 rounded-full shadow transition-colors" 
                 />
             </div>
         </div>

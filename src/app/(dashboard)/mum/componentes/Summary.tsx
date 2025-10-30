@@ -157,7 +157,7 @@ const Summary: React.FC<SummaryProps> = ({
                 'Error al generar PDF',
                 `Método: ${evaluationMethod}\nError: ${error}`,
                 'resumen',
-                'system'
+                'error'
             );
         alert('Error al generar el PDF. Por favor, intenta nuevamente.');
         }
