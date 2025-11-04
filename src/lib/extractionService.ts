@@ -66,7 +66,7 @@ const createBase64ExcelWithMetadata = (
     if (data.length > 0) {
         const dataSheet = XLSX.utils.json_to_sheet(data);
         XLSX.utils.book_append_sheet(workbook, dataSheet, sheetName);
-    }
+    } 
 
     // ✅ HOJA 2: METADATOS (como en Atributos)
     const metadataRows = [
@@ -123,6 +123,7 @@ export const executeExtraction = (params: {
     extractionFilename: string;
     highValueFilename: string;
     seed?: number; // ✅ NUEVO: Semilla para reproducibilidad
+    returnData?: boolean; // ✅ NUEVO: Para modo previsualización
 }): any => {
     
     const { 
@@ -136,7 +137,8 @@ export const executeExtraction = (params: {
         extractionType,
         extractionFilename,
         highValueFilename,
-        seed
+        seed,
+        returnData = false // ✅ Valor por defecto
     } = params;
     
     // ✅ CORRECCIÓN: USAR ENTEROS COMO IDEA
@@ -286,6 +288,25 @@ export const executeExtraction = (params: {
     // 5. ✅ GENERACIÓN MEJORADA DE ARCHIVOS CON METADATOS
     const sampleFileBase64 = createBase64ExcelWithMetadata(finalSample, "Muestra", metadata);
     let highValueFileBase64: string | null = null;
+
+    // ✅ NUEVO: Devolver datos procesados si está en modo preview
+    if (returnData) {
+        return {
+            sampleFileBase64,
+            highValueFileBase64,
+            sampleFilename: extractionFilename,
+            highValueFilename: highValueManagement === 'separado' ? highValueFilename : null,
+            // ✅ DATOS PROCESADOS PARA PREVIEW
+            processedData: finalSample,
+            previewInfo: {
+                totalRecords: finalSample.length,
+                populationSize: excelData.length,
+                sampleSize: estimatedSampleSize,
+                interval: correctedSampleInterval,
+                randomStart: correctedRandomStart
+            }
+        };
+    }
 
     // PROCESAR VALORES ALTOS
     if (highValueManagement === 'separado') {

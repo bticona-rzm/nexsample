@@ -16,21 +16,19 @@ interface ExtractionPayload {
     extractionType: "intervaloFijo" | "seleccionCelda";
     extractionFilename: string;
     highValueFilename: string;
+    isPreview?: boolean; // ✅ NUEVO: Para modo previsualización
 }
 
 export async function POST(req: Request) {
     try {
         const payload: ExtractionPayload = await req.json();
 
-
-        const { sampleFileBase64, highValueFileBase64 } = executeExtraction(payload);
-
-        return NextResponse.json({
-            sampleFileBase64,
-            highValueFileBase64,
-            extractionFilename: payload.extractionFilename, // Asegurar que se devuelve
-            highValueFilename: payload.highValueFilename, // Asegurar que se devuelve
+        const result = executeExtraction({
+            ...payload,
+            returnData: payload.isPreview // ✅ Pasar el flag al servicio
         });
+
+        return NextResponse.json(result);
 
     } catch (error: any) {
         console.error("Error en la extracción (API Handler):", error);

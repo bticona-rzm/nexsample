@@ -5,6 +5,7 @@ import { useLog } from '@/contexts/LogContext';
 import { HistoryPanel } from '@/components/mum/HistoryPanel';
 import {handleErrorChange, formatNumber, formatErrorValue} from '../../../../lib/apiClient';
 import { HelpButton } from './HelpButtonExtraction';
+import Visualizer from './../../atributos/componentes/Visualizer';
 
 // ✅ Función debounce helper
 function debounce<T extends (...args: any[]) => void>(
@@ -124,6 +125,112 @@ const Extraction: React.FC<ExtractionProps> = ({
     const [showHistory, setShowHistory] = useState(false); // Ahora useState está importado
     const { addLog } = useLog();
     const hasInitializedField = useRef(false); // ✅ NUEVO: controlar ejecución única
+
+    // ✅ PASO 1: AGREGAR ESTADOS PARA PREVISUALIZACIÓN
+    const [showPreview, setShowPreview] = useState(false);
+    const [isGeneratingPreview, setIsGeneratingPreview] = useState(false);
+    const [previewData, setPreviewData] = useState<ExcelRow[]>([]);
+    const [isPreviewReady, setIsPreviewReady] = useState(false);
+
+    // ✅ PASO 2: AGREGAR ESTA FUNCIÓN EN Extraction.tsx
+    const handlePreviewExtraction = async () => {
+        if (!isFormValid) {
+            alert("Por favor completa todos los parámetros requeridos antes de previsualizar.");
+            return;
+        }
+
+        setIsGeneratingPreview(true);
+        addLog(
+            'Usuario solicitó previsualización de extracción MUM',
+            `Tipo: ${extractionType}\nCampo: ${sampleField}\nIntervalo: ${sampleInterval}`,
+            'extracción',
+            'user'
+        );
+
+        try {
+            // ✅ LLAMAR AL SERVICIO REAL EN MODO PREVIEW
+            const previewResult = await fetch('/api/mum/extraction', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    excelData,
+                    estimatedSampleSize,
+                    sampleInterval,
+                    highValueLimit,
+                    highValueManagement,
+                    sampleField: sampleField || '',
+                    randomStartPoint,
+                    estimatedPopulationValue,
+                    extractionType,
+                    extractionFilename: "preview_" + extractionFilename,
+                    highValueFilename: "preview_" + highValueFilename,
+                    isPreview: true // ✅ Flag para modo previsualización
+                })
+            });
+
+            if (!previewResult.ok) {
+                const errorData = await previewResult.json();
+                throw new Error(errorData.error || 'Error en el servidor');
+            }
+
+            const result = await previewResult.json();
+            
+            // ✅ USAR LOS DATOS REALES DEL ALGORITMO MUM
+            if (result.processedData && result.processedData.length > 0) {
+                setPreviewData(result.processedData);
+                setIsPreviewReady(true);
+                setShowPreview(true);
+                
+                addLog(
+                    'Previsualización de extracción generada exitosamente',
+                    `Registros en previsualización: ${result.processedData.length}\nMuestra real del algoritmo MUM`,
+                    'extracción',
+                    'system'
+                );
+            } else {
+                throw new Error('No se generaron datos en la previsualización');
+            }
+
+        } catch (error) {
+            console.error("Error al generar previsualización:", error);
+            
+            // ✅ FALLBACK: Usar simulación temporal
+            const mockPreviewData = excelData.slice(0, Math.min(10, excelData.length));
+            setPreviewData(mockPreviewData);
+            setIsPreviewReady(true);
+            setShowPreview(true);
+            
+            addLog(
+                'Previsualización generada en modo simulación',
+                `Usando primeros 10 registros como fallback. Error: ${error}`,
+                'extracción',
+                'error'
+            );
+            
+            alert("Se está mostrando una previsualización simulada. Los datos reales pueden variar.");
+        } finally {
+            setIsGeneratingPreview(false);
+        }
+    };
+
+    // ✅ PASO 2.1: Función para cerrar previsualización
+    const handleClosePreview = () => {
+        setShowPreview(false);
+        addLog(
+            'Usuario cerró previsualización de extracción',
+            `Registros previsualizados: ${previewData.length}`,
+            'extracción',
+            'user'
+        );
+    };
+
+    // ✅ PASO 3: AGREGAR ESTA VALIDACIÓN EN Extraction.tsx
+    const isFormValid = sampleField && 
+                    sampleInterval > 0 && 
+                    randomStartPoint > 0 && 
+                    extractionFilename.trim() !== '';
 
     // ✅ Debounced log functions - se ejecutan solo después de 1 segundo sin cambios
     const debouncedLogHighValueFilename = useCallback(
@@ -320,9 +427,9 @@ const Extraction: React.FC<ExtractionProps> = ({
             );
         }
         return (
-            <div className="flex space-x-6 p-4">
+            <div className="flex space-x-6 p-4 h-[calc(100vh-80px)]">
                 {/* Left Column: Extraction Controls */}
-                <div className="flex-1 space-y-6">
+                <div className="flex-1 space-y-6 overflow-y-auto pr-2">
                     {/* Extraction Type and High Value Management */}
                     <div className="bg-gray-50 p-6 rounded-lg shadow-inner flex space-x-8">
                         <div className="flex-1">
@@ -672,34 +779,145 @@ const Extraction: React.FC<ExtractionProps> = ({
                             placeholder="ej. muestra_auditoria.xlsx"
                         />
                     </div>
+                    {/* ✅ CORREGIR: SECCIÓN DE PREVISUALIZACIÓN - Estructura como Aleatorio */}
+                    {showPreview && isPreviewReady && previewData.length > 0 && (
+                        <div className="bg-white p-6 rounded-lg shadow-md flex-1 min-h-0 flex flex-col">
+                            <div className="flex flex-col flex-1 min-h-0">
+                                <div className="flex items-center justify-between mb-4 flex-shrink-0">
+                                    <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                                        <span className="text-green-600">👁️</span>
+                                        Previsualización de la Muestra MUM
+                                        <span className="ml-2 text-sm font-normal text-green-600 bg-green-50 px-2 py-1 rounded">
+                                            {previewData.length} registros seleccionados
+                                        </span>
+                                    </h3>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => {
+                                                addLog(
+                                                    'Usuario confirmó extracción desde previsualización',
+                                                    `Registros: ${previewData.length}`,
+                                                    'extracción',
+                                                    'user'
+                                                );
+                                                handleExtraction();
+                                            }}
+                                            className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded shadow text-sm flex items-center gap-2"
+                                        >
+                                            <span>✅</span>
+                                            Confirmar y Exportar
+                                        </button>
+                                        <button
+                                            onClick={handleClosePreview}
+                                            className="bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded shadow text-sm"
+                                        >
+                                            Cerrar
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                {/* ✅ CONTENEDOR DEL VISUALIZER CON SCROLL INTERNO */}
+                                <div className="flex-1 min-h-0 overflow-auto">
+                                    <Visualizer 
+                                        excelData={previewData} 
+                                        headers={headers} 
+                                    />
+                                </div>
+                            </div>
+                            
+                            {/* Información adicional */}
+                            <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                                <div className="flex items-start gap-3">
+                                    <span className="text-blue-600 text-lg">💡</span>
+                                    <div>
+                                        <p className="text-sm text-blue-700 font-medium">
+                                            Previsualización de la muestra MUM
+                                        </p>
+                                        <p className="text-xs text-blue-600 mt-1">
+                                            <strong>Nota:</strong> Esta es una previsualización de los registros que serán 
+                                            seleccionados. Haz clic en "Confirmar y Exportar" para generar el archivo Excel 
+                                            final con todas las columnas de auditoría MUM.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ✅ CORREGIR: Mensaje cuando no hay datos */}
+                    {showPreview && isPreviewReady && previewData.length === 0 && (
+                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                            <div className="flex items-center gap-3">
+                                <span className="text-yellow-600 text-lg">⚠️</span>
+                                <div>
+                                    <p className="text-sm text-yellow-800 font-medium">
+                                        No se encontraron registros para la muestra
+                                    </p>
+                                    <p className="text-xs text-yellow-600 mt-1">
+                                        Revisa los parámetros de extracción (intervalo, punto de inicio, campo seleccionado).
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Right Column: Action Buttons */}
-                <div className="w-48 flex-none flex flex-col space-y-4">
+                <div className="w-48 flex-none flex flex-col space-y-4 mt-2">
+
+                    {/* Botón de Previsualización */}
+                    <button
+                        onClick={handlePreviewExtraction}
+                        disabled={!isFormValid || isGeneratingPreview}
+                        className={`font-semibold py-2 px-4 rounded shadow transition-colors flex items-center justify-center gap-2 ${
+                            !isFormValid || isGeneratingPreview
+                                ? "bg-gray-400 text-gray-700 cursor-not-allowed" 
+                                : "bg-blue-600 hover:bg-blue-700 text-white"
+                        }`}
+                    >
+                        {isGeneratingPreview ? (
+                            <>
+                                <span className="animate-spin">⏳</span>
+                                Generando...
+                            </>
+                        ) : (
+                            <>
+                                <span>👁️</span>
+                                Previsualizar Muestra
+                            </>
+                        )}
+                    </button>
+                    
+                    {/* Botón Generar Muestra Directa */}
                     <button
                         onClick={() => {
                             addLog(
-                                'Usuario inició proceso de extracción',
-                                `Tipo: ${extractionType}\nGestión valores altos: ${highValueManagement}\nArchivo: ${extractionFilename}`,
+                                'Usuario inició proceso de extracción directa',
+                                `Tipo: ${extractionType}\nGestión valores altos: ${highValueManagement}`,
                                 'extracción',
-                                'user' // ✅ LOG DEL USUARIO
+                                'user'
                             );
                             handleExtraction();
                         }}
-                        className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded shadow"
+                        disabled={!isFormValid}
+                        className={`font-semibold py-2 px-4 rounded shadow transition-colors ${
+                            !isFormValid
+                                ? "bg-gray-400 text-gray-700 cursor-not-allowed" 
+                                : "bg-green-600 hover:bg-green-700 text-white"
+                        }`}
                     >
-                        Generar Muestra
+                        Generar Muestra Directa
                     </button>
                     
-                    {/* NUEVO BOTÓN DE HISTORIAL */}
+                    {/* Botones existentes */}
                     <button
-                         onClick={() => {
+                        onClick={() => {
                             setShowHistory(true);
                             addLog(
                                 'Usuario visualizó historial',
                                 'Historial de auditoría abierto desde módulo de extracción',
                                 'extracción',
-                                'user' // ✅ LOG DEL USUARIO
+                                'user'
                             );
                         }}
                         className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded shadow"
@@ -713,7 +931,7 @@ const Extraction: React.FC<ExtractionProps> = ({
                                 'Usuario canceló extracción',
                                 'Navegación de regreso a planificación',
                                 'extracción',
-                                'user' // ✅ LOG DEL USUARIO
+                                'user'
                             );
                             setActiveTab('planificacion');
                         }}
@@ -722,7 +940,7 @@ const Extraction: React.FC<ExtractionProps> = ({
                         Cancelar
                     </button>
                     
-                     {/* Botón de ayuda general actualizado - REEMPLAZAR el botón existente */}
+                    {/* Botón de ayuda */}
                     <div className="flex justify-center">
                         <HelpButton 
                             context="general" 
