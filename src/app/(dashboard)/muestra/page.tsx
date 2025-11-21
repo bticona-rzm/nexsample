@@ -1,8 +1,18 @@
 "use client";
 import { useState, useEffect } from "react";
-import { ChevronLeft, ChevronRight ,  FileBarChart, Download, History, Upload, Printer, Trash2} from "lucide-react";
+import { FileBarChart, Download, History, Upload, Printer} from "lucide-react";
 import { useSession } from "next-auth/react";
 import { formatDate } from "@/lib/format";
+import { Button } from "@/components/ui/button";
+import {
+  useReactTable,
+  getCoreRowModel,
+  getSortedRowModel,
+  flexRender,
+  SortingState
+} from "@tanstack/react-table";
+import { ChevronUp, ChevronDown } from "lucide-react";
+
 
 type SampleParams = {
   records: number;
@@ -11,166 +21,294 @@ type SampleParams = {
   end: number;
   allowDuplicates: boolean;
   fileName: string;
+  totalRows?: number;
 };
-
 const DEFAULT_SAMPLE_PARAMS: SampleParams = {
-  records: 1,
-  seed: 2561,
+  records: 0,
+  seed: 0,
   start: 1,
   end: 100,
   allowDuplicates: false,
   fileName: "",
+  totalRows: 0,        //  NUEVO
 };
 
-// === COMPONENTES DE TABLAS ===
-const TablaHistorial = ({ historial }: { historial: any[] }) => (
-  <div className="overflow-x-auto bg-white rounded shadow-md">
-    <table className="min-w-full divide-y divide-gray-200">
-      <thead className="bg-gray-50">
-        <tr>
-          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">NOMBRE</th>
-          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">FECHA</th>
-          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">USUARIO</th>
-          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">REGISTROS</th>
-          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">RANGO</th>
-          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">SEMILLA</th>
-          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">DUPLICADOS</th>
-          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">ARCHIVO FUENTE</th>
-          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">HASH</th>
-          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">TIPO</th>
-        </tr>
-      </thead>
-        <tbody>
-          {historial.map((h, i) => (
-            <tr key={i} className="text-sm text-gray-600">
-              <td className="px-6 py-2">{h.name}</td>
-              <td className="px-6 py-2">{formatDate(h.createdAt)}</td>
-              <td className="px-6 py-2">{h.userDisplay}</td>
-              <td className="px-6 py-2">{h.records}</td>
-              <td className="px-6 py-2">{h.range}</td>
-              <td className="px-6 py-2">{h.seed}</td>
-              <td className="px-6 py-2">{h.allowDuplicates ? "Sí" : "No"}</td>
-              <td className="px-6 py-2">{h.source || "Desconocido"}</td>
-              <td className="px-6 py-2 font-mono text-xs">{h.hash}</td>
-              <td className="px-6 py-2 font-bold">{h.tipo === "masivo" ? "Masivo" : "Estándar"}</td>
-            </tr>
-          ))}
-        </tbody>
-    </table>
-  </div>
-);
-
-//=== generica con paginacion
-const TablaGenerica = ({ rows }: { rows: any[] }) => {
-  const [paginaActual, setPaginaActual] = useState(1);
-  const filasPorPagina = 10;
-
-  const totalPaginas = Math.ceil(rows.length / filasPorPagina);
-
-  const inicio = (paginaActual - 1) * filasPorPagina;
-  const fin = inicio + filasPorPagina;
-  const filasActuales = rows.slice(inicio, fin);
-
-  return (
-    <div className="bg-white rounded shadow-md">
-      {/* Tabla con scroll */}
-      <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50 sticky top-0 z-10">
-            <tr>
-              {/* Nueva columna contador */}
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                Nro
-              </th>
-              {/* Columnas del dataset */}
-              {rows.length > 0 &&
-                Object.keys(rows[0]).map((col, i) => (
-                  <th
-                    key={i}
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider"
-                  >
-                    {col}
-                  </th>
-                ))}
-            </tr>
-          </thead>
+const NO_SPIN_CSS = `
+  /* hide number input spinners for webkit and firefox */
+  .no-spin::-webkit-outer-spin-button,
+  .no-spin::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  .no-spin {
+    -moz-appearance: textfield;
+  }
+`;
+const PROGRESS_CSS = `
+  .progress-bar {
+    background: linear-gradient(90deg, #3b82f6, #60a5fa, #3b82f6);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite linear;
+  }
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+`;
+  // === COMPONENTES DE TABLAS ===
+  const TablaHistorial = ({ historial }: { historial: any[] }) => (
+    <div className="overflow-x-auto bg-white rounded shadow-md">
+      <table className="min-w-full divide-y divide-gray-200">
+        <thead className="bg-gray-50">
+          <tr>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">NOMBRE</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">FECHA</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">USUARIO</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">REGISTROS</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">RANGO</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">SEMILLA</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">DUPLICADOS</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">ARCHIVO FUENTE</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">HASH</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">TIPO</th>
+          </tr>
+        </thead>
           <tbody>
-            {filasActuales.map((row, i) => (
-              <tr
-                key={i}
-                className={`${
-                  i % 2 === 0 ? "bg-white" : "bg-white"
-                } hover:bg-gray-50 transition`}
-              >
-                {/*  Celda contador (índice global) */}
-                <td className="px-6 py-3 text-sm text-gray-600 whitespace-nowrap  ">
-                  {inicio + i + 1}
+            {historial.map((h, i) => (
+              <tr key={i} className="text-sm text-gray-600">
+                <td className="px-6 py-2">{h.name}</td>
+                <td className="px-6 py-2">{formatDate(h.fecha)}</td>
+                <td className="px-6 py-2">{h.userDisplay}</td>
+                <td className="px-6 py-2">{h.records}</td>
+                <td className="px-6 py-2">{h.range}</td>
+                <td className="px-6 py-2">{h.seed}</td>
+                <td className="px-6 py-2">{Boolean(h.allowDuplicates) ? "Sí" : "No"}</td>
+                <td className="px-6 py-2">{h.source || "Desconocido"}</td>
+                <td className="px-6 py-2 font-mono text-xs">{h.hash}</td>
+                <td className="px-6 py-2 text-center font-bold">
+                  {h.tipo?.toLowerCase() === "masivo" ? (
+                  <span className="bg-[#e7b952] text-[#003055] px-3 py-1 rounded font-semibold">
+                    Masivo
+                  </span>
+                ) : (
+                  <span className="bg-[#5e7eb9] text-white px-3 py-1 rounded font-semibold">
+                    Estandar
+                  </span>
+                )}
                 </td>
-
-                {/*  Resto de columnas */}
-                {Object.values(row).map((val, j) => (
-                  <td
-                    key={j}
-                    className="px-6 py-3 text-sm text-gray-600 whitespace-nowrap"
-                  >
-                    {String(val)}
-                  </td>
-                ))}
               </tr>
             ))}
           </tbody>
-        </table>
-      </div>
-
-      {/* Paginación (fuera del scroll) */}
-      {rows.length > filasPorPagina && (
-        <div className="flex items-center justify-between px-6 py-4 bg-gray-50 rounded-b">
-          {/* Botón Anterior */}
-          <button
-            onClick={() => setPaginaActual((p) => Math.max(p - 1, 1))}
-            disabled={paginaActual === 1}
-            className={`flex items-center gap-2 px-4 py-2 rounded font-medium transition ${
-              paginaActual === 1
-                ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                : "bg-[#e7b952] text-white hover:bg-[#edc977]"
-            }`}
-          >
-            <ChevronLeft size={18} />
-            Anterior
-          </button>
-
-          {/* Texto de página */}
-          <span className="text-sm font-medium text-gray-700">
-            Página {paginaActual} de {totalPaginas}
-          </span>
-
-          {/* Botón Siguiente */}
-          <button
-            onClick={() =>
-              setPaginaActual((p) => Math.min(p + 1, totalPaginas))
-            }
-            disabled={paginaActual === totalPaginas}
-            className={`flex items-center gap-2 px-4 py-2 rounded font-medium transition ${
-              paginaActual === totalPaginas
-                ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                : "bg-[#e7b952] text-white hover:bg-[#edc977]"
-            }`}
-          >
-            Siguiente
-            <ChevronRight size={18} />
-          </button>
-        </div>
-      )}
+      </table>
     </div>
   );
-};
 
-// === PÁGINA PRINCIPAL ===
+  const TablaGenerica = ({ rows, columns }: { rows: any[]; columns?: string[] }) => {
+    const [sorting, setSorting] = useState<SortingState>([]);
+    const [paginaActual, setPaginaActual] = useState(1);
+    const filasPorPagina = 10;
+
+    useEffect(() => {
+      setPaginaActual(1);
+    }, [rows]);
+
+    // =============================
+    // 1. Generar columnas dinámicas
+    // =============================
+    const columnDefs =
+      (columns && columns.length > 0 ? columns : rows.length > 0 ? Object.keys(rows[0]) : [])
+        .map((col) => ({
+          accessorKey: col,
+          header: () => (
+            <div className="flex items-center gap-1 cursor-pointer select-none">
+              {col === "_POS_ORIGINAL" ? "Posición Original" : col}
+
+              <span>
+                {sorting.find((s) => s.id === col)?.desc === false && <ChevronUp size={14} />}
+                {sorting.find((s) => s.id === col)?.desc === true && <ChevronDown size={14} />}
+              </span>
+            </div>
+          ),
+        }));
+
+    // =============================
+    // 2. Crear tabla TanStack
+    // =============================
+    const table = useReactTable({
+      data: rows,
+      columns: [
+        {
+          accessorKey: "__row_number",
+          header: "Nro",
+          cell: (info) => info.row.index + 1,
+        },
+        ...columnDefs,
+      ],
+      state: { sorting },
+      onSortingChange: setSorting,
+      getCoreRowModel: getCoreRowModel(),
+      getSortedRowModel: getSortedRowModel(),
+    });
+
+    // =============================
+    // 3. Obtener filas ordenadas y paginadas
+    // =============================
+    const sortedRows = table.getRowModel().rows.map((r) => r.original);
+    const totalPaginas = Math.ceil(sortedRows.length / filasPorPagina);
+    const filasActuales = sortedRows.slice(
+      (paginaActual - 1) * filasPorPagina,
+      paginaActual * filasPorPagina
+    );
+
+    return (
+      <div className="bg-white rounded shadow-md">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50 sticky top-0 z-10">
+              <tr>
+                {table.getHeaderGroups()[0].headers.map((header) => (
+                  <th
+                    key={header.id}
+                    className="px-6  py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider cursor-pointer"
+                    onClick={header.column.getToggleSortingHandler()}
+                  >
+                    {flexRender(header.column.columnDef.header, header.getContext())}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filasActuales.map((row, i) => (
+                <tr
+                  key={i}
+                  className="hover:bg-gray-50 transition border-b border-gray-200"
+                  style={{ height: "48px" }} // ALTURA MÁS PROFESIONAL
+                >
+                  {/* Columna NRO */}
+                  <td className="px-6 py-3 text-[15px] text-gray-700 font-medium">
+                    {(paginaActual - 1) * filasPorPagina + i + 1}
+                  </td>
+
+                  {/* Columnas dinámicas */}
+                  {columnDefs.map((col, j) => {
+                    const isWide =
+                      col.accessorKey?.toLowerCase().includes("glosa") ||
+                      col.accessorKey?.toLowerCase().includes("descripcion");
+
+                    return (
+                      <td
+                        key={j}
+                        className={`px-6 py-3 text-[15px] text-gray-700 ${
+                          isWide
+                            ? "max-w-[350px] truncate hover:whitespace-normal"
+                            : "max-w-[200px] truncate hover:whitespace-normal"
+                        }`}
+                        title={String(row[col.accessorKey] ?? "")} // tooltip texto completo
+                      >
+                        {String(row[col.accessorKey] ?? "")}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* === Paginación === */}
+        {/* === Paginación (MISMO DISEÑO, SOLO REORDENADA Y CON INPUT) === */}
+        {sortedRows.length > filasPorPagina && (
+          <div className="flex items-center justify-between px-6 py-4 bg-gray-50 rounded-b">
+
+            {/* IZQUIERDA: Inicio + Anterior */}
+            <div className="flex items-center gap-2">
+              {/* Botón: Primera página */}
+              <button
+                onClick={() => setPaginaActual(1)}
+                disabled={paginaActual === 1}
+                className={`flex items-center gap-1 px-3 py-2 rounded font-medium transition ${
+                  paginaActual === 1
+                    ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                    : "bg-[#e7b952] text-white hover:bg-[#edc977]"
+                }`}
+              >
+                ⏮
+              </button>
+
+              {/* Botón: Anterior */}
+              <button
+                onClick={() => setPaginaActual((p) => Math.max(p - 1, 1))}
+                disabled={paginaActual === 1}
+                className={`flex items-left gap-2 px-4 py-2 rounded font-medium transition ${
+                  paginaActual === 1
+                    ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                    : "bg-[#e7b952] text-white hover:bg-[#edc977]"
+                }`}
+              >
+                Anterior
+              </button>
+            </div>
+
+            {/* CENTRO: Página X de Y + Input para escribir página */}
+            <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
+              Página
+
+              <input
+                type="number"
+                min={1}
+                max={totalPaginas}
+                value={paginaActual}
+                onChange={(e) => {
+                  let value = Number(e.target.value);
+                  if (!Number.isNaN(value)) {
+                    value = Math.max(1, Math.min(totalPaginas, value));
+                    setPaginaActual(value);
+                  }
+                }}
+                className="w-14 px-2 py-1 border rounded text-center"
+              />
+
+              de {totalPaginas}
+            </div>
+
+            {/* DERECHA: Siguiente + Última */}
+            <div className="flex items-center gap-2">
+
+              {/* Botón: Siguiente */}
+              <button
+                onClick={() => setPaginaActual((p) => Math.min(p + 1, totalPaginas))}
+                disabled={paginaActual === totalPaginas}
+                className={`flex items-center gap-2 px-4 py-2 rounded font-medium transition ${
+                  paginaActual === totalPaginas
+                    ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                    : "bg-[#e7b952] text-white hover:bg-[#edc977]"
+                }`}
+              >
+                Siguiente
+              </button>
+
+              {/* Botón: Última página */}
+              <button
+                onClick={() => setPaginaActual(totalPaginas)}
+                disabled={paginaActual === totalPaginas}
+                className={`flex items-center gap-1 px-3 py-2 rounded font-medium transition ${
+                  paginaActual === totalPaginas
+                    ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                    : "bg-[#e7b952] text-white hover:bg-[#edc977]"
+                }`}
+              >
+                ⏭
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
 export default function MuestraPage() {
-
   const { data: session } = useSession();
   const userId = (session?.user as any)?.id;
-
   // Evitar hydration mismatch
   const [hydrated, setHydrated] = useState(false);
   useEffect(() => setHydrated(true), []);
@@ -182,10 +320,21 @@ export default function MuestraPage() {
     }
     return [];
   });
+
   // Importante: historial SIEMPRE como array vacío (no localStorage)
-  const [historial, setHistorial] = useState<any[]>([]);
+  type HistorialState = {
+    imports: any[];
+    muestras: any[];
+    exports: any[];
+  };
+
+  const [historial, setHistorial] = useState<HistorialState>({
+    imports: [],
+    muestras: [],
+    exports: [],
+  });
   // Activar las pestañas de las tablas
-  const [activeTab, setActiveTab] = useState<string | null>(() => {
+  const [activeTab, setActiveTab] = useState<string | null>(( ) => {
     if (typeof window !== "undefined") {
       return localStorage.getItem("activeTab") || null;
     }
@@ -194,8 +343,6 @@ export default function MuestraPage() {
   
   // nuevo estado: subtabs estilo parametrización
   const [subTab, setSubTab] = useState<"estandar" | "masivo">("estandar");
-
-
   // Estado: parámetros del muestreo (persistentes)
   const [sampleParams, setSampleParams] = useState<SampleParams>(() => {
     if (typeof window !== "undefined") {
@@ -210,20 +357,39 @@ export default function MuestraPage() {
     ...DEFAULT_SAMPLE_PARAMS,
     records: 0,   // aquí lo adaptas a tu lógica
     seed: 0,      // diferente semilla inicial
-    end: 0,       // porque aún no se sabe el tamaño del dataset masivo
+    end: 0,     // porque aún no se sabe el tamaño del dataset masivo
+    allowDuplicates: false,
+    fileName: "",
   });
 
-  // Función imprimir
   // === IMPRIMIR HISTORIAL COMPLETO (Estandar + Masivo) ===
   const exportPdf = async () => {
     try {
-      const res = await fetch("/api/export/pdfHistorial", {
+      // ruta correcta del endpoint: /api/export/pdf
+      const res = await fetch("/api/export/pdf", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        // incluir cookies/sesión para que getServerSession funcione
+        credentials: "include",
       });
 
       if (!res.ok) {
-        alert("No hay registros en el historial para imprimir.");
+        // intentar parsear respuesta de error
+        let errBody: any = {};
+        try {
+          errBody = await res.json();
+        } catch (e) {
+          try {
+            const txt = await res.text();
+            errBody = { error: txt };
+          } catch (e2) {
+            errBody = { error: res.statusText || 'Error desconocido' };
+          }
+        }
+
+        // Mostrar mensaje más útil según lo que devuelva el servidor
+        const msg = errBody?.error || errBody?.details || res.statusText || 'Error al generar el PDF';
+        alert(msg);
         return;
       }
 
@@ -240,58 +406,9 @@ export default function MuestraPage() {
     }
   };
 
-  // Función limpiar historial
-  const clearHistorial = async () => {
-    if (!userId) {
-      alert("Necesitas iniciar sesión para limpiar tu historial.");
-      return;
-    }
+  // estado para indicar que se está generando el PDF
+  const [pdfLoading, setPdfLoading] = useState(false);
 
-    if (confirm("¿Seguro que quieres borrar todo el historial?")) {
-      try {
-        const res = await fetch("/api/muestra", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "clearHistorial", userId }),
-        });
-
-        if (!res.ok) {
-          alert("No se pudo limpiar el historial.");
-          return;
-        }
-
-        setHistorial([]); //  limpio en UI
-      } catch (e: any) {
-        alert(`Error al limpiar historial: ${e.message}`);
-      }
-    }
-  };
-
-  // === Limpiar historial MASIVO ===
-  const clearHistorialMasivo = async () => {
-    if (!userId) {
-      alert("Necesitas iniciar sesión para limpiar tu historial masivo.");
-      return;
-    }
-    if (confirm("¿Seguro que quieres borrar todo el historial masivo?")) {
-      try {
-        const res = await fetch("/api/masiva", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "clearHistorial", userId }),
-        });
-        if (!res.ok) {
-          alert("No se pudo limpiar el historial masivo.");
-          return;
-        }
-        setHistorial([]);
-      } catch (e: any) {
-        alert(`Error al limpiar historial masivo: ${e.message}`);
-      }
-    }
-  };
-
-  // Guardar pestañas
   // Guardar pestañas (solo metadata ligera, no las filas pesadas)
   useEffect(() => {
     const lightTabs = tabs.map(t => ({
@@ -335,6 +452,14 @@ export default function MuestraPage() {
     }
   }, [subTab]);
 
+  useEffect(() => {
+    setTabs(prev => {
+      const map = new Map<string, any>();
+      for (const t of prev) map.set(t.id, t); // la última gana
+      const deduped = Array.from(map.values());
+      return deduped.length === prev.length ? prev : deduped;
+    });
+  }, []);
 
   // UI: modales y estados auxiliares ESTANDAR
   const [showModal, setShowModal] = useState(false);
@@ -345,7 +470,6 @@ export default function MuestraPage() {
   const [datasetName, setDatasetName] = useState("");
   // Estado nuevo para exportación
   const [selectedTabId, setSelectedTabId] = useState<string>("");
-  
   // === Estados para Data Masivo ===
   const [showUploadModalMasivo, setShowUploadModalMasivo] = useState(false);
   const [showModalMasivo, setShowModalMasivo] = useState(false);
@@ -356,12 +480,234 @@ export default function MuestraPage() {
   const [progressMasivo, setProgressMasivo] = useState(0);
   const [uploadingMasivo, setUploadingMasivo] = useState(false);
   const [selectedTabIdMasivo, setSelectedTabIdMasivo] = useState("");
+  const [loadingMeta, setLoadingMeta] = useState(false);
+  const [isSampling, setIsSampling] = useState(false);
+  const [progressIndex, setProgressIndex] = useState<number>(0);
+  // === Estado para el progreso del indexado global ===
+  const [progressLog, setProgressLog] = useState(0);
+  const [processedLines, setProcessedLines] = useState(0);
+  const [progressFile, setProgressFile] = useState("");
+  const [indexInfoGreen, setIndexInfoGreen] = useState({ exists: false, message: "Sin verificar" });
+  // Mensaje dinámico de estado del proceso masivo
+  const [useStreaming, setUseStreaming] = useState(false);
+  const [masivoStatus, setMasivoStatus] = useState<string>("");
+  const [progressLines, setProgressLines] = useState<string[]>([]);
+  const [showHistorial, setShowHistorial] = useState(false);
+  //Estados de los historiales de muestra importaciones y exportacion
+  const [historialCategoria, setHistorialCategoria] =
+  useState<"imports" | "muestras" | "exports" | "todo">("todo");
+  const [searchTerm, setSearchTerm] = useState("");
+  const filteredHistorial = [
+    ...historial.imports,
+    ...historial.muestras,
+    ...historial.exports,
+  ].filter((h) => {
+    // filtro por categoría (las 3 tablas)
+    if (historialCategoria === "imports" && h.origen !== "import") return false;
+    if (historialCategoria === "muestras" && h.origen !== "muestra") return false;
+    if (historialCategoria === "exports" && h.origen !== "export") return false;
 
+    // filtro por tipo
+    if (subHistorial === "estandar" && h.tipo !== "estandar") return false;
+    if (subHistorial === "masivo" && h.tipo !== "masivo") return false;
+
+    // filtro por texto
+    const txt = `${h.name} ${h.source} ${h.hash} ${h.userDisplay}`.toLowerCase();
+    return txt.includes(searchTerm.toLowerCase());
+  });
+
+  // === Estado para paginación ===
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(50); // opcional, si usas paginación por filas
+  // === Estado: información del índice ===
+  const [indexInfo, setIndexInfo] = useState<{
+    exists: boolean;
+    totalRows: number | null;          // total reportado por el backend (con o sin cabecera)
+    adjustedTotalRows: number | null;  // total real para muestreo (sin cabecera si useHeadersMasivo)
+    message: string;
+  }>({
+    exists: false,
+    totalRows: null,
+    adjustedTotalRows: null,
+    message: "Sin verificar",
+  });
   // Dataset de pestaña activa (ya lo tienes)
   const currentRows =
     activeTab === "historial"
       ? []
       : tabs.find((t) => t.id === activeTab)?.rows || [];
+  // Referencias a las pestañas activas (para modales)
+  const currentTab = tabs.find((t) => t.id === selectedTabId);
+  const currentTabMasivo = tabs.find((t) => t.id === selectedTabIdMasivo);
+  
+  useEffect(() => {
+    if (!showModalMasivo || !selectedTabIdMasivo) return;
+
+    const tab = tabs.find((t) => t.id === selectedTabIdMasivo);
+    if (!tab) return;
+
+    const nuevaSemilla = Math.floor(Math.random() * 9000) + 1000;
+
+    (async () => {
+
+      // 1️⃣ Chequear lock del meta (si todavía se está generando)
+      const lockCheck = await fetch("/api/meta-lock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileName: tab.fileName || tab.name })
+      });
+      const lockStatus = await lockCheck.json();
+
+      if (lockStatus.processing) {
+        console.log("⏳ Meta generándose… reintentando en 2s…");
+
+        setIndexInfo({
+          exists: false,
+          totalRows: null,
+          adjustedTotalRows: null,
+          message: "⏳ Generando metadatos…"
+        });
+
+        // 🔁 Reintentar automáticamente después de 2 segundos
+        setTimeout(() => {
+          setSelectedTabIdMasivo(tab.id); // dispara otra vez el useEffect
+        }, 2000);
+        return; // NO continuar
+      }
+
+      // 2️⃣ Meta disponible → ahora sí generar/usar índice
+      try {
+        const res = await fetch("/api/muestra-masiva", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "buildIndex",
+            fileName: tab.fileName || tab.name,
+            useHeaders: true,
+          }),
+        });
+
+        const data = await res.json();
+        const totalDelBackend = Number(data?.totalRows ?? 0);
+        const adjusted = Math.max(0, useHeadersMasivo ? totalDelBackend - 1 : totalDelBackend);
+
+        if (res.ok && data?.ok) {
+          setIndexInfo({
+            exists: true,
+            totalRows: totalDelBackend,
+            adjustedTotalRows: adjusted,
+            message: `✅ Indexado — ${totalDelBackend.toLocaleString("es-BO")} filas`,
+          });
+        } else {
+          setIndexInfo({
+            exists: false,
+            totalRows: null,
+            adjustedTotalRows: null,
+            message: "⚙️ No indexado, se generará automáticamente",
+          });
+        }
+
+        setSampleParamsMasivo((prev) => ({
+          ...prev,
+          seed: nuevaSemilla,
+          records: 0,
+          start: 1,
+          end: adjusted || (tab.totalRows ?? tab.rows?.length ?? 0),
+          totalRows: adjusted || (tab.totalRows ?? tab.rows?.length ?? 0),
+          fileName: tab.name || prev.fileName,
+          allowDuplicates: prev.allowDuplicates ?? false,
+        }));
+
+        if (!selectedTabIdMasivo) setSelectedTabIdMasivo(tab.id);
+
+      } catch (err) {
+        console.error("Error verificando/creando índice:", err);
+        setIndexInfo({
+          exists: false,
+          totalRows: null,
+          adjustedTotalRows: null,
+          message: "❌ Error verificando índice",
+        });
+      }
+    })();
+
+  }, [showModalMasivo, selectedTabIdMasivo, tabs, activeTab, useHeadersMasivo]);
+
+  useEffect(() => {
+  const current = tabs.find(t => t.id === activeTab);
+  if (current?.type === "masivo") {
+    setSelectedTabIdMasivo(current.id);
+  }
+  }, [activeTab, tabs]);
+
+  // === AUTO-NOMBRE DEL ARCHIVO PARA EL MODAL ESTÁNDAR ===
+  useEffect(() => {
+    if (!showModal || !selectedTabId) return;
+
+    const tab = tabs.find((t) => t.id === selectedTabId);
+    if (!tab) return;
+
+    const nombreDetectado =
+      tab.displayName ||
+      tab.fileName ||
+      tab.name ||
+      `Dataset_${selectedTabId}`;
+
+    setSampleParams((prev) => ({
+      ...prev,
+      fileName: nombreDetectado,
+    }));
+  }, [showModal, selectedTabId, tabs]);
+
+  // === Monitorear progreso del indexado SOLO cuando el modal está abierto
+  //y el archivo NO está indexado todavía ===
+  useEffect(() => {
+    if (!showModalMasivo) return;
+    if (indexInfo?.exists) return; // ya no monitorear si el índice existe
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch("/api/log-progress");
+        if (!res.ok) return;
+
+        const data = await res.json();
+        if (data.progress !== undefined) {
+          setProgressLog(data.progress);
+          setProcessedLines(data.processedLines || 0);
+          setProgressFile(data.file || "");
+        }
+      } catch {
+        // Silenciar errores (evita spam en consola)
+      }
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [showModalMasivo, indexInfo]);
+
+  // Sanitize rows for display: remove columns named __EMPTY* and columns that are entirely empty
+  const sanitizeRows = (rows: any[]) => {
+    if (!Array.isArray(rows) || rows.length === 0) return rows;
+    // Limit check to first N rows for performance on very large datasets
+    const SAMPLE_LIMIT = 500;
+    const sample = rows.slice(0, SAMPLE_LIMIT);
+    const cols = Object.keys(rows[0] || {});
+    const visibleCols = cols.filter((col) => {
+      if (/^__?EMPTY/i.test(col)) return false;
+      const allEmpty = sample.every((r) => {
+        const v = r[col]; 
+        return v === undefined || v === null || String(v).trim() === "" || String(v).toLowerCase() === "null";
+      });
+      return !allEmpty;
+    });
+    // If nothing to filter, return original rows (preserve identity)
+    if (visibleCols.length === cols.length) return rows;
+    // Map rows to objects containing only visible columns (preserve order)
+    return rows.map((r) => {
+      const out: any = {};
+      for (const c of visibleCols) out[c] = r[c];
+      return out;
+    });
+  };
 
   // Valida reglas en el cliente con el tamaño real del dataset
   const validateParams = () => {
@@ -392,7 +738,7 @@ export default function MuestraPage() {
     }
     return true;
   };
-  
+
   // === Muestreo vía API con validaciones y manejo de error ===
   const handleOk = async () => {
     if (!validateParams()) return;
@@ -414,147 +760,304 @@ export default function MuestraPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "sample",
-          datasetId: currentTab.datasetId,
-          n: sampleParams.records,
-          seed: sampleParams.seed,
-          start: sampleParams.start,
-          end: sampleParams.end,
-          allowDuplicates: sampleParams.allowDuplicates,
-          fileName: sampleParams.fileName || currentTab.name, // CAMBIO AQUÍ
-          datasetLabel: currentTab.datasetLabel,
-          sourceFile: currentTab.sourceFile,
+          datasetId: currentTab.datasetId,  //  ID real del dataset cargado
+          n: sampleParams.records,          //  Cantidad de registros
+          seed: sampleParams.seed,          //  Semilla del muestreo
+          start: sampleParams.start,        //  Inicio del rango
+          end: sampleParams.end,            //  Fin del rango
+          allowDuplicates: sampleParams.allowDuplicates, //  Duplicados permitidos
+          fileName: sampleParams.fileName || currentTab.name, //  Nombre visible
         }),
       });
 
+
+      //  Manejo de errores de red o backend
       if (!response.ok) {
         const err = await response.json().catch(() => ({} as any));
         alert(`Error: ${err.details || err.error || "No se pudo generar la muestra"}`);
         return;
       }
 
-      // backend responde { sample, hash, totalRows }
-      const { sample, hash } = await response.json();
+      //  Procesar respuesta del backend
+      const { sample, hash, totalRows, datasetName } = await response.json();
       const newTabId = Date.now().toString();
 
+      //  Crear nueva pestaña con los datos de la muestra
       setTabs((prev) => [
         ...prev,
         {
           id: newTabId,
-          name: sampleParams.fileName || `Muestra-${newTabId}`,
+          name: datasetName || sampleParams.fileName || `Muestra-${newTabId}`,
           rows: sample,
-          datasetId: currentTab.datasetId,   // seguimos guardando el id
+          datasetId: currentTab.datasetId,
           sourceFile: currentTab.sourceFile,
           datasetLabel: currentTab.datasetLabel,
         },
       ]);
+      // Forzar reinicio de paginación una vez se active la nueva pestaña
+      setTimeout(() => setCurrentPage(1), 50);
+      // Activar la nueva pestaña
       setActiveTab(newTabId);
-
-      setHistorial((prev) => [
+      
+      //  Agregar entrada al historial
+      setHistorial(prev => ({
         ...prev,
+        muestras: [
+          ...prev.muestras,
         {
           id: newTabId,
           hash,
-          name: sampleParams.fileName || `Muestra-${newTabId}`,
+          name: datasetName || sampleParams.fileName || `Muestra-${newTabId}`,
           date: new Date().toLocaleString(),
           user: "Administrador",
           records: sample.length,
           range: `${sampleParams.start} - ${sampleParams.end}`,
           seed: sampleParams.seed,
           allowDuplicates: sampleParams.allowDuplicates ? "Sí" : "No",
-          source: currentTab.sourceFile || "Desconocido",
-        },
-      ]);
-
+          source: currentTab.fileName || "dataset local",
+        }]
+      }));
+    
+      // Cerrar modal
       setShowModal(false);
     } catch (e: any) {
       alert(`Error inesperado: ${e.message}`);
     }
   };
 
-  // === Muestreo Masivo ===
-  // === Muestreo Masivo ===
+  // === Integración con la interfaz principal (handleOkMasivo)
   const handleOkMasivo = async () => {
-    if (!selectedTabIdMasivo) {
-      alert("Debes seleccionar un dataset masivo cargado.");
-      return;
-    }
-
-    const tab = tabs.find((t) => t.id === selectedTabIdMasivo);
-    if (!tab) {
-      alert("La pestaña seleccionada no existe.");
-      return;
-    }
+    // helper de timeout
+    const withTimeout = async (promise: Promise<Response>, ms = 60000) => {
+      const ac = new AbortController();
+      const t = setTimeout(() => ac.abort(), ms);
+      try {
+        const res = await promise;
+        return res; // no vuelvas a llamar fetch
+      } catch (e: any) {
+        if (e?.name === "AbortError") throw new Error("Tiempo de espera agotado (timeout).");
+        throw e;
+      } finally {
+        clearTimeout(t);
+      }
+    };
 
     try {
-      const res = await fetch("/api/masiva", {
+      // 1️⃣ Validar que haya dataset seleccionado
+      if (!selectedTabIdMasivo) {
+        alert("⚠️ No hay un dataset masivo seleccionado.");
+        return;
+      }
+
+      // 2️⃣ Buscar la pestaña activa
+      const tab = tabs.find((t) => t.id === selectedTabIdMasivo);
+      if (!tab) {
+        alert("⚠️ No se encontró la pestaña seleccionada.");
+        return;
+      }
+
+      // 3️⃣ Determinar nombre físico (archivo en disco)
+      const physicalFile = tab.fileName || tab.name;
+      if (!physicalFile) {
+        alert("⚠️ No se pudo determinar el nombre del archivo.");
+        return;
+      }
+
+      // 4️⃣ Validar parámetros del muestreo
+      const totalRows =
+        indexInfo.adjustedTotalRows ??
+        sampleParamsMasivo.totalRows ??
+        tab.totalRows ??
+        0;
+
+      if (totalRows === 0) {
+        alert("⚠️ El dataset no contiene filas válidas.");
+        return;
+      }
+      const n = sampleParamsMasivo.records ?? 0;
+      const seed = sampleParamsMasivo.seed ?? Date.now();
+      const start = sampleParamsMasivo.start ?? 1;
+      const end = sampleParamsMasivo.end ?? totalRows;
+      const allowDuplicates = sampleParamsMasivo.allowDuplicates ?? false;
+
+      if (n <= 0) {
+        alert("Debes ingresar un número de registros para muestrear.");
+        return;
+      }
+      if (end < start || end > totalRows) {
+        alert(`El rango (${start}-${end}) no es válido para un total de ${totalRows.toLocaleString("es-BO")} filas.`);
+        return;
+      }
+      //  Validar que si n > rango, debe permitir duplicados
+      const rango = end - start + 1;
+      if (n > rango && !allowDuplicates) {
+        alert(
+          `⚠️ Estás pidiendo ${n} registros pero el rango solo tiene ${rango} filas.\n` +
+          `Para permitir repetir registros, marca la opción "Seleccionar Duplicados".`
+        );
+        return;
+      }
+      // 5️⃣ Mostrar estado visual
+      setIsSampling(true);
+      setMasivoStatus("📘 Generando índice optimizado...");
+      setProgressIndex(0);
+      // --- Generar índice si no existe ---
+      const resIndex = await fetch("/api/muestra-masiva", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action: "sample",
-          datasetId: tab.id, // id de la pestaña como datasetId
-          n: sampleParamsMasivo.records,
-          seed: sampleParamsMasivo.seed,
-          start: sampleParamsMasivo.start,
-          end: sampleParamsMasivo.end,
-          allowDuplicates: sampleParamsMasivo.allowDuplicates,
-          fileName: sampleParamsMasivo.fileName,
-          userId,//  usuario autenticado
+          action: "buildIndex",
+          fileName: tab.archivoResultado || tab.fileName || tab.name, // 👈 siempre usa el archivo real
+          filePath: tab.archivoResultado || tab.fileName || tab.name, // 👈 añadimos filePath explícito
+          useHeaders: true,
         }),
       });
+      setProgressIndex(100);
+      setMasivoStatus("✅ Índice generado correctamente");
+      setIsSampling(false);
 
+      // ⚠️ Si ya hay un proceso de indexado activo, el backend responderá 429
+      if (resIndex.status === 429) {
+        const data = await resIndex.json().catch(() => ({}));
+        alert(data.error || "⏳ Ya hay un proceso de indexado en curso. Espera a que finalice antes de iniciar otro.");
+        setMasivoStatus("⏳ Indexado en curso... espera que termine.");
+        return; // salimos del flujo
+      }
+
+      if (!resIndex.ok) {
+        const err = await resIndex.json().catch(() => ({}));
+        throw new Error(err?.error || "Error generando índice en el backend.");
+      }
+      setMasivoStatus("🎯 Realizando muestreo aleatorio...");
+      console.log(`🎯 Muestreo masivo con índice sobre ${totalRows.toLocaleString("es-BO")} filas...`);
+
+      const endLine = useHeadersMasivo ? (end + 1) : end;
+      console.log("📤 Enviando al backend:", {
+        n,
+        seed,
+        start,
+        end: endLine,
+        allowDuplicates: sampleParamsMasivo.allowDuplicates,
+      }); 
+      // muestreo con timeout de 60s
+      const res = await withTimeout(
+        fetch("/api/muestra-masiva", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "sample",
+            fileName: tab.archivoResultado || tab.fileName || tab.name,
+            filePath: tab.archivoResultado || tab.fileName || tab.name,
+            datasetName: sampleParamsMasivo.fileName || tab.name || physicalFile,
+            n,
+            seed,
+            start,
+            end: endLine,
+            useHeaders: true,
+            allowDuplicates: !!sampleParamsMasivo.allowDuplicates,
+          }),
+        }),
+        60000
+      );
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        alert(`Error al muestrear masivo: ${err.error || res.statusText}`);
-        return;
+        if (err?.error?.includes("n mayor")) {
+          alert("⚠️ Has pedido más registros que los disponibles en el rango sin duplicados. Ajusta el número de registros o habilita 'Duplicados'.");
+          return;
+        }
+        throw new Error(err?.error || "Error generando muestra masiva en el backend.");
       }
+      
+      const data = await res.json();
+      // data: { ok, sample, hash, archivoResultado, message }
 
-      const { sample, hash } = await res.json();
-      const newTabId = Date.now().toString();
+      // columnas originales del dataset (si las tenés en la pestaña masiva)
+      const sourceCols: string[] =
+        (tabs.find(t => t.id === selectedTabIdMasivo)?.columns as string[]) || [];
 
-      // Agregamos la nueva pestaña con resultados
-      setTabs((prev) => [
+      // Construir filas visibles para la UI (mapear COL_1 -> nombre real, etc)
+      const displayRows = Array.isArray(data.sample)
+        ? data.sample.map((r: any) => {
+            if (sourceCols.length === 0) return r;
+            const out: Record<string, any> = {};
+            let i = 1;
+            for (const colName of sourceCols) {
+              out[colName] = r[`COL_${i}`];
+              i++;
+            }
+            if (r._POS_ORIGINAL != null) out["_POS_ORIGINAL"] = r._POS_ORIGINAL;
+            return out;
+          })
+        : [];
+
+      const displayColumns =
+        sourceCols.length > 0
+          ? [...sourceCols, "_POS_ORIGINAL"]
+          : (displayRows[0] ? Object.keys(displayRows[0]) : []);
+
+      // 👇 ESTA es la info crítica: el archivo físico real guardado en F:/datasets
+      const archivoResultado = data.archivoResultado || null;
+
+      // Creamos una pestaña NUEVA con type "muestra-masiva"
+      const newId = `sample_${Date.now()}`;
+      setTabs(prev => [
         ...prev,
         {
-          id: newTabId,
-          name: sampleParamsMasivo.fileName || `MuestraMasiva-${newTabId}`,
-          rows: sample,
-          datasetId: tab.id,
-          sourceFile: tab.sourceFile,
-          datasetLabel: tab.datasetLabel,
+          id: newId,
+          name:
+            sampleParamsMasivo.fileName ||
+            `Muestra(${displayRows.length} de ${totalRows})`,
+          rows: displayRows,
+          columns: displayColumns,
+          totalRows: displayRows.length,
+          type: "muestra-masiva",
+          datasetId: newId,
+          archivoResultado, // <-- 🔥 guardamos el nombre físico sample_....csv
+          fileName: archivoResultado || tab.fileName || physicalFile,
+          sourceFile: physicalFile, // 👈 referencia al dataset original
         },
       ]);
-      setActiveTab(newTabId);
 
-      // En vez de setHistorial manual → refrescamos desde backend
-      openHistorial();
+      // Activar la nueva pestaña
+      setActiveTab(newId);
+
+      // También guardamos en historial local para que el modal y la lista sigan coherentes
+      setHistorial(prev => ({
+        ...prev,
+        muestras: [
+          ...prev.muestras,
+          {
+            id: newId,
+            name:
+              sampleParamsMasivo.fileName ||
+              `Muestra(${displayRows.length} de ${totalRows})`,
+            date: new Date().toLocaleString(),
+            userDisplay: "Administrador",
+            records: displayRows.length,
+            range: `${start}-${end}`,
+            seed,
+            allowDuplicates: allowDuplicates,
+            source: physicalFile,            // archivo masivo original msv_...
+            archivoResultado,                // <-- 🔥 importante guardarlo también aquí
+            hash: data.hash,
+            tipo: "masivo",
+          }
+        ]
+      }));
+
       setShowModalMasivo(false);
-    } catch (e: any) {
-      alert(`Error inesperado: ${e.message}`);
+      setMasivoStatus("🏁 Muestreo completado correctamente ✅");
+      alert(
+        `✅ Muestra generada correctamente (${(data.sample?.length ?? n)} registros).`
+      );
+    } catch (err: any) {
+      console.error("❌ Error en muestreo masivo:", err);
+      alert("Error en el muestreo masivo: " + err.message);
+      setMasivoStatus("❌ Error durante el proceso de muestreo.");
+    } finally {
+      setIsSampling(false);
     }
   };
 
-  //implementamos el fetch
-  const fetchHistorial = async () => {
-    try {
-      const res = await fetch("/api/muestra", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "historial", userId }),
-      }); 
-
-      if (!res.ok) {
-        setHistorial([]); // fallback seguro
-        return;
-      }
-
-      const data = await res.json();
-      setHistorial(Array.isArray(data) ? data : []); // 🔒 siempre array
-    } catch (e) {
-      setHistorial([]); // fallback seguro
-    }
-  };
-
-  // === Exportación vía API con manejo de error ===
   // === Exportación Data Estándar ===
   const exportData = async (format: string) => {
     if (!selectedTabId) {
@@ -569,74 +1072,97 @@ export default function MuestraPage() {
     }
 
     try {
+      // calcular datasetId real (algunas pestañas guardan datasetId por separado)
+      const datasetId = tab.datasetId || tab.id;
+      //  Envío de solicitud al backend (incluye credenciales por si usa sesión)
       const res = await fetch("/api/muestra", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           action: "export",
-          rows: tab.rows, // opcional, no se usa en backend pero no molesta
-          datasetId: tab.datasetId, //  CORREGIDO: usar tab en lugar de currentTab
+          // preferir enviar las filas visibles de la pestaña (muestra)
+          rows: tab.rows,
+          // también enviamos datasetId como respaldo
+          datasetId,
           format,
-          fileName: sampleParams.fileName || tab.name,
+          fileName: tab.fileName || `${tab.name}.${format}`,
         }),
       });
 
+      //  Manejo de errores de red o backend: intentar parsear JSON, si no -> texto
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        alert(`Error al exportar: ${err.error || res.statusText}`);
+        let errBody: any = {};
+        try {
+          errBody = await res.json();
+        } catch (e) {
+          try {
+            const txt = await res.text();
+            errBody = { error: txt };
+          } catch (e2) {
+            errBody = { error: res.statusText || 'Error desconocido' };
+          }
+        }
+        console.error("❌ Error al exportar:", errBody);
+        alert(`Error al exportar: ${errBody.error || res.statusText}`);
         return;
       }
 
+      // Descargar archivo
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
+      // 📦 Nombre del archivo exportado
+      const exportName = tab.name?.replace(/\s+/g, "_") || "dataset";
+      const extension = format.toLowerCase();
       const link = document.createElement("a");
       link.href = url;
-      link.download = `${sampleParams.fileName || tab.name}.${format}`;
+      link.download = `${exportName}.${extension}`;
+      document.body.appendChild(link);
       link.click();
+      link.remove();
+
       URL.revokeObjectURL(url);
+      console.log(` Exportación completada: ${exportName}.${extension}`);
     } catch (e: any) {
-      alert(`Error inesperado: ${e.message}`);
+      console.error("🚨 Error inesperado en exportación:", e);
+      alert(`Error inesperado: ${e?.message || String(e)}`);
     }
   };
 
-
-  // === Exportar Dataset Masivo ===
+  // === Exportar SOLO el contenido de la pestaña de muestreo (sin usar el archivo físico) ===
   const exportDataMasivo = async (format: string) => {
-    if (!selectedTabIdMasivo) {
-      alert("Debes seleccionar una pestaña de muestreo masivo.");
-      return;
-    }
-
-    const tab = tabs.find((t) => t.id === selectedTabIdMasivo);
+    const tab = tabs.find((t) => t.id === activeTab);
     if (!tab) {
-      alert("La pestaña seleccionada no existe.");
+      alert("⚠️ No hay pestaña activa para exportar.");
       return;
     }
 
-    if (!tab.rows || tab.rows.length === 0) {
-      alert("No hay datos en esta pestaña para exportar.");
+    if (tab.type !== "muestra-masiva") {
+      alert("⚠️ Solo puedes exportar una pestaña de muestreo masivo.");
       return;
     }
+
+    console.log("🧾 Exportando contenido de muestreo:", tab.name);
 
     try {
-      const res = await fetch("/api/masiva", {
+      const res = await fetch("/api/muestra", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           action: "export",
-          rows: tab.rows,              // 👈 exportamos SOLO la muestra de la pestaña
           format,
-          fileName: tab.name || "muestra_masiva",
+          rows: tab.rows,  // 👈 enviamos directamente las filas de la muestra
+          fileName: `${tab.name}.${format}`,
         }),
       });
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        alert(`Error al exportar masivo: ${err.error || res.statusText}`);
+        alert(`❌ Error al exportar: ${err.error || res.statusText}`);
         return;
       }
 
-      // Descarga del archivo
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -644,24 +1170,90 @@ export default function MuestraPage() {
       link.download = `${tab.name}.${format}`;
       link.click();
       URL.revokeObjectURL(url);
+
+      console.log(`✅ Exportación de muestra completada (${format.toUpperCase()})`);
     } catch (e: any) {
+      alert(`💥 Error inesperado: ${e.message}`);
+      console.error("Error al exportar muestra masiva:", e);
+    }
+  };
+  
+  // === Exportar por STREAMING (ideal para grandes muestreos) ===
+  const exportDataMasivoStreaming = async (format: string) => {
+    // usamos la pestaña activa o la elegida en el select
+    const tab =
+      tabs.find((t) => t.id === selectedTabIdMasivo) ||
+      tabs.find((t) => t.id === activeTab);
+
+    if (!tab) {
+      alert("⚠️ No hay pestaña seleccionada para exportar.");
+      return;
+    }
+
+    if (tab.type !== "muestra-masiva") {
+      alert("⚠️ Solo puedes exportar una pestaña de muestreo masivo.");
+      return;
+    }
+
+    if (!tab.archivoResultado) {
+      alert(
+        "⚠️ Esta muestra no tiene un archivo físico asociado en el servidor (archivoResultado faltante)."
+      );
+      console.error("No hay archivoResultado en la pestaña:", tab);
+      return;
+    }
+
+    const fileNameToSend = tab.archivoResultado.trim();
+    console.log("🌊 Export-stream del archivo físico:", fileNameToSend);
+
+    try {
+      const res = await fetch("/api/muestra-masiva", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          action: "export-stream",
+          format,
+          fileName: fileNameToSend, // <- le mandamos el sample_....csv exacto
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(`❌ Error al exportar: ${err.error || res.statusText}`);
+        console.error("❌ Error backend export-stream:", err);
+        return;
+      }
+
+      // Descargar el archivo resultante
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+
+      // nombre bonito para el usuario
+      link.download = `${tab.name}_stream.${format}`;
+      link.click();
+
+      URL.revokeObjectURL(url);
+      console.log(`✅ Exportación por streaming completada (${format.toUpperCase()})`);
+    } catch (e: any) {
+      console.error("🚨 Error en exportación por streaming:", e);
       alert(`Error inesperado: ${e.message}`);
     }
   };
-
   // Estados adicionales en tu componente
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
 
-  // === Subida de archivo Excel/CSV/TXT con loader y progreso ===
+  // === Subida de archivo Excel/CSV/TXT/XML/JSON (Data Estándar) ===
   const handleFileUpload = async () => {
     if (!uploadedFile) {
       alert("Seleccione un archivo");
       return;
     }
 
-    // Validación tamaño (solo para DataEstandar)
-    const maxSize = 100 * 1024 * 1024; // 100 MB
+    const maxSize = 150 * 1024 * 1024; // 150 MB
     if (uploadedFile.size > maxSize) {
       alert(
         `El archivo excede el límite permitido en DataEstandar (100 MB).\n` +
@@ -670,16 +1262,9 @@ export default function MuestraPage() {
       return;
     }
 
-    // ⚠️ Validación extensión
     const name = uploadedFile.name.toLowerCase();
-    if (
-      !name.endsWith(".xlsx") &&
-      !name.endsWith(".xls") &&
-      !name.endsWith(".csv") &&
-      !name.endsWith(".txt") &&
-      !name.endsWith(".json") &&
-      !name.endsWith(".xml")
-    ) {
+    const okExt = [".xlsx", ".xls", ".csv", ".txt", ".json", ".xml"].some(ext => name.endsWith(ext));
+    if (!okExt) {
       alert("Tipo de archivo no soportado. Use .xlsx, .xls, .csv, .txt, .json o .xml");
       return;
     }
@@ -688,71 +1273,57 @@ export default function MuestraPage() {
       setUploading(true);
       setProgress(0);
 
-      const formData = new FormData();
-      formData.append("file", uploadedFile);
-      formData.append("datasetName", datasetName || uploadedFile.name);
-      formData.append("useHeader", useHeaders ? "true" : "false");
-      
-      const xhr = new XMLHttpRequest();
-      xhr.open("POST", "/api/muestra");
+      // 👉 Enviar a /api/muestra (no a masiva-chunk) y con campo 'file'
+      const form = new FormData();
+      form.append("file", uploadedFile); // ← campo correcto para tu route estándar
+      form.append("datasetName", datasetName || uploadedFile.name);
+      form.append("useHeader", useHeaders ? "true" : "false");
 
-      // Progreso
-      xhr.upload.onprogress = (event) => {
-        if (event.lengthComputable) {
-          const percent = Math.round((event.loaded / event.total) * 100);
-          setProgress(percent);
-        }
-      };
+      const res = await fetch("/api/muestra", { method: "POST", body: form });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({} as any));
+        throw new Error(err?.error || `Error subiendo archivo: ${res.statusText}`);
+      }
 
-      xhr.onload = async () => {
-        setUploading(false);
-        setProgress(0); // reset
+      const payload = await res.json(); // tu backend devuelve: { datasetId, rows, total, dataset, fileName }
+      const datasetId: string = payload.datasetId;
+      const fullRows: any[] = Array.isArray(payload.rows) ? payload.rows : [];
+      const totalRows: number = payload.total ?? fullRows.length ?? 0;
+      const displayName = datasetName || payload.dataset || payload.fileName || `Dataset-${datasetId}`;
 
-        if (xhr.status >= 200 && xhr.status < 300) {
-          const { rows, total, dataset, datasetId } = JSON.parse(xhr.responseText);
+      // Crear/registrar pestaña con TODAS las filas
+      setTabs(prev => {
+        if (prev.some(t => t.datasetId === datasetId)) return prev;
+        return [
+          ...prev,
+          {
+            id: datasetId,
+            name: displayName,
+            rows: fullRows,      // ← todas
+            totalRows,           // ← total real
+            datasetId,
+            sourceFile: uploadedFile.name,
+            datasetLabel: displayName,
+            type: "estandar",
+          },
+        ];
+      });
 
-          const newTabId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      // Prefijar el modal con el total correcto
+      setSampleParams(prev => ({
+        ...prev,
+        start: 1,
+        end: totalRows,
+        totalRows,
+        fileName: "",
+      }));
 
-          setTabs((prev) => {
-            // 🔑 evitar duplicados por datasetId
-            if (prev.some((t) => t.datasetId === datasetId)) return prev;
-            return [
-              ...prev,
-              {
-                id: newTabId,
-                name: dataset || uploadedFile.name,
-                rows: rows || [],
-                datasetId,
-                sourceFile: uploadedFile.name,
-                datasetLabel: datasetName || "",
-              },
-            ];
-          });
-
-          setSampleParams((prev) => ({
-            ...prev,
-            start: 1,
-            end: total,
-            totalRows: total,
-          }));
-
-          setActiveTab(newTabId);
-          setShowUploadModal(false);
-          setUploadedFile(null);
-        } else if (xhr.status === 413) {
-          alert("⚠️ El archivo es demasiado grande. Usa la pestaña DataMasivo.");
-        } else {
-          alert(`Error al procesar archivo: ${xhr.statusText}`);
-        }
-      };
-
-      xhr.onerror = () => {
-        setUploading(false);
-        setProgress(0);
-        alert("Error de conexión al subir archivo");
-      };
-
-      xhr.send(formData);
+      setActiveTab(datasetId);
+      setShowUploadModal(false);
+      setUploadedFile(null);
+      setUploading(false);
+      setProgress(100);
+      setTimeout(() => setProgress(0), 500);
     } catch (e: any) {
       setUploading(false);
       setProgress(0);
@@ -760,85 +1331,515 @@ export default function MuestraPage() {
     }
   };
 
-  // === Subida de archivo Masivo ===
+  // === Subida de archivo Masivo (optimizada con reintentos, pausas y compatibilidad con backend incremental) ===
   const handleFileUploadMasivo = async () => {
     if (!uploadedFileMasivo) {
       alert("Seleccione un archivo masivo");
       return;
     }
+    // Espera robusta hasta que el meta.json esté disponible
+    async function waitForMetaFile(fileName: string) {
+      const timeoutMs = 1000 * 60 * 45; // 45 min
+      const intervalMs = 5000;          // 
+      const start = Date.now();
 
+      // Normalización básica
+      const cleanName = fileName.replace(/\s+/g, "_");
+
+      while (Date.now() - start < timeoutMs) {
+        const res = await fetch("/api/masiva-info", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fileName: cleanName }),
+        });
+
+        const data = await res.json().catch(() => null);
+        if (!data) {
+          console.warn("⚠️ No se pudo decodificar respuesta de masiva-info");
+          await new Promise(r => setTimeout(r, intervalMs));
+          continue;
+        }
+        if (data.status === "ready") {
+          console.log("✅ Meta.json final listo:", data);
+          return data;
+        }
+
+        if (data.status === "processing") {
+          const prog = data.progress ?? 0;
+          console.log(`⏳ Generando meta… líneas procesadas: ${prog.toLocaleString("es-BO")}`);
+          await new Promise(r => setTimeout(r, intervalMs));
+          continue;
+        }
+
+        if (data.status === "pending") {
+          console.log("🕐 Meta pendiente… backend aún no inicia workerMeta");
+          await new Promise(r => setTimeout(r, intervalMs));
+          continue;
+        }
+        if (data.status === "error") {
+          console.error("❌ Error en meta-info:", data);
+          throw new Error("Meta.json corrupto o proceso falló");
+        }
+        // Estado no reconocido
+        console.warn("⚠️ Estado desconocido:", data.status);
+        await new Promise(r => setTimeout(r, intervalMs));
+      }
+      throw new Error("Timeout esperando meta.json (45 min). El worker podría haber fallado.");
+    }
     setUploadingMasivo(true);
     setProgressMasivo(0);
-
     try {
-      // Detecta formato por extensión
-      const format = uploadedFileMasivo.name.endsWith(".json")
-        ? "json"
-        : uploadedFileMasivo.name.endsWith(".xml")
-        ? "xml"
-        : "csv"; // default csv/txt
+      const CHUNK_SIZE = 16 * 1024 * 1024;  // 16 MB (más estable en dev)
+      const totalChunks = Math.ceil(uploadedFileMasivo.size / CHUNK_SIZE);
+      const fileId = `${uploadedFileMasivo.name}-${Date.now()}`;
+      // === Reanudador inteligente ===
+      const resumeKey = `upload-progress-${uploadedFileMasivo.name}`;
+      let lastUploaded = Number(localStorage.getItem(resumeKey) || "0");
 
-      // --- Usamos XMLHttpRequest para capturar progreso ---
-      const xhr = new XMLHttpRequest();
-      xhr.open("POST", "/api/masiva", true);
-      xhr.setRequestHeader("Content-Type", "application/json");
-
-      xhr.upload.onprogress = (event) => {
-        if (event.lengthComputable) {
-          const percent = Math.round((event.loaded / event.total) * 100);
-          setProgressMasivo(percent); //  actualiza la barra
+      if (lastUploaded > 0) {
+        const resume = confirm(
+          `💾 Se detectó una subida previa de este archivo (${lastUploaded} chunks).\n¿Deseas continuar desde el chunk ${lastUploaded + 1}?`
+        );
+        if (!resume) {
+          lastUploaded = 0;
+          localStorage.removeItem(resumeKey);
         }
-      };
+      }
+      console.log(`📂 Subida masiva iniciada (${totalChunks} chunks)`);
+      let finalResult: any = null;
+      // ✅ Obtener sesión de forma segura antes de enviar los chunks
+      let userId: string | null = null;
+      try {
+        const sessRes = await fetch("/api/auth/session", { credentials: "include" });
+        if (sessRes.ok) {
+          const sess = await sessRes.json().catch(() => ({}));
+          userId = sess?.user?.id || null;
+        } else {
+          console.warn("⚠️ No se pudo obtener la sesión (respuesta no OK)");
+        }
+      } catch (err) {
+        console.warn("⚠️ Sesión no disponible temporalmente (posible reinicio del servidor). Continuamos sin userId.", err);
+      }
 
-      xhr.onload = () => {
+      // === Subida por partes (loop de chunks) ===
+      for (let i = lastUploaded; i < totalChunks; i++) {
+        const start = i * CHUNK_SIZE;
+        const end = Math.min(uploadedFileMasivo.size, start + CHUNK_SIZE);
+        const chunk = uploadedFileMasivo.slice(start, end);
+
+        const formData = new FormData();
+        formData.append("useHeaders", useHeadersMasivo ? "true" : "false");
+        formData.append("chunk", chunk);
+        formData.append("index", i.toString());
+        formData.append("total", totalChunks.toString());
+        formData.append("fileId", fileId);
+        formData.append("fileName", uploadedFileMasivo.name);
+        formData.append("datasetName", datasetNameMasivo || uploadedFileMasivo.name);
+        if (i === totalChunks - 1) formData.append("isLast", "true");
+
+        // === Envío con reintentos automáticos ===
+        let success = false;
+        let attempt = 0;
+
+        while (!success && attempt < 3) {
+          try {
+            const res = await fetch("/api/masiva-chunk", { 
+              method: "POST",
+              headers: {
+                "x-user-id": userId || "",
+              }, 
+              body: formData });
+              
+              if (res.headers.get("x-background-process")) {
+                console.log("🕐 El servidor sigue procesando en segundo plano...");
+                continue; // pasa al siguiente chunk o espera meta.json
+                }
+            if (res.ok) {
+              // 💾 Guardar progreso local
+              localStorage.setItem(resumeKey, (i + 1).toString());
+              // último chunk → guardar resultado final
+              if (i === totalChunks - 1) {
+                try {
+                  finalResult = await res.json();
+                  // === Mostrar vista previa emergente ===
+                  if (finalResult?.previewStart?.length && finalResult?.previewEnd?.length) {
+                    alert(
+                      `📊 Vista previa generada:\n` +
+                      `• Primeras ${finalResult.previewStart.length} filas\n` +
+                      `• Últimas ${finalResult.previewEnd.length} filas\n\n` +
+                      `El archivo tiene ${finalResult.totalRows.toLocaleString("es-BO")} filas reales cargadas exitosamente.`
+                    );
+                  }
+                } catch {
+                  throw new Error("Respuesta inválida del servidor al finalizar ensamblado.");
+                }
+              }
+              success = true;
+            } else {
+              console.warn(`⚠️ Falló chunk ${i + 1}/${totalChunks} (intento ${attempt + 1})`);
+              attempt++;
+              await new Promise((r) => setTimeout(r, 1000));
+            }
+          }
+          catch (err) {
+            console.warn(`⚠️ Error en chunk ${i + 1}/${totalChunks}, intento ${attempt + 1}`, err);
+            attempt++;
+            await new Promise((r) => setTimeout(r, 1500));
+          }
+        }
+        if (!success) {
+          throw new Error(`No se pudo subir chunk ${i + 1} tras 3 intentos.`);
+        }
+
+        // Pequeña pausa entre envíos para aliviar carga en disco/CPU
+        await new Promise((r) => setTimeout(r, 100));
+        // Progreso visible
+        const percent = Math.round(((i + 1) / totalChunks) * 100);
+        setProgressMasivo(percent);
+        console.log(`📦 Chunk ${i + 1}/${totalChunks} subido (${percent}%)`);
+      }
+
+      //  Caso especial: filas vacías detectadas
+      if (finalResult.requiresCleaning) {
+        console.warn("⚠️ Se detectaron filas vacías en el archivo masivo.");
+
+        const userConfirmed = window.confirm(
+          `⚠️ Se detectaron ${finalResult.emptyLines} filas vacías en el archivo.\n\n¿Deseas eliminarlas antes de continuar?`
+        );
+
+        if (!userConfirmed) {
+          alert("⚠️ Has cancelado la limpieza. El archivo no fue procesado.");
+          return;
+        }
+
+        // Mostrar loader visual
+        setUploadingMasivo(true);
+        setProgressMasivo(0);
+        alert("🧹 Eliminando filas vacías, por favor espera...");
+
+        //  Petición al backend para limpiar filas vacías
+        const cleanRes = await fetch("/api/masiva-chunk", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "cleanFile",
+            fileName: finalResult.fileName,
+            useHeaders: useHeadersMasivo, // ✅ enviamos valor real
+          }),
+        }).then((r) => r.json());
+
+        // Ocultar loader
         setUploadingMasivo(false);
         setProgressMasivo(100);
 
-        if (xhr.status === 200) {
-          const data = JSON.parse(xhr.responseText);
-
-          // Guardamos el dataset masivo como nueva pestaña
-          setTabs((prev) => [
-            ...prev,
-            {
-              id: data.datasetId,
-              name: datasetNameMasivo || data.fileName,
-              rows: data.preview || [],
-              totalRows: data.totalRows || 0, // total real del backend
-              type: "masivo",
-            },
-          ]);
-          setActiveTab(data.datasetId);
-          setSelectedTabIdMasivo(data.datasetId); // Guardar el dataset masivo cargado
-
-          setShowUploadModalMasivo(false);
-          setUploadedFileMasivo(null);
-          setDatasetNameMasivo("");
-        } else {
-          const err = JSON.parse(xhr.responseText);
-          alert("Error al subir masivo: " + (err.error || "Error desconocido"));
+        if (!cleanRes.ok) {
+          throw new Error("Error al limpiar el archivo masivo.");
         }
-      };
 
-      xhr.onerror = () => {
-        setUploadingMasivo(false);
-        alert("Error de red al subir masivo");
-      };
+        alert(`✅ ${cleanRes.message}`);
 
-      // --- Payload enviado al backend ---
-      const payload = JSON.stringify({
-        action: "register",
-        fileName: uploadedFileMasivo.name, // debe estar en DATASETS_DIR
-        format,
+        // ⚙️ Procesamiento local del resultado limpio
+        const hasHeader = useHeadersMasivo;
+        const totalClean = hasHeader
+          ? cleanRes.totalRows > 0
+            ? cleanRes.totalRows - 1
+            : 0
+          : cleanRes.totalRows;
+
+        //  Crear vista previa 50/50 (primeras 50 y últimas 50 filas)
+        const startRows = Array.isArray(cleanRes.previewStart)
+          ? cleanRes.previewStart
+              .slice(0, 50)
+              .map((r: any) => ({ ...r, _section: "inicio" }))
+          : [];
+
+        const endRows = Array.isArray(cleanRes.previewEnd)
+          ? cleanRes.previewEnd
+              .slice(-50)
+              .map((r: any) => ({ ...r, _section: "final" }))
+          : [];
+
+        const combinedPreview = [...startRows, ...endRows];
+        const rowsToDisplay = hasHeader
+          ? combinedPreview.slice(1)
+          : combinedPreview.length > 0
+          ? combinedPreview
+          : [{ line: "…" }];
+
+        // 🧾 Crear nueva pestaña con dataset limpio
+        const cleanedId = `msv_clean_${Date.now()}`;
+        // 🔍 Eliminar duplicados de columna _section / _SECTION si ambos existen
+        rowsToDisplay.forEach((row: any) => {
+          if (row._SECTION && row._section) delete row._section;
+        });
+        const cleanedName =
+          datasetNameMasivo || `${finalResult.fileName.replace(/\.[^/.]+$/, "")}_clean`;
+
+        setTabs((prev) => [
+          ...prev,
+          {
+            id: cleanedId,
+            name: cleanedName,
+            rows: rowsToDisplay,
+            columns: finalResult?.columns || [], // NUEVA LÍNEA
+            totalRows: totalClean,
+            type: "masivo",
+            datasetId: cleanedId, //  importante para muestreo
+          },
+        ]);
+
+        // 🧮 Actualizar parámetros del muestreo
+        setSampleParamsMasivo((prev) => ({
+          ...prev,
+          totalRows: totalClean,
+          end: totalClean,
+        }));
+
+        //  Cerrar modal y activar la nueva pestaña
+        setActiveTab(cleanedId);
+        setSelectedTabIdMasivo(cleanedId);
+        setShowUploadModalMasivo(false);
+        setUploadedFileMasivo(null);
+        setDatasetNameMasivo("");
+
+        //  Mensaje final
+        alert(
+          `✅ Archivo limpio cargado exitosamente (${totalClean.toLocaleString(
+            "es-BO"
+          )} filas válidas).`
+        );
+
+        return; // detener flujo normal
+      }
+
+      // === Crear nueva pestaña con preview ===
+      const newDatasetId = finalResult.datasetId || `msv_${Date.now()}`;
+      // nombre físico exacto en disco (con .txt)
+      const physicalFileName = (finalResult.fileName || "").replace(/\s+/g, "_");
+      // nombre visible (limpio para mostrar en UI)
+      const displayName = (datasetNameMasivo || finalResult.fileName || uploadedFileMasivo?.name || "dataset")
+        .replace(/\s+/g, "_")
+        .replace(/[^a-zA-Z0-9_.-]/g, "");
+
+      // Combinar ambas partes de la vista previa inicial
+      const startRows = Array.isArray(finalResult.previewStart)
+        ? finalResult.previewStart.map((r: any) => (r._SECTION || r._section ? r : { ...r, _SECTION: "inicio" }))
+        : [];
+      const endRows = Array.isArray(finalResult.previewEnd)
+        ? finalResult.previewEnd.map((r: any) => (r._SECTION || r._section ? r : { ...r, _SECTION: "final" }))
+        : [];
+      const combinedPreview = [...startRows, { line: "..." }, ...endRows];
+      const safeRows = combinedPreview.length > 0 ? combinedPreview : [{ line: "..." }];
+      const rowsToDisplay = useHeadersMasivo ? safeRows.slice(1) : safeRows;
+
+      // ✅ Elimina posibles duplicados de columnas internas
+      rowsToDisplay.forEach((row: any) => {
+        if (row._SECTION && row._section) delete row._section;
       });
 
-      xhr.send(payload);
-    } catch (err: any) {
-      alert("Error al subir masivo: " + err.message);
+      // === Crear payload de pestaña unificado ===
+      const tabPayload = {
+        id: newDatasetId,
+        datasetId: newDatasetId,
+        name: displayName,
+        fileName: physicalFileName,
+        rows: rowsToDisplay,
+        totalRows: finalResult.totalRows || 0,
+        type: "masivo" as const,
+      };
+
+      // ✅ Actualiza pestañas sin duplicados
+      setTabs(prev => {
+        const filtered = prev.filter(t => t.name !== displayName && t.id !== newDatasetId);
+        return [...filtered, tabPayload];
+      });
+
+      // Actualizar parámetros de muestreo
+      setSampleParamsMasivo(prev => ({
+        ...prev,
+        totalRows: finalResult.totalRows,
+        end: finalResult.totalRows,
+      }));
+
+      setActiveTab(newDatasetId);
+      setSelectedTabIdMasivo(newDatasetId);
+      setTimeout(() => setActiveTab(newDatasetId), 200);
+      const totalSizeMB = (uploadedFileMasivo.size / 1024 / 1024).toFixed(2);
+      alert(`✅ Archivo subido correctamente aceptar carga meta datos(${totalSizeMB} MB en ${totalChunks} partes)`);
+      localStorage.removeItem(resumeKey); // 🧹 Limpieza del progreso
+      
+      console.log("📩 Respuesta backend masiva-chunk:", finalResult);
+      // === Esperar meta.json con total real ===
+      if (finalResult?.fileName) {
+        console.log("⏸️ Esperando 5 segundos antes de consultar meta.json");
+        setLoadingMeta(true);               // << mostrar loader redondo
+        const metaData = await waitForMetaFile(finalResult.fileName.replace(/\s+/g, "_"));
+        setLoadingMeta(false);
+
+        if (metaData?.ready) {
+          const newId = finalResult.datasetId;
+          const displayName = datasetNameMasivo || finalResult.fileName;
+
+          console.log("📘 Meta.json recibido:", metaData);
+
+          // === Construir filas visibles desde el meta ===
+          const rowsToDisplay: Record<string, any>[] = [];
+
+          //  Nuevo formato (objetos): usar directamente
+          if (Array.isArray(metaData.previewStart) && typeof metaData.previewStart[0] === "object") {
+            rowsToDisplay.push(...metaData.previewStart);
+            if (Array.isArray(metaData.previewEnd) && typeof metaData.previewEnd[0] === "object") {
+              rowsToDisplay.push(...metaData.previewEnd);
+            }
+          }
+
+          //  Formato antiguo (arrays): mapear a objeto usando columns
+          else if (Array.isArray(metaData.previewStart) && Array.isArray(metaData.previewStart[0])) {
+            const cols = Array.isArray(metaData.columns) ? metaData.columns : [];
+            for (const row of metaData.previewStart) {
+              const obj: Record<string, any> = {};
+              cols.forEach((col: string, i: number) => (obj[col] = row[i] ?? ""));
+              rowsToDisplay.push(obj);
+            }
+            if (Array.isArray(metaData.previewEnd) && Array.isArray(metaData.previewEnd[0])) {
+              for (const row of metaData.previewEnd) {
+                const obj: Record<string, any> = {};
+                cols.forEach((col: string, i: number) => (obj[col] = row[i] ?? ""));
+                rowsToDisplay.push(obj);
+              }
+            }
+          }
+
+          console.log("📋 Filas cargadas desde meta.json:", rowsToDisplay.length, "filas");
+
+          // ✅ Adaptación al nuevo formato del meta
+          const columns = Array.isArray(metaData.columns) ? metaData.columns : ["COL1"];
+          const rowsPreview = Array.isArray(metaData.rowsPreview)
+            ? metaData.rowsPreview.map((rowArr: any[]) => {
+                const rowObj: Record<string, any> = {};
+                columns.forEach((col: string, i: number) => (rowObj[col] = rowArr[i] ?? ""));
+                return rowObj;
+              })
+            : [];
+
+          // === Crear nueva pestaña visual ===
+          setTabs(prev => {
+            const idx = prev.findIndex(t => t.id === newId);
+            const newTab = {
+              id: newId,
+              name: displayName,
+              rows: rowsToDisplay,
+              columns: metaData?.columns || [], //  <-- AGREGAR ESTA LÍNEA
+              totalRows: metaData.totalRows || 0,
+              type: "masivo" as const,
+              datasetId: newId,
+            };
+
+            if (idx >= 0) {
+              const copy = [...prev];
+              copy[idx] = { ...copy[idx], ...newTab };
+              return copy;
+            } else {
+              return [...prev, newTab];
+            }
+          });
+
+          // === Actualizar parámetros del muestreo ===
+          setSampleParamsMasivo(prev => ({
+            ...prev,
+            totalRows: metaData.totalRows,
+            end: metaData.totalRows,
+            delimiter: metaData.delimiter || "|",
+          }));
+
+          setActiveTab(newId);
+          setSelectedTabIdMasivo(newId);
+          setTimeout(() => setActiveTab(newId), 200);
+
+          console.log(
+            `📊 Total de filas reales detectadas: ${metaData.totalRows.toLocaleString("es-BO")}`
+          );
+        } else {
+          console.warn("⚠️ No se pudo obtener meta.json o aún no está listo.");
+        }
+      } else {
+        console.warn("⚠️ No se recibió fileName válido desde el backend masiva-chunk.");
+      }
+      // === Limpieza de estado ===
+      setShowUploadModalMasivo(false);
+      setUploadedFileMasivo(null);
+      setDatasetNameMasivo("");
       setUploadingMasivo(false);
+      setProgressMasivo(100);
+    } catch (err: any) {
+      console.error("❌ Error en carga masiva:", err);
+      alert("Error al subir archivo masivo: " + err.message);
+      setUploadingMasivo(false);
+      // === Recuperación automática si el meta.json ya existe ===
+      if (err?.message?.includes("Timeout esperando meta.json")) {
+        console.warn("🕐 Timeout detectado, intentando recuperar meta.json...");
+
+        try {
+          const lastFile = uploadedFileMasivo?.name
+            ? `msv_${Date.now()}_${uploadedFileMasivo.name}`
+            : null;
+
+          // Usa el último fileName conocido si lo tienes en finalResult
+          const fileToRecover =
+          datasetNameMasivo || uploadedFileMasivo?.name?.replace(/\s+/g, "_");
+          if (fileToRecover) {
+            const res = await fetch("/api/masiva-info", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ fileName: fileToRecover }),
+            });
+
+            const meta = await res.json();
+            if (meta?.ok && meta.ready) {
+              alert(
+                `✅ Meta.json recuperado automáticamente.\n` +
+                `Archivo: ${fileToRecover}\n` +
+                `Filas totales: ${meta.totalRows.toLocaleString("es-BO")}`
+              );
+
+              // Crear nueva pestaña usando los datos recuperados
+              const recoveredId = `msv_recover_${Date.now()}`;
+              const startRows = meta.previewStart?.map((r:any)=>({ ...r, _SECTION:"inicio"})) || [];
+              const endRows = meta.previewEnd?.map((r:any)=>({ ...r, _SECTION:"final"})) || [];
+              const rowsToDisplay = useHeadersMasivo
+                ? [...startRows, ...endRows].slice(1)
+                : [...startRows, ...endRows];
+
+              setTabs((prev) => [
+                ...prev,
+                {
+                  id: recoveredId,
+                  name: fileToRecover,
+                  rows: rowsToDisplay,
+                  totalRows: meta.totalRows || 0,
+                  type: "masivo",
+                  datasetId: recoveredId,
+                },
+              ]);
+
+              setSampleParamsMasivo({
+                ...sampleParamsMasivo,
+                totalRows: meta.totalRows,
+                end: meta.totalRows,
+              });
+
+              setActiveTab(recoveredId);
+              setSelectedTabIdMasivo(recoveredId);
+            } else {
+              alert("⚠️ No se pudo recuperar el meta.json automáticamente.");
+            }
+          }
+        } catch (recoveryErr) {
+          console.error("❌ Error al intentar recuperar meta.json:", recoveryErr);
+        }
+      }
     }
   };
-
   // === Acciones UI ===
   const closeTab = (id: string) => {
     const newTabs = tabs.filter((tab) => tab.id !== id);
@@ -846,92 +1847,108 @@ export default function MuestraPage() {
     if (activeTab === id) setActiveTab(null);
   };
 
-  // === ABRIR HISTORIAL ===
+  // === ABRIR HISTORIAL (fusionado estándar + masivo) ===
   const openHistorial = async () => {
     setActiveTab("historial");
-    console.log("🟢 Ejecutando openHistorial. subTab:", subTab);
+    console.log("🟢 Ejecutando openHistorial combinado.");
 
     try {
-      // 1️⃣ Obtener sesión actual
       const sessionRes = await fetch("/api/auth/session", { credentials: "include" });
       const session = await sessionRes.json();
-      console.log("🧍 ID de sesión:", session?.user?.id);
       const userId = session?.user?.id;
 
-      // 2️⃣ Detectar correctamente si estás en Data Masivo
-      const activeButton = document.querySelector("nav[aria-label='Tabs'] button.border-b-2");
-      const activeText = activeButton?.textContent?.trim().toLowerCase() || "";
-      const isMasivo = subTab === "masivo" || activeText.includes("masivo");
-
-      // 3 Elegir endpoint
-      const endpoint = isMasivo ? "/api/masiva" : "/api/muestra";
-      const action = "historial";
-
-      console.log("📤 Enviando al backend:", { endpoint, action, userId });
-      console.log("🧍 userId a enviar:", userId);
-      // 4️ Hacer la solicitud
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ action, userId }),
-      });
-
-      const data = await res.json();
-      console.log("📜 Datos del backend:", data);
-
-      // 5️⃣ Manejar respuesta
-      if (!res.ok || !Array.isArray(data)) {
-        console.warn("⚠️ No se obtuvieron datos válidos");
-        setHistorial([]);
+      if (!userId) {
+        alert("No se encontró sesión de usuario.");
         return;
       }
 
-      setHistorial(data);
+      console.log("🧍 ID de sesión:", userId);
+
+      // 1) → Historial estándar
+      const resEstandar = await fetch("/api/muestra", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ action: "historial", userId }),
+      });
+
+      const dataEstandar = resEstandar.ok ? await resEstandar.json() : null;
+
+      // Soportar tanto objeto {imports, muestras, exports} como array simple
+      let imports: any[] = [];
+      let muestras: any[] = [];
+      let exports: any[] = [];
+
+      if (Array.isArray(dataEstandar)) {
+        // API vieja: solo devolvía un array de muestras
+        muestras = dataEstandar;
+      } else if (dataEstandar && typeof dataEstandar === "object") {
+        imports = Array.isArray(dataEstandar.imports)
+          ? dataEstandar.imports
+          : [];
+        muestras = Array.isArray(dataEstandar.muestras)
+          ? dataEstandar.muestras
+          : (Array.isArray(dataEstandar.historial) ? dataEstandar.historial : []);
+        exports = Array.isArray(dataEstandar.exports)
+          ? dataEstandar.exports
+          : [];
+      }
+
+      // 2) → Historial MASIVO
+      const resMasivo = await fetch("/api/muestra-masiva", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ action: "historial", userId }),
+      });
+
+      if (resMasivo.ok) {
+        const dataMasivo = await resMasivo.json();
+        const masivo =
+          Array.isArray(dataMasivo?.muestras)
+            ? dataMasivo.muestras
+            : Array.isArray(dataMasivo)
+            ? dataMasivo
+            : [];
+
+        muestras = [...muestras, ...masivo];
+        console.log("📘 Estándar:", muestras.length, "Masivo:", masivo.length);
+      }
+
+      // 3) → Guardar en estructura HistorialState
+      setHistorial({
+        imports,
+        muestras,
+        exports,
+      });
+
+      console.log("📦 Historial fusionado cargado");
     } catch (err) {
       console.error("❌ Error cargando historial:", err);
-      setHistorial([]);
+      alert("No se pudo cargar el historial.");
+      // Muy importante: resetear con el mismo shape
+      setHistorial({
+        imports: [],
+        muestras: [],
+        exports: [],
+      });
     }
   };
-
-  // const openHistorial = () => {
-  //   setActiveTab("historial");
-  //   fetchHistorial(); // carga desde backend
-  // };
-
-  // === Historial MASIVO ===
-  // const openHistorialMasivo = async () => {
-  //   setActiveTab("historial");
-  //   try {
-  //     const res = await fetch("/api/masiva", {
-  //       method: "POST",
-  //       headers: { "Content-Type": "application/json" },
-  //       body: JSON.stringify({ action: "historial", userId }),
-  //     });
-  //     if (!res.ok) {
-  //       setHistorial([]);
-  //       return;
-  //     }
-  //     const data = await res.json();
-  //     setHistorial(Array.isArray(data) ? data : []);
-  //   } catch {
-  //     setHistorial([]);
-  //   }
-  // };
 
   // Hasta que esté hidratado, no renders (evita mismatch SSR/CSR)
   if (!hydrated) {
     return <div className="p-6 text-gray-500">Cargando…</div>;
   }
-
   // === Render ===
   return (
     <div className="h-screen flex flex-col">
+      {/* small local styles used only in this component */}
+      <style>{NO_SPIN_CSS}</style>
+      <style>{PROGRESS_CSS}</style>
       <h1 className="text-2xl font-bold px-4 py-3 text-gray-800">
         Módulo de Muestra
       </h1>
       {/* === Barra de SubTabs al estilo parametrización === */}
-      {/* Barra de SubTabs */}
       <div className="border-b border-gray-200">
           <nav className="flex space-x-6" aria-label="Tabs">
             <button
@@ -957,12 +1974,21 @@ export default function MuestraPage() {
             </button>
           </nav>
       </div>
+      {loadingMeta && (
+        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-[9999]">
+          <div className="bg-white p-6 rounded-lg shadow-lg text-center">
+            <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+            <p className="mt-3 text-gray-700 font-semibold">Cargando metadatos...</p>
+            <p className="text-sm text-gray-500">Por favor espera unos segundos</p>
+          </div>
+        </div>
+      )}
 
         {/* === Contenido dinámico según el subTab === */}
-        {/* === Layout principal con contenido + sidebar === */}
         <div className="flex flex-1">
           {/* Contenido según subTab */}
           <div className="flex-1 p-4 overflow-x-auto overflow-y-auto">
+            {/* === ESTANDAR === */}
             {subTab === "estandar" ? (
               <>
                 {/* Barra de pestañas dinámicas */}
@@ -987,22 +2013,32 @@ export default function MuestraPage() {
                     </div>
                   ))}
                 </div>
-
                 {/* Contenido del tab seleccionado */}
                 {activeTab === "historial" ? (
-                  historial.length === 0 ? (
+                  (historial.imports.length +
+                    historial.muestras.length +
+                    historial.exports.length) === 0 ? (
                     <div className="p-6 text-gray-500 text-center">
                       No hay registros en el historial aún.
                     </div>
                   ) : (
-                    <TablaHistorial historial={historial} />
+                    <TablaHistorial 
+                    historial={[
+                      ...historial.imports,
+                      ...historial.muestras,
+                      ...historial.exports,
+                      ]}
+                    />
                   )
                 ) : tabs.length === 0 || !activeTab ? (
                   <div className="p-6 text-gray-500 text-center">
                     No hay datos cargados. Usa <b>Cargar Datos</b>.
                   </div>
                 ) : (
-                  <TablaGenerica rows={currentRows} />
+                  <TablaGenerica
+                  rows={sanitizeRows(currentRows)}
+                  columns={tabs.find(t => t.id === activeTab)?.columns || []}
+                  />
                 )}
               </>
             ) : (
@@ -1029,27 +2065,36 @@ export default function MuestraPage() {
                     </div>
                   ))}
                 </div>
-
                 {/* Contenido del tab masivo */}    
                 {activeTab === "historial" ? (
-                  historial.length === 0 ? (
+                  (historial.imports.length +
+                    historial.muestras.length +
+                    historial.exports.length) === 0 ? (
                     <div className="p-6 text-gray-500 text-center">
                       No hay registros en el historial aún (Data Masivo).
                     </div>
                   ) : (
-                    <TablaHistorial historial={Array.isArray(historial) ? historial : []} />
+                    <TablaHistorial
+                    historial={[
+                      ...historial.imports,
+                      ...historial.muestras,
+                      ...historial.exports,
+                      ]}
+                    />
                   )
                 ) : tabs.length === 0 || !activeTab ? (
                   <div className="p-6 text-gray-500 text-center">
                     No hay datos cargados. Usa <b>Cargar Datos</b> (Data Masivo).
                   </div>
                 ) : (
-                  <TablaGenerica rows={currentRows} />
+                  <TablaGenerica 
+                  rows={sanitizeRows(currentRows)}
+                  columns={tabs.find(t => t.id === activeTab)?.columns || []}
+                  />
                 )}
               </>
             )}
           </div>
-
           {/* SIDEBAR */}
           <div className="w-60 bg-gray-50 p-6 space-y-4 self-start">
             {/* Cargar Datos */}
@@ -1074,35 +2119,45 @@ export default function MuestraPage() {
             {/* Muestreo */}
             <button
               onClick={() => {
-                if (subTab === "estandar") {
-                  // === 🟦 MUESTREO ESTÁNDAR ===
-                  setSampleParams((prev) => ({
+                // === MUETREO MASIVO ===
+                if (subTab === "masivo") {
+                  const activeDataset = tabs.find(t => t.id === activeTab && t.type === "masivo");
+                  if (!activeDataset) {
+                    alert("⚠️ Selecciona primero una pestaña masiva antes de abrir el muestreo.");
+                    return;
+                  }
+                  // Fijar dataset actual para el modal
+                  setSelectedTabIdMasivo(activeDataset.id);
+                  setShowModalMasivo(true);
+                }
+                // === MUESTREO ESTÁNDAR (sin cambios)
+                else if (subTab === "estandar") {
+                  const tab = tabs.find(t => t.id === activeTab);
+                  if (!tab) return;
+
+                  // 1️⃣ MUY IMPORTANTE: asignar pestaña activa
+                  setSelectedTabId(activeTab ?? "");
+                  const totalRows = tab.totalRows ?? tab.rows?.length ?? 0;
+                  // 2️⃣ NO BORRAR EL FILE NAME
+                  const nombreDetectado =
+                    tab.displayName ||
+                    tab.fileName ||
+                    tab.name ||
+                    `Dataset_${activeTab}`;
+
+                  // 3️⃣ Cargar valores iniciales
+                  setSampleParams(prev => ({
                     ...prev,
-                    fileName: "",
-                  }));
-                  setShowModal(true);
-                } else {
-                  // === MUESTREO MASIVO ===
-
-                  // Generar semilla aleatoria diferente cada vez
-                  const randomSeed = Math.floor(Math.random() * 9000) + 1000;
-
-                  // Detectar dataset activo y contar filas
-                  const activeTabData = tabs.find((t) => t.id === activeTab);
-                  const totalRows = activeTabData?.totalRows || activeTabData?.rows?.length || 0;
-                  
-                  // Asignar parámetros por defecto
-                  setSampleParamsMasivo({
                     records: 0,
-                    seed: randomSeed,
+                    fileName: nombreDetectado,
+                    seed: Math.floor(Math.random() * 9000) + 1000,
                     start: 1,
                     end: totalRows,
-                    allowDuplicates: false,
-                    fileName: "",
-                  });
+                    totalRows,
+                  }));
 
-                  // Mostrar modal
-                  setShowModalMasivo(true);
+                  // 4️⃣ Abrir modal
+                  setShowModal(true);
                 }
               }}
               className="w-full flex items-center gap-2 bg-gray-400 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded shadow transition-colors"
@@ -1137,15 +2192,24 @@ export default function MuestraPage() {
 
             {/* Imprimir Historial */}
             <button
-              onClick={exportPdf}
-              className="w-full flex items-center gap-2 bg-purple-600 hover:bg-purple-900 text-white font-semibold py-2 px-4 rounded shadow transition-colors"
+              onClick={async () => {
+                if (pdfLoading) return;
+                try {
+                  setPdfLoading(true);
+                  await exportPdf();
+                } finally {
+                  setPdfLoading(false);
+                }
+              }}
+              disabled={pdfLoading}
+              className={`w-full flex items-center gap-2 ${pdfLoading ? 'bg-purple-300 cursor-wait' : 'bg-purple-600 hover:bg-purple-900'} text-white font-semibold py-2 px-4 rounded shadow transition-colors`}
             >
               <Printer size={18} />
-              Imprimir Historial
+              {pdfLoading ? 'Generando PDF...' : 'Imprimir Historial'}
             </button>
 
             {/* Limpiar Historial */}
-            <button
+            {/* <button
               onClick={() => {
                 if (subTab === "estandar") {
                   clearHistorial();
@@ -1157,10 +2221,10 @@ export default function MuestraPage() {
             >
               <Trash2 size={18} />
               Limpiar Historial
-            </button>
+            </button> */}
           </div>
         </div>
-
+        
         {/* MODAL: Muestreo */}
         {showModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/30">
@@ -1180,7 +2244,7 @@ export default function MuestraPage() {
                         records: e.target.value === "" ? 0 : parseInt(e.target.value, 10),
                       }))
                     }
-                    className="border rounded px-2 py-1 w-20 text-center"
+                    className="border rounded px-2 py-1 w-20 text-center no-spin"
                   />
                 </label>
 
@@ -1197,7 +2261,7 @@ export default function MuestraPage() {
                         seed: e.target.value === "" ? 0 : parseInt(e.target.value, 10),
                       }))
                     }
-                    className="border rounded px-2 py-1 w-20 text-center"
+                    className="border rounded px-2 py-1 w-20 text-center no-spin"
                   />
                 </label>
 
@@ -1215,7 +2279,7 @@ export default function MuestraPage() {
                         start: Math.max(1, v), // nunca menor que 1
                       }));
                     }}
-                    className="border rounded px-2 py-1 w-20 text-center"
+                    className="border rounded px-2 py-1 w-20 text-center no-spin"
                   />
                 </label>
 
@@ -1234,7 +2298,7 @@ export default function MuestraPage() {
                         end: Math.min(Math.max(1, v), maxLen), // clamp entre 1 y dataset.length
                       }));
                     }}
-                    className="border rounded px-2 py-1 w-20 text-center"
+                    className="border rounded px-2 py-1 w-20 text-center no-spin"
                   />
                 </label>
 
@@ -1265,6 +2329,9 @@ export default function MuestraPage() {
                     className="border rounded px-2 py-1 w-40"
                   />
                 </label>
+                <p className="italic text-gray-600 text-sm text-right mb-2">
+                  El archivo tiene {(tabs.find(t => t.id === activeTab)?.totalRows ?? currentRows.length ?? 0)} filas cargadas.
+                </p>
               </div>
 
               <div className="flex justify-end space-x-1 mt-2">
@@ -1284,7 +2351,6 @@ export default function MuestraPage() {
             </div>
           </div>
         )}
-
         {/* MODAL: Muestreo Masivo */}
         {showModalMasivo && (
           <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/30">
@@ -1304,7 +2370,7 @@ export default function MuestraPage() {
                         records: e.target.value === "" ? 0 : parseInt(e.target.value, 10),
                       }))
                     }
-                    className="border rounded px-2 py-1 w-20 text-center"
+                    className="border rounded px-2 py-1 w-20 text-center no-spin"
                   />
                 </label>
 
@@ -1321,7 +2387,7 @@ export default function MuestraPage() {
                         seed: e.target.value === "" ? 0 : parseInt(e.target.value, 10),
                       }))
                     }
-                    className="border rounded px-2 py-1 w-20 text-center"
+                    className="border rounded px-2 py-1 w-20 text-center no-spin"
                   />
                 </label>
 
@@ -1339,7 +2405,7 @@ export default function MuestraPage() {
                         start: Math.max(1, v),
                       }));
                     }}
-                    className="border rounded px-2 py-1 w-20 text-center"
+                    className="border rounded px-2 py-1 w-20 text-center no-spin"
                   />
                 </label>
 
@@ -1357,7 +2423,7 @@ export default function MuestraPage() {
                         end: Math.max(1, v),
                       }));
                     }}
-                    className="border rounded px-2 py-1 w-20 text-center"
+                    className="border rounded px-2 py-1 w-20 text-center no-spin"
                   />
                 </label>
 
@@ -1388,26 +2454,132 @@ export default function MuestraPage() {
                     className="border rounded px-2 py-1 w-40"
                   />
                 </label>
+                <p className="italic text-gray-600 text-sm text-right mb-2">
+                  Mostrando {(currentTabMasivo?.rows?.filter?.((r:any)=>!r?.__sep).length ?? 0)} de{" "}
+                  {(indexInfo.adjustedTotalRows ?? sampleParamsMasivo.totalRows ?? currentTabMasivo?.totalRows ?? 0).toLocaleString("es-BO")}{" "}
+                  filas reales detectadas.
+                </p>
               </div>
+              {/* Estado del índice */}
+              <div className="mt-3 p-2 bg-gray-50 rounded border border-gray-200 text-sm">
+                <strong>Estado del índice:</strong>
+                <span
+                  className={`ml-2 font-semibold ${
+                    indexInfo.exists ? "text-green-600" : "text-orange-600"
+                  }`}
+                >
+                  {indexInfo.message}
+                </span>
+                {/* === Barra de progreso del indexado === */}
+                {!indexInfo.exists && (
+                  <div className="mt-4 bg-gray-100 p-3 rounded shadow-sm">
+                    <p className="text-sm text-blue-700 font-semibold mb-1 text-center">
+                      📊 Indexando {progressFile || "archivo"}...
+                    </p>
 
+                    {/* Filas procesadas */}
+                    <p className="text-xs text-gray-600 text-center mb-2">
+                      {processedLines.toLocaleString("es-BO")} filas procesadas
+                    </p>
+
+                    {/* Barra visual */}
+                    <div className="w-full bg-gray-300 rounded-full h-3 overflow-hidden">
+                      <div
+                        className="h-full bg-blue-500 transition-all duration-300"
+                        style={{ width: `${progressLog || 0}%` }}
+                      ></div>
+                    </div>
+
+                    {/* Porcentaje */}
+                    <p className="text-xs text-gray-700 mt-1 text-center">
+                      {progressLog.toFixed(2)}%
+                    </p>
+                  </div>
+                )}
+                {/* === Indexado completado === */}
+                {indexInfo.exists && (
+                  <div className="mt-3 text-green-600 text-center font-semibold text-sm">
+                    ✅ Indexado completado correctamente
+                  </div>
+                )}
+              </div>
+              {/* Estado dinámico del proceso masivo */}
+              {isSampling && (
+                <div className="mt-4 text-center">
+                  {progressIndex > 0 && (
+                    <div className="w-full bg-gray-200 h-2 rounded mt-2">
+                      <div className="bg-blue-500 h-2 rounded transition-all duration-500"
+                      style={{ width: `${progressIndex}%` }}>
+                      </div>
+                    </div>
+                  )}
+                  <p className="text-xs text-gray-700 mt-1">
+                    Progreso: {progressIndex.toFixed(2)}%
+                  </p>
+                  <div className="flex items-center justify-center space-x-3">
+                    {/* 🔄 Spinner animado */}
+                    <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                    {/* Mensaje dinámico */}
+                    <span className="text-blue-700 font-medium text-sm">
+                      {masivoStatus || "Procesando muestreo masivo..."}
+                    </span>
+                  </div>
+                  {/* Barra de progreso real del indexado */}
+                  {masivoStatus.toLowerCase().includes("indice") && (
+                    <div className="mt-3">
+                      <div className="text-xs text-gray-600 mb-1">
+                        Progreso del indexado: {progressIndex.toFixed(1)}%
+                      </div>
+                      <div className="w-full bg-gray-200 h-2 rounded-full">
+                        <div
+                          className="bg-blue-500 h-2 rounded-full transition-all duration-500"
+                          style={{ width: `${progressIndex}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+              {/* === PROGRESO EN VIVO DEL LOG === */}
+              {progressLines.length > 0 && (
+                <div className="bg-neutral-900 text-white p-2 mt-3 text-xs font-mono rounded max-h-40 overflow-y-auto border border-gray-700">
+                  {progressLines.map((l, i) => (
+                    <div key={i}>{l}</div>
+                  ))}
+                </div>
+              )}
               <div className="flex justify-end space-x-1 mt-2">
-                <button
+                <Button
                   onClick={handleOkMasivo}
-                  className="bg-sky-600 text-white px-4 py-2 rounded"
+                  disabled={isSampling}
+                  className={`${
+                    isSampling ? "bg-gray-400 cursor-not-allowed" : "bg-blue-500 hover:bg-blue-600"
+                  } text-white px-4 py-2 rounded`}
                 >
-                  Aceptar
-                </button>
+                  {isSampling ? (
+                    <div className="flex items-center justify-center space-x-2">
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <span>Procesando...</span>
+                    </div>
+                  ) : (
+                    "Aceptar"
+                  )}
+                </Button>
                 <button
-                  onClick={() => setShowModalMasivo(false)}
-                  className="bg-gray-400 text-white px-4 py-2 rounded"
-                >
+                  onClick={() => {
+                    setShowModalMasivo(false);
+                    setMasivoStatus("");
+                    setIsSampling(false);
+                    setProgressLog(0);
+                    setProcessedLines(0);
+                    setProgressFile("");
+                  }} className="bg-gray-400 text-white px-4 py-2 rounded">
                   Cancelar
                 </button>
               </div>
             </div>
           </div>
         )}
-
         {/* MODAL: Cargar Datos */}
         {showUploadModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/30">
@@ -1430,7 +2602,7 @@ export default function MuestraPage() {
                         if (file) {
                           setUploadedFile(file);
 
-                          // 🔹 Extraer nombre base sin extensión
+                          //  Extraer nombre base sin extensión
                           const baseName = file.name.replace(/\.[^/.]+$/, "");
                           setDatasetName(baseName);
                         } else {
@@ -1513,7 +2685,6 @@ export default function MuestraPage() {
             </div>
           </div>
         )}
-        
         {/* MODAL: Cargar Datos Masivo */}
         {showUploadModalMasivo && (
           <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/30">
@@ -1534,7 +2705,7 @@ export default function MuestraPage() {
                         if (file) {
                           setUploadedFileMasivo(file);
 
-                          // 🔹 Quita la extensión del nombre del archivo
+                          //  Quita la extensión del nombre del archivo
                           const baseName = file.name.replace(/\.[^/.]+$/, "");
                           setDatasetNameMasivo(baseName);
                         } else {
@@ -1566,7 +2737,15 @@ export default function MuestraPage() {
                     className="border rounded px-2 py-1 w-48"
                   />
                 </label>
-
+                {/* Checkbox cabecera */}
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={useHeadersMasivo}
+                    onChange={(e) => setUseHeadersMasivo(e.target.checked)}
+                  />
+                  <span className="text-sm">Usar primera fila como cabecera</span>
+                </label>
                 {/* Loader de progreso */}
                 {uploadingMasivo && (
                   <div className="w-full mt-4">
@@ -1605,7 +2784,6 @@ export default function MuestraPage() {
             </div>
           </div>
         )}
-
         {/* MODAL: Exportación */}
         {showExportModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/40">
@@ -1615,31 +2793,31 @@ export default function MuestraPage() {
                 <div className="flex flex-col space-y-2">
                   <button
                     onClick={() => exportData("xlsx")}
-                    className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+                    className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-green-600"
                   >
                     Excel (.xlsx)
                   </button>
                   <button
                     onClick={() => exportData("csv")}
-                    className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+                    className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-green-600"
                   >
                     CSV (.csv)
                   </button>
                   <button
                     onClick={() => exportData("json")}
-                    className="bg-violet-600 text-white px-4 py-2 rounded hover:bg-violet-700"
+                    className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-green-600"
                   >
                     JSON (.json)
                   </button>
                   <button
                     onClick={() => exportData("xml")}
-                    className="bg-yellow-400 text-white px-4 py-2 rounded hover:bg-yellow-500"
+                    className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-green-600"
                   >
                     XML (.xml)
                   </button>
                   <button
                     onClick={() => exportData("txt")}
-                    className="bg-orange-400 text-white px-4 py-2 rounded hover:bg-orange-500"
+                    className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-green-600"
                   >
                     TXT (.txt)
                   </button> 
@@ -1674,54 +2852,89 @@ export default function MuestraPage() {
             </div>
           </div>
         )}
-
         {/* MODAL: Exportación Masivo */}
         {showExportModalMasivo && (
           <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/40">
             <div className="bg-white p-6 rounded shadow-lg w-80 space-y-4">
               <h2 className="text-lg font-bold mb-2">Exportar Datos Masivos</h2>
-              <p className="text-sm text-gray-600">Selecciona el formato:</p>
-                <div className="flex flex-col space-y-2">
-                  <button
-                    onClick={() => exportDataMasivo("csv")}
-                    className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-                  >
-                    CSV (.csv)
-                  </button>
-                  <button
-                    onClick={() => exportDataMasivo("json")}
-                    className="bg-violet-600 text-white px-4 py-2 rounded hover:bg-violet-700"
-                  >
-                    JSON (.json)
-                  </button>
-                  <button
-                    onClick={() => exportDataMasivo("xml")}
-                    className="bg-yellow-400 text-white px-4 py-2 rounded hover:bg-yellow-500"
-                  >
-                    XML (.xml)
-                  </button>
-                  <button
-                    onClick={() => exportDataMasivo("txt")}
-                    className="bg-orange-400 text-white px-4 py-2 rounded hover:bg-orange-500"
-                  >
-                    TXT (.txt)
-                  </button>
-                </div>
-                <label className="flex flex-col text-sm font-medium text-gray-700">
-                  Selecciona la pestaña de muestreo:
-                  <select
-                    value={selectedTabIdMasivo}
-                    onChange={(e) => setSelectedTabIdMasivo(e.target.value)}
-                    className="mt-1 border rounded px-2 py-1"
-                  >
-                    <option value="">--Seleccionar pestaña--</option>
-                    {tabs.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.name}
-                      </option>
-                    ))}
-                  </select>
+
+              {/* 🔁 INTERRUPTOR DE MODO */}
+              <div className="flex items-center space-x-2 border border-gray-300 rounded px-2 py-1 bg-gray-50">
+                <input
+                  id="streamingToggle"
+                  type="checkbox"
+                  checked={useStreaming}
+                  onChange={(e) => setUseStreaming(e.target.checked)}
+                  className="cursor-pointer w-4 h-4 accent-green-600"
+                />
+                <label htmlFor="streamingToggle" className="text-sm text-gray-700 select-none">
+                  Usar exportación segura (Streaming)
                 </label>
+              </div>
+
+              <p className="text-sm text-gray-600">Selecciona el formato:</p>
+
+              {/* BOTONES DE EXPORTACIÓN */}
+              <div className="flex flex-col space-y-2">
+                <button
+                  onClick={() =>
+                    useStreaming
+                      ? exportDataMasivoStreaming("csv")
+                      : exportDataMasivo("csv")
+                  }
+                  className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-green-600"
+                >
+                  CSV (.csv)
+                </button>
+                <button
+                  onClick={() =>
+                    useStreaming
+                      ? exportDataMasivoStreaming("json")
+                      : exportDataMasivo("json")
+                  }
+                  className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-green-600"
+                >
+                  JSON (.json)
+                </button>
+                <button
+                  onClick={() =>
+                    useStreaming
+                      ? exportDataMasivoStreaming("xml")
+                      : exportDataMasivo("xml")
+                  }
+                  className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-green-600"
+                >
+                  XML (.xml)
+                </button>
+                <button
+                  onClick={() =>
+                    useStreaming
+                      ? exportDataMasivoStreaming("txt")
+                      : exportDataMasivo("txt")
+                  }
+                  className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-green-600"
+                >
+                  TXT (.txt)
+                </button>
+              </div>
+
+              {/* SELECCIONADOR DE PESTAÑA */}
+              <label className="flex flex-col text-sm font-medium text-gray-600">
+                Selecciona la pestaña de muestreo:
+                <select
+                  value={selectedTabIdMasivo}
+                  onChange={(e) => setSelectedTabIdMasivo(e.target.value)}
+                  className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1"
+                >
+                  {tabs.map((tab) => (
+                    <option key={tab.id} value={tab.id}>
+                      {tab.name} — {tab.source || "Sin fuente registrada"}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              {/* BOTÓN DE CIERRE */}
               <div className="flex justify-end mt-3">
                 <button
                   onClick={() => setShowExportModalMasivo(false)}

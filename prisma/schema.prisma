@@ -8,11 +8,9 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 // --- MODELOS DE AUTENTICACIÓN Y USUARIOS ---
-
 model Account {
   id                String  @id @default(cuid())
   userId            String
@@ -56,23 +54,79 @@ model User {
 
   accounts Account[]
   sessions Session[]
-  historial HistorialMuestra[]   // Relación al historial
+  historial HistorialMuestra[]
+
+  historialImport HistorialImport[] @relation("ImportesUsuario")
+  historialExport HistorialExport[] @relation("ExportesUsuario")
 
   @@map("users")
+}
+
+model HistorialImport {
+  id          String   @id @default(cuid())
+  creadoEn    DateTime @default(now()) @map("creado_en")
+
+  // Información básica del archivo importado
+  nombreArchivo   String
+  rutaArchivo     String
+  tamanoBytes     Int?
+  tipoMime        String?
+
+  // Información de origen
+  origenDatos     String?    // Excel, CSV, JSON, TXT
+  nombreHoja      String?    // Solo para Excel
+
+  // Metadatos detectados automáticamente
+  tieneEncabezados   Boolean?
+  delimitadorDetectado String?
+  previewInicio       Int?
+  previewFin          Int?
+
+  // Contenido
+  registrosTotales Int
+  datasetId        String?     // ID del dataset creado al importar
+
+  // Campo extra para almacenar cualquier dato adicional
+  metadata         Json?
+
+  // Relación con usuario
+  usuarioId String
+  usuario   User @relation(name: "ImportesUsuario", fields: [usuarioId], references: [id], onDelete: Cascade)
+  @@map("historial_import")
 }
 
 ///--- NUEVO MODELO DE HISTORIAL RRELACIONADO CON USUARIOS
 model HistorialMuestra {
   id              String   @id @default(cuid())
-  name            String
+  name            String                              // nombre definido por el usuario
   createdAt       DateTime @default(now()) @map("created_at")
-  records         Int
-  range           String
-  seed            Int
-  allowDuplicates Boolean
-  source          String
-  hash            String
-  tipo            String   @default("estandar") // "estandar" | "masivo"
+  records         Int                                  // cantidad de registros muestreados
+  range           String                               // "start-end"
+  seed            Int                                   // semilla usada
+  allowDuplicates Boolean                               // permitir duplicados
+  source          String                                // archivo fuente (ruta o nombre)
+  hash            String                                // hash del muestreo (ya existente)
+  tipo            String   @default("estandar")         // "estandar" | "masivo"
+  archivoResultado String?                              // salida del muestreo
+
+  // --- NUEVOS CAMPOS NECESARIOS ---
+  // ID del dataset fuente (si tienes tablas Dataset)
+  sourceDatasetId String?     
+  // Número total de registros del archivo original (como CaseWare)
+  totalRecords    Int?          
+  // Inicio y fin del rango numérico como enteros (importante para auditoría)
+  rangeStart      Int?          
+  rangeEnd        Int?          
+  // Índices originales seleccionados (útil para auditoría)
+  indicesJson     Json?         
+  // Tiempo de ejecución del muestreo en milisegundos
+  executionTimeMs Int?          
+  // Algoritmo RNG usado (mulberry32 en tu caso)
+  randomAlgorithm String?       
+  // Campo de control (CaseWare: "No Control Total")
+  controlField    String?       
+  // Control total (CaseWare: "No Control Total")
+  controlTotal    String?       
 
   userId String
   user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -81,6 +135,31 @@ model HistorialMuestra {
   @@map("historial_muestras")
 }
 
+
+model HistorialExport {
+  id          String   @id @default(cuid())
+  creadoEn    DateTime @default(now()) @map("creado_en")
+
+  // Datos principales de exportación
+  nombreExportado   String
+  rutaExportacion   String
+  formatoExportacion String    // XLSX, CSV, etc.
+  rangoInicio       Int
+  rangoFin          Int
+  registrosExportados Int
+
+  // Datos de origen
+  muestraId        String?
+  archivoFuenteNombre String?
+
+  // Datos adicionales
+  metadata Json?
+
+  // Relación con usuario
+  usuarioId String
+  usuario   User @relation(name: "ExportesUsuario", fields: [usuarioId], references: [id], onDelete: Cascade)
+  @@map("historial_export")
+}
 
 model VerificationToken {
   identifier String

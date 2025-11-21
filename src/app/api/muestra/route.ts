@@ -8,9 +8,10 @@ import { createHash } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/pages/api/auth/[...nextauth]";
-import type { Session } from "next-auth";
+import type { Session } from "next-auth"; 
 import * as XLSX from "xlsx";
-import { datasetStore, datasetStoreMasivo, RowData, DatasetMeta } from "@/lib/datasetStore";
+import { datasetStoreEstandar, datasetStoreMasivo, RowData } from "@/lib/datasetStore";
+
 
 // ---------- Tipos ----------
 interface SampleOptions {
@@ -24,7 +25,13 @@ interface SampleOptions {
 }
 
 // ---------- Configuración ----------
-const DATASETS_DIR = path.join(process.cwd(), "datasets");
+const DATASETS_DIR = "F:/datasets";
+
+// // Un solo store global
+// if (!(globalThis as any).datasetStore) {
+//   (globalThis as any).datasetStore = {};
+// }
+// const datasetStore: Record<string, { rows: RowData[] }> = (globalThis as any).datasetStore;
 
 
 // ---------- Utilidades ----------
@@ -46,8 +53,10 @@ function randomSample(
   allowDuplicates: boolean
 ): RowData[] {
   if (array.length === 0) throw new Error("Dataset vacío");
-  if (start < 1 || end > array.length || start > end) throw new Error("Rango inválido");
-  if (!allowDuplicates && n > end - start + 1) throw new Error("Más registros que rango disponible sin duplicados");
+  if (start < 1 || end > array.length || start > end)
+    throw new Error("Rango inválido");
+  if (!allowDuplicates && n > end - start + 1)
+    throw new Error("Más registros que rango disponible sin duplicados");
 
   const rng = mulberry32(seed);
   const slice = array.slice(start - 1, end);
@@ -56,8 +65,13 @@ function randomSample(
   while (result.length < n && slice.length > 0) {
     const idx = Math.floor(rng() * slice.length);
     const item = slice[idx];
+
+    // ✅ NUEVO: agregar número de posición original en el dataset
+    const originalPos = start - 1 + idx + 1; // compensamos el rango de inicio
+    const rowWithPos = { ...item, _POS_ORIGINAL: originalPos };
+
     if (!allowDuplicates) slice.splice(idx, 1);
-    result.push(item);
+    result.push(rowWithPos);
   }
   return result;
 }
@@ -79,13 +93,30 @@ function toXML(rows: RowData[]): string {
   return xml;
 }
 
+// === DETECTOR UNIVERSAL DE DELIMITADOR ===
+function detectarDelimitador(linea: string): string {
+  const candidatos = [";", "|", "\t", ","];
+
+  let mejor = ",";
+  let maxCount = 0;
+
+  for (const d of candidatos) {
+    const count = linea.split(d).length - 1;
+    if (count > maxCount) {
+      maxCount = count;
+      mejor = d;
+    }
+  }
+  return mejor;
+}
+
 // ---------- API ----------
 export async function POST(req: Request) {
   try {
     const contentType = req.headers.get("content-type") || "";
 
     //  1) SUBIDA DESDE EL MODAL
-    if (contentType?.includes("multipart/form-data")) {
+    if (contentType.includes("multipart/form-data")) {
       const formData = await req.formData();
       const file = formData.get("file") as File | null;
       const datasetName = formData.get("datasetName")?.toString() || file?.name || "dataset";
@@ -95,27 +126,29 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "No se recibió ningún archivo" }, { status: 400 });
       }
 
-      // 🧩 Detección de formato
+      //  Detección de formato
       const lower = file.name.toLowerCase();
       const isXlsx = lower.endsWith(".xlsx") || lower.endsWith(".xls");
       const isCsv = lower.endsWith(".csv") || lower.endsWith(".txt");
       const isJson = lower.endsWith(".json");
       const isXml = lower.endsWith(".xml");
+      const format = lower.split(".").pop() || "desconocido";
+      console.log(`📁 Subida de archivo: ${file.name} (formato: ${format})`);
+      
+      //  Crear carpeta datasets si no existe
+      fs.mkdirSync(DATASETS_DIR, { recursive: true });
 
-      // Buffer
+      //  Limpiar nombre del archivo (sin espacios ni caracteres raros)
+      const safeName = file.name.replace(/\s+/g, "_").replace(/[^\w.-]/g, "");
+      const savePath = path.join(DATASETS_DIR, safeName);
+      
+      //  Buffer
       const bytes = await file.arrayBuffer();
       const buffer = Buffer.from(bytes);
 
-      // Crear carpeta datasets si no existe
-      fs.mkdirSync(DATASETS_DIR, { recursive: true });
-
-      // Limpiar nombre del archivo (sin espacios ni caracteres raros)
-      const safeName = file.name.replace(/\s+/g, "_").replace(/[^\w.-]/g, "");
-      const savePath = path.join(DATASETS_DIR, safeName);
-
-      // Guardar archivo en disco
+      //  Guardar archivo en disco
       fs.writeFileSync(savePath, buffer);
-      console.log("✅ Archivo guardado en:", savePath);
+      console.log(" Archivo guardado en:", savePath);
 
       // Parseo del contenido
       const rows: RowData[] = [];
@@ -129,14 +162,19 @@ export async function POST(req: Request) {
         rows.push(...(Array.isArray(json) ? (json as RowData[]) : [json as RowData]));
       }
       else if (isCsv) {
+        const primeraLinea = buffer.toString("utf8").split(/\r?\n/)[0];
+        const delimitador = detectarDelimitador(primeraLinea);
+
+        console.log("📌 Delimitador detectado:", delimitador);
+
         await new Promise<void>((resolve, reject) => {
           fs.createReadStream(savePath)
-            .pipe(csv())
+            .pipe(csv({ separator: delimitador }))
             .on("data", (row: any) => rows.push(row as RowData))
             .on("end", resolve)
             .on("error", reject);
         });
-      } 
+      }
       else if (isJson) {
         const json = JSON.parse(buffer.toString("utf8"));
         rows.push(...(Array.isArray(json) ? json : [json]) as RowData[]);
@@ -153,30 +191,28 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "Formato de archivo no soportado" }, { status: 400 });
       }
 
-      // Registrar en memoria global    
-      (globalThis as any).datasetStore = (globalThis as any).datasetStore || {};
-      const datasetStore: Record<string, DatasetMeta> = (globalThis as any).datasetStore;
+      // Guardar en memoria global
       const datasetId = `std_${Date.now()}`;
-
-        // 🔹 REGISTRAR DATASET EN MEMORIA GLOBAL
-      datasetStore[datasetId] = {
+      datasetStoreEstandar[datasetId] = {
         rows,
-        fileName: file.name,
-        format: "csv", // o el formato real según detectes
+        fileName: safeName,
+        displayName: datasetName,
+        format: lower.split(".").pop(),
       };
-      console.log(`Dataset '${datasetName}' cargado con ${rows.length} filas`);
+
+      console.log(` Dataset '${datasetName}' cargado con ${rows.length} filas`);
 
       // Respuesta final
       return NextResponse.json({
         datasetId,
-        rows: rows.slice(0, 50),
+        rows,
         total: rows.length,
         dataset: datasetName,
         fileName: safeName,
       });
     }
 
-    // 🟢 2) JSON NORMAL
+    //  2) JSON NORMAL
     const { action, ...options } = await req.json();
 
     // === UPLOAD (lectura desde datasets) ===
@@ -218,63 +254,55 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "Formato de archivo no soportado" }, { status: 400 });
       }
 
-      datasetStore[datasetId] = { rows };
+      datasetStoreEstandar[datasetId] = { rows };
 
       return NextResponse.json({
         datasetId,
         total: rows.length,
-        preview: rows.slice(0, 50),
+        rows,
         fileName,
       });
     }
 
     // === SAMPLE ===
     if (action === "sample") {
-      const {
-        datasetId,
-        n,
-        seed,
-        start,
-        end,
-        allowDuplicates,
-        fileName: customName, // ← nombre opcional que viene desde el modal de muestreo
-      } = options as SampleOptions;
+      const { datasetId, n, seed, start, end, allowDuplicates, fileName: customName } = options as SampleOptions;
 
-      // Buscar dataset tanto en estándar como en masivo
-      const meta = datasetStore[datasetId] || datasetStoreMasivo?.[datasetId];
-      if (!meta) {
-        return NextResponse.json({ error: "Dataset no registrado" }, { status: 404 });
+      // Buscar dataset en memoria (estándar o masivo)
+      const meta = datasetStoreEstandar[datasetId] || datasetStoreMasivo?.[datasetId];
+      if (!meta.rows || meta.rows.length === 0) {
+        return NextResponse.json({ error: "Dataset vacío o no inicializado" }, { status: 400 });
       }
 
-      // Generar la muestra
+      // Generar la muestra aleatoria
       const sample = randomSample(meta.rows, n, seed, start, end, allowDuplicates);
       const hash = generateHash({ n, seed, start, end, allowDuplicates });
 
-      // Sesión de usuario
+      // Determinar el nombre visible del dataset (para historial)
+      const displayName = customName || meta.displayName || meta.fileName || `Dataset_${datasetId}`;
+      meta.displayName = displayName;
+
+      // Determinar la fuente exacta (el nombre del archivo subido)
+      const fuente = meta.fileName || "archivo no especificado";
+
+      // Obtener sesión de usuario
       const session = (await getServerSession(authOptions)) as Session | null;
       const userId = session?.user?.id;
 
-      // Nombre del muestreo y fuente real del dataset
-      const nameForHistory =
-        (customName?.trim() || meta.displayName?.trim() || `Muestra-${datasetId}`);
-
-      const sourceForHistory =
-        meta.fileName?.trim() || "dataset local";
-
-      // Registrar en historial (solo si hay usuario)
+      // Guardar en historial si hay usuario logueado
       if (userId) {
         try {
           await prisma.historialMuestra.create({
             data: {
-              name: nameForHistory,        // nombre del muestreo personalizado
-              records: sample.length,      // cantidad de registros seleccionados
-              range: `${start}-${end}`,    // rango utilizado
-              seed,                        // semilla
-              allowDuplicates,             // duplicados
-              source: sourceForHistory,    // archivo fuente real o dataset local
-              hash,                        // hash único
-              tipo: "estandar",            // tipo de muestra
-              userId,                      // id de usuario
+              name: displayName,           // 🔹 Nombre visible del dataset o muestra
+              records: sample.length,      // 🔹 Cantidad de registros
+              range: `${start}-${end}`,    // 🔹 Rango seleccionado
+              seed,                        // 🔹 Semilla
+              allowDuplicates,             // 🔹 Permitir duplicados
+              source: fuente,              // 🔹 Nombre real del archivo subido (ej: cita.xlsx)
+              hash,                        // 🔹 Identificador hash único
+              tipo: "estandar",            // 🔹 Tipo de muestreo
+              userId,                      // 🔹 Usuario actual
             },
           });
         } catch (err) {
@@ -282,74 +310,122 @@ export async function POST(req: Request) {
         }
       }
 
-      // Respuesta al frontend
+      // Devolver respuesta al frontend
       return NextResponse.json({
         sample,
         hash,
         totalRows: meta.rows.length,
+        datasetName: displayName,
       });
     }
 
-
     // === EXPORT ===
     if (action === "export") {
-      const { datasetId, format } = options as { datasetId: string; format: string };
+      const { datasetId, format, rows: providedRows } = options as {
+        datasetId?: string;
+        format: string;
+        rows?: RowData[];
+      };
 
-      // ✅ Buscar el dataset en ambos almacenamientos globales
-      const storeEstandar = (globalThis as any).datasetStore || {};
-      const storeMasivo = (globalThis as any).datasetStoreMasivo || {};
-      const meta = storeEstandar[datasetId] || storeMasivo[datasetId];
+      // Preferir rows proporcionadas en el body (cliente puede enviar la muestra directamente)
+      let rows: RowData[] | undefined = providedRows as RowData[] | undefined;
 
-      if (!meta) {
-        console.error("⚠️ Dataset no encontrado en memoria:", datasetId);
-        return NextResponse.json({ error: "Dataset no registrado" }, { status: 404 });
+      // Si no hay rows en el body, buscar el dataset en memoria por datasetId
+      let meta: any;
+      if (!rows) {
+        if (!datasetId) {
+          console.error("⚠️ No se proporcionó datasetId ni rows para exportar");
+          return NextResponse.json({ error: "Falta datasetId o rows" }, { status: 400 });
+        }
+
+        //  Buscar primero en memoria (estándar o masivo)
+        meta =
+        datasetStoreEstandar[datasetId] ||
+        datasetStoreMasivo[datasetId] ||
+        (globalThis as any).datasetStore?.[datasetId] ||
+        (globalThis as any).datasetStoreMasivo?.[datasetId];
+
+        if (!meta) {
+          console.error("⚠️ Dataset no encontrado en memoria:", datasetId);
+          return NextResponse.json({ error: "Dataset no registrado" }, { status: 404 });
+        }
+
+        rows = meta.rows;
       }
-
-      const rows = meta.rows;
       if (!rows || rows.length === 0) {
         return NextResponse.json({ error: "Dataset vacío" }, { status: 400 });
       }
-
-      // ✅ Exportar como JSON
+      // 🔹 Nombre seguro del archivo
+      const safeName = meta?.fileName || datasetId || "dataset";
+      
+      //  Exportar como JSON
       if (format === "json") {
-        return NextResponse.json(rows);
-      }
-
-      // ✅ Exportar como XML
-      if (format === "xml") {
-        const xml = toXML(rows);
-        return new Response(xml, {
-          headers: { "Content-Type": "application/xml" },
-        });
-      }
-
-      // ✅ Exportar como TXT (tabla alineada)
-      if (format === "txt") {
-        const headers = Object.keys(rows[0]);
-        const colWidths = headers.map((h, i) =>
-          Math.max(h.length, ...rows.map((row: RowData) => String(Object.values(row)[i]).length))
-        );
-
-        let text = "";
-        text += headers.map((h, i) => h.padEnd(colWidths[i] + 2)).join("") + "\n";
-        text += colWidths.map((w) => "-".repeat(w + 2)).join("") + "\n";
-        text += rows
-          .map((row: RowData) =>
-            Object.values(row)
-              .map((val, i) => String(val).padEnd(colWidths[i] + 2))
-              .join("")
-          )
-          .join("\n");
-
-        return new Response(text, {
+        return new Response(JSON.stringify(rows, null, 2), {
           headers: {
-            "Content-Type": "text/plain",
-            "Content-Disposition": `attachment; filename=${datasetId}.txt`,
+            "Content-Type": "application/json",
+            "Content-Disposition": `attachment; filename=${meta?.fileName || datasetId || "dataset"}.json`,
           },
         });
       }
 
-      // ✅ Exportar como CSV
+      //  Exportar como XML
+      if (format === "xml") {
+        const escapeXml = (unsafe: any) =>
+          String(unsafe)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&apos;");
+
+        let xml = "<rows>\n";
+        rows.forEach((row: RowData) => {
+          xml += "  <row>\n";
+          Object.entries(row).forEach(([key, value]) => {
+            xml += `    <${key}>${escapeXml(value)}</${key}>\n`;
+          });
+          xml += "  </row>\n";
+        });
+        xml += "</rows>";
+
+        return new Response(xml, {
+          headers: {
+            "Content-Type": "application/xml",
+            "Content-Disposition": `attachment; filename=${safeName}.xml`,
+          },
+        });
+      }
+
+      // Exportar como TXT limpio (sin separadores ni líneas vacías)
+      if (format === "txt") {
+        const headers = Object.keys(rows[0]);
+
+        // Construcción simple tipo CSV
+        const lines = [
+          headers.join(","), // Encabezado
+          ...rows.map((row: RowData) =>
+            headers
+              .map((h) => {
+                let val = row[h];
+                if (val === null || val === undefined) val = "";
+                return String(val).replace(/[\n\r,]+/g, " ").trim();
+              })
+              .join(",")
+          ),
+        ];
+
+        const content = lines.join("\n");
+
+        return new Response(content, {
+          headers: {
+            "Content-Type": "text/plain; charset=utf-8",
+            "Content-Disposition": `attachment; filename=${meta?.fileName || datasetId || "dataset"}.${format}`
+          },
+        });
+      }
+
+
+      //  Exportar como CSV
       if (format === "csv") {
         const headers = Object.keys(rows[0]);
         const csvData =
@@ -369,7 +445,7 @@ export async function POST(req: Request) {
         });
       }
 
-      // ✅ Exportar como XLSX (Excel)
+      //  Exportar como XLSX
       if (format === "xlsx") {
         const wb = XLSX.utils.book_new();
         const ws = XLSX.utils.json_to_sheet(rows);
@@ -384,15 +460,15 @@ export async function POST(req: Request) {
         });
       }
 
-      // Si llega aquí, formato no soportado
+      // ❌ Si el formato no coincide
       return NextResponse.json({ error: "Formato no soportado" }, { status: 400 });
     }
 
     // === HISTORIAL ===
     if (action === "historial") {
       const { userId } = options;
+      console.log("🟢 Consultando historial estándar:",userId);
       if (!userId) return NextResponse.json({ error: "Falta userId" }, { status: 400 });
-
       try {
         const historial = await prisma.historialMuestra.findMany({
           where: { userId},
