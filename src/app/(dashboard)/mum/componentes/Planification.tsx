@@ -1,4 +1,8 @@
 import React, { useEffect, useState } from 'react';
+import {handleErrorChange, formatNumber, formatErrorValue} from '../../../../lib/apiClient';
+// En Planification.tsx - solo las partes modificadas
+import { useLog } from '../../../../contexts/LogContext';
+import { HelpButton } from './HelpButtonPlanification';
 
 // Define la interfaz de las props que el componente espera recibir
 interface PlanificationProps {
@@ -37,6 +41,26 @@ interface PlanificationProps {
     excelData: any[];
     setIsPlanificacionDone: (value: boolean) => void;
     setActiveTab: (tabId: string) => void;
+    highValueLimit: number;
+    setHighValueLimit: (value: number) => void;
+    populationExcludingHigh: number;
+    setPopulationExcludingHigh: (value: number) => void;
+    highValueTotal: number;
+    setHighValueTotal: (value: number) => void;
+    populationIncludingHigh: number;
+    setPopulationIncludingHigh: (value: number) => void;
+    highValueCount: number;
+    setHighValueCount: (value: number) => void;
+    onOpenHistory: () => void;
+
+    handlePlanification: () => Promise<{
+        estimatedSampleSize: number;
+        sampleInterval: number;
+        tolerableContamination: number;
+        estimatedPopulationValue: number;
+        conclusion: string;
+        minSampleSize: number;
+    }>; // ✅ Especificar el tipo de retorno
 }
 
 const Planification: React.FC<PlanificationProps> = ({
@@ -75,80 +99,61 @@ const Planification: React.FC<PlanificationProps> = ({
     excelData,
     setIsPlanificacionDone,
     setActiveTab,
+    handlePlanification,
+    highValueLimit, 
+    setHighValueLimit,
+    populationExcludingHigh,
+    setPopulationExcludingHigh,
+    populationIncludingHigh,
+    setPopulationIncludingHigh,
+    highValueCount,
+    setHighValueCount,
+    highValueTotal,
+    setHighValueTotal,
+    onOpenHistory,
 }) => {
+
+    const { addLog } = useLog();
+    const [hasEstimated, setHasEstimated] = useState(false);
 
     const calculatePopulationValue = () => {
         if (useFieldValue && selectedField && excelData.length > 0) {
-            const sum = excelData.reduce((acc, row) => {
-                const value = parseFloat(row[selectedField]);
+            let totalValue = 0;
+            let highValueSum = 0;
+            let highValueItemsCount = 0;
+            excelData.forEach(row => {
+            const value = parseFloat(row[selectedField]);
                 if (!isNaN(value)) {
+                    let processedValue = 0;
+                    
                     if (selectedPopulationType === "positive" && value > 0) {
-                        return acc + value;
+                        processedValue = value;
+                    } else if (selectedPopulationType === "negative" && value < 0) {
+                        processedValue = Math.abs(value);
+                    } else if (selectedPopulationType === "absolute") {
+                        processedValue = Math.abs(value);
                     }
-                    if (selectedPopulationType === "negative" && value < 0) {
-                        return acc + Math.abs(value);
-                    }
-                    if (selectedPopulationType === "absolute") {
-                        return acc + Math.abs(value);
+                    
+                    totalValue += processedValue;
+                    
+                    // Identificar elementos de alto valor
+                    if (processedValue >= highValueLimit) {
+                        highValueSum += processedValue;
+                        highValueItemsCount++;
                     }
                 }
-                return acc;
-            }, 0);
-            setEstimatedPopulationValue(sum);
-        } else if (!useFieldValue) {
-            setEstimatedPopulationValue(0); 
-        }
-    };
-
-    const [hasEstimated, setHasEstimated] = useState(false);
-
-    const handleEstimate = async () => {
-        // Si NO se está usando el valor de campo, la población es el número de registros.
-        // Si la población calculada por el cliente es 0 y el usuario no está usando el campo,
-        // es probable que el excelData.length sea 0, lo cual es inválido.
-        if (!useFieldValue && excelData.length === 0) {
-            alert("La población es cero. No se puede realizar la estimación.");
-            return;
-        }
-
-        try {
-            const response = await fetch('/api/mum/planification', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    estimatedPopulationValue: estimatedPopulationValue,
-                    confidenceLevel: confidenceLevel,
-                    errorType: errorType,
-                    tolerableError: tolerableError,
-                    expectedError: expectedError,
-                    // ¡AÑADIR ESTOS DOS CAMPOS!
-                    excelData: excelData, // Se envía para calcular el N total si no se usa valor de campo.
-                    useFieldValue: useFieldValue,
-                }),
             });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                // Manejar errores del servidor
-                alert(`Error de Planificación: ${data.error || 'Algo salió mal.'}`);
-                return;
-            }
-
-            // 1. Actualizar Estados con los resultados del API
-            setEstimatedSampleSize(data.estimatedSampleSize);
-            setSampleInterval(data.sampleInterval);
-            setTolerableContamination(data.tolerableContamination);
-            setMinSampleSize(data.minSampleSize);
-            setConclusion(data.conclusion);
-            
-            setHasEstimated(true);
-
-        } catch (error) {
-            console.error("Error al estimar la planificación:", error);
-            alert("Error de conexión con el servidor. No se pudo realizar la estimación.");
+            setEstimatedPopulationValue(totalValue);
+            setHighValueTotal(highValueSum);
+            setHighValueCount(highValueItemsCount);
+            setPopulationExcludingHigh(totalValue - highValueSum);
+            setPopulationIncludingHigh(totalValue);
+        } else if (!useFieldValue) {
+            setEstimatedPopulationValue(0);
+            setHighValueTotal(0);
+            setHighValueCount(0);
+            setPopulationExcludingHigh(0);
+            setPopulationIncludingHigh(0);
         }
     };
 
@@ -158,13 +163,83 @@ const Planification: React.FC<PlanificationProps> = ({
             return;
         }
 
+         addLog(
+            'Planificación aceptada por usuario',
+            `Tamaño muestra: ${estimatedSampleSize}\nIntervalo: ${formatNumber(sampleInterval, 2)}\nTipo error: ${errorType === "importe" ? "Importe" : "Porcentaje"}\nError tolerable: ${errorType === "percentage" ? `${tolerableError}%` : formatNumber(tolerableError, 2)}\nError esperado: ${errorType === "percentage" ? `${estimatedPopulationValue}%` : formatNumber(estimatedPopulationValue, 2)}`,
+            'planificación',
+            'user'
+        );
+
+        // Ahora SÍ llamar a las funciones que navegan
         setIsPlanificacionDone(true);
         setActiveTab("extraccion");
         alert("Planificación aceptada. Ahora puedes ir a Extracción.");
     };
 
-    const handlePrint = () => {
-        window.print();
+    const handleEstimate = async () => {
+        // ✅ VALIDACIÓN COMPLETA
+        if (estimatedPopulationValue <= 0) {
+            alert("El valor de la población debe ser mayor a 0 para realizar la estimación.");
+            return;
+        }
+
+        if (tolerableError <= 0) {
+            alert("Debe ingresar un valor mayor a 0 para el Error tolerable.");
+            return;
+        }
+
+        if (expectedError <= 0) {
+            alert("Debe ingresar un valor mayor a 0 para el Error esperado.");
+            return;
+        }
+
+        if (expectedError >= tolerableError) {
+            alert("El Error esperado debe ser menor que el Error tolerable.");
+            return;
+        }
+
+        if (!isExcelLoaded) {
+            alert("Debe cargar un archivo Excel primero.");
+            return;
+        }
+
+        // ✅ SOLO UN LOG - acción del usuario
+        addLog(
+            'Usuario inició estimación de planificación',
+            `Nivel confianza: ${confidenceLevel}%\nError tolerable: ${errorType === "percentage" ? `${tolerableError}%` : formatNumber(tolerableError, 2)}\nError esperado: ${errorType === "percentage" ? `${estimatedPopulationValue}%` : formatNumber(estimatedPopulationValue, 2)}`,
+            'planificación',
+            'user' // ✅ Cambiado a 'user' - es acción del usuario
+        );
+
+        try {
+            const result = await handlePlanification();
+            setHasEstimated(true);
+
+            // ✅ CORREGIDO: También mostrar correctamente en el log del sistema
+            const resultErrorTolerableDisplay = errorType === "percentage" 
+                ? `${tolerableError}%` 
+                : formatNumber(tolerableError, 2);
+            
+            // ✅ LOG DEL SISTEMA - resultado exitoso
+            addLog(
+                'Planificación completada exitosamente',
+                `Tamaño muestra: ${result.estimatedSampleSize}\nIntervalo: ${formatNumber(result.sampleInterval, 2)}\nContaminación tolerable: ${result.tolerableContamination}%\nTipo de error aplicado: ${errorType === "importe" ? "Importe" : "Porcentaje"}`,
+                'planificación',
+                'system'
+            );
+        } catch (error) {
+            console.error('Error en estimación:', error);
+            setHasEstimated(false);
+            
+            // ✅ LOG DEL SISTEMA - error
+            addLog(
+                'Error en estimación de planificación',
+                `Error: ${error}`,
+                'planificación',
+                'error'
+            );
+            alert("Error al realizar la estimación. Verifique los datos.");
+        }
     };
 
     useEffect(() => {
@@ -182,8 +257,12 @@ const Planification: React.FC<PlanificationProps> = ({
         return (
             <div className="flex space-x-6 p-4">
                 <div className="flex-1 space-y-6">
+                    {/* Sección 1: Valor total de la población */}
                     <div className="bg-gray-50 p-6 rounded-lg shadow-inner">
-                        <h3 className="text-xl font-bold mb-4 text-gray-800">Valor total de la población para la muestra</h3>
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-xl font-bold text-gray-800">Valor total de la población para la muestra</h3>
+                            <HelpButton context="population-value" />
+                        </div>
                         <div className="flex items-center mb-4">
                             <input
                                 type="checkbox"
@@ -228,10 +307,10 @@ const Planification: React.FC<PlanificationProps> = ({
                                     value="negative"
                                     checked={selectedPopulationType === "negative"}
                                     onChange={() => setSelectedPopulationType("negative")}
-                                    disabled={!useFieldValue}
-                                    className="h-4 w-4 text-blue-600"
+                                    disabled={true}
+                                    className="h-4 w-4 text-gray-400 cursor-not-allowed"
                                 />
-                                <span className="ml-2 text-sm text-gray-700">Valores negativos</span>
+                                <span className="ml-2 text-sm text-gray-400">Valores negativos</span>
                             </label>
                             <label className="inline-flex items-center">
                                 <input
@@ -239,10 +318,10 @@ const Planification: React.FC<PlanificationProps> = ({
                                     value="absolute"
                                     checked={selectedPopulationType === "absolute"}
                                     onChange={() => setSelectedPopulationType("absolute")}
-                                    disabled={!useFieldValue}
-                                    className="h-4 w-4 text-blue-600"
+                                    disabled={true}
+                                    className="h-4 w-4 text-gray-400 cursor-not-allowed"
                                 />
-                                <span className="ml-2 text-sm text-gray-700">Valores absolutos</span>
+                                <span className="ml-2 text-sm text-gray-400">Valores absolutos</span>
                             </label>
                         </div>
                         <div className="mt-4 flex items-center">
@@ -251,112 +330,141 @@ const Planification: React.FC<PlanificationProps> = ({
                             </label>
                             <input
                                 type="text"
-                                value={estimatedPopulationValue.toLocaleString()}
+                                value={formatNumber(estimatedPopulationValue, 2)}
                                 disabled={useFieldValue}
-                                onChange={(e) => setEstimatedPopulationValue(Number(e.target.value))}
+                                onChange={(e) => handleErrorChange(e.target.value, setEstimatedPopulationValue, false)}
                                 className={`ml-2 block w-48 rounded-md border-gray-300 shadow-sm text-right ${useFieldValue ? 'bg-gray-200 cursor-not-allowed' : ''}`}
                             />
                         </div>
                     </div>
+
+                    {/* Sección 2: Configuraciones */}
                     <div className="bg-gray-50 p-6 rounded-lg shadow-inner">
-                        <h3 className="text-xl font-bold mb-4 text-gray-800">Configuraciones</h3>
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-xl font-bold text-gray-800">Configuraciones</h3>
+                            <HelpButton context="configurations" />
+                        </div>
+                        
+                        {/* Nivel de confianza */}
                         <div className="flex items-center space-x-4 mb-4">
                             <label className="text-sm font-medium text-gray-700">
                                 Nivel de confianza(%):
                             </label>
                             <input
                                 type="number"
-                                value={confidenceLevel}
-                                onChange={(e) => setConfidenceLevel(Number(e.target.value))}
-                                min="1"
-                                max="100"
+                                value={formatNumber(confidenceLevel, 2)}
+                                onChange={(e) => {
+                                    const value = Number(e.target.value);
+                                    if (value >= 1 && value <= 99) {
+                                        setConfidenceLevel(value);
+                                    }
+                                }}
+                                min="75"
+                                max="99"
                                 className="block w-24 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm text-center"
                             />
+                            <span className="text-sm text-gray-500">(75-99%)</span>
                         </div>
-                        <div className="flex space-x-4 mb-4">
-                            <label className="inline-flex items-center">
-                                <input
-                                    type="radio"
-                                    value="importe"
-                                    checked={errorType === "importe"}
-                                    onChange={() => setErrorType("importe")}
-                                    className="h-4 w-4 text-blue-600"
-                                />
-                                <span className="ml-2 text-sm text-gray-700">Importe</span>
-                            </label>
-                            <label className="inline-flex items-center">
-                                <input
-                                    type="radio"
-                                    value="percentage"
-                                    checked={errorType === "percentage"}
-                                    onChange={() => setErrorType("percentage")}
-                                    className="h-4 w-4 text-blue-600"
-                                />
-                                <span className="ml-2 text-sm text-gray-700">Porcentaje</span>
-                            </label>
+                        
+                        {/* Tipo de error */}
+                        <div className="flex items-center space-x-4 mb-4">
+                            <label className="text-sm font-medium text-gray-700">Tipo de error:</label>
+                            <div className="flex space-x-4">
+                                <label className="inline-flex items-center">
+                                    <input
+                                        type="radio"
+                                        value="importe"
+                                        checked={errorType === "importe"}
+                                        onChange={() => setErrorType("importe")}
+                                        className="h-4 w-4 text-blue-600"
+                                    />
+                                    <span className="ml-2 text-sm text-gray-700">Importe</span>
+                                </label>
+                                <label className="inline-flex items-center">
+                                    <input
+                                        type="radio"
+                                        value="percentage"
+                                        checked={errorType === "percentage"}
+                                        onChange={() => setErrorType("percentage")}
+                                        className="h-4 w-4 text-blue-600"
+                                    />
+                                    <span className="ml-2 text-sm text-gray-700">Porcentaje</span>
+                                </label>
+                            </div>
+                            <HelpButton context="error-type" />
                         </div>
+                        
+                        {/* Error tolerable */}
                         <div className="flex items-center space-x-4 mb-4">
                             <label className="text-sm font-medium text-gray-700 w-32">
                                 Error tolerable:
                             </label>
                             <input
-                                type="number"
-                                min="0" 
-                                value={tolerableError}
-                                onChange={(e) => setTolerableError(Number(e.target.value))}
-                                className="block w-24 rounded-md border-gray-300 shadow-sm sm:text-sm text-center"
+                                type="text"
+                                value={formatErrorValue(tolerableError, errorType === "percentage")}
+                                onChange={(e) => handleErrorChange(e.target.value, setTolerableError, errorType === "percentage")}
+                                className="block w-32 rounded-md border-gray-300 shadow-sm sm:text-sm text-right"
                             />
-                            {/* El span del % solo se muestra si el errorType es 'percentage' */}
                             {errorType === "percentage" && <span className="text-gray-700">%</span>}
+                            <HelpButton context="tolerable-error" />
                         </div>
+                        
+                        {/* Error esperado */}
                         <div className="flex items-center space-x-4 mb-4">
                             <label className="text-sm font-medium text-gray-700 w-32">
                                 Error esperado:
                             </label>
                             <input
-                                type="number"
-                                min="0" 
-                                value={expectedError}
-                                onChange={(e) => setExpectedError(Number(e.target.value))}
-                                className="block w-24 rounded-md border-gray-300 shadow-sm sm:text-sm text-center"
+                                type="text"
+                                value={formatErrorValue(expectedError, errorType === "percentage")}
+                                onChange={(e) => handleErrorChange(e.target.value, setExpectedError, errorType === "percentage")}
+                                className="block w-32 rounded-md border-gray-300 shadow-sm sm:text-sm text-right"
                             />
-                            {/* El span del % solo se muestra si el errorType es 'percentage' */}
                             {errorType === "percentage" && <span className="text-gray-700">%</span>}
+                            <HelpButton context="expected-error" />
                         </div>
+                        
+                        {/* Precisión básica */}
                         <div className="flex items-center space-x-4">
                             <input
                                 type="checkbox"
                                 checked={modifyPrecision}
                                 onChange={(e) => setModifyPrecision(e.target.checked)}
                                 className="h-4 w-4 text-blue-600 rounded"
+                                disabled={true}
                             />
-                            <label className="text-sm font-medium text-gray-700">
+                            <label className="text-sm font-medium text-gray-400">
                                 Modificar valor de precisión básica (100%):
                             </label>
                             <input
                                 type="text"
                                 value={precisionValue}
-                                disabled={!modifyPrecision}
+                                disabled={true}
                                 onChange={(e) => setPrecisionValue(Number(e.target.value))}
-                                className={`block w-24 rounded-md border-gray-300 shadow-sm text-center ${!modifyPrecision && 'bg-gray-200 cursor-not-allowed'}`}
+                                className="block w-24 rounded-md border-gray-300 shadow-sm text-center bg-gray-200 cursor-not-allowed"
                             />
-                            <span className="text-gray-700">%</span>
+                            <span className="text-gray-400">%</span>
                         </div>
                     </div>
+
+                    {/* Sección 3: Resultados de la Muestra */}
                     <div className="bg-white p-6 rounded-lg shadow-md space-y-4">
-                        <h3 className="text-xl font-bold text-gray-800">Resultados de la Muestra</h3>
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-xl font-bold text-gray-800">Resultados de la Muestra</h3>
+                            <HelpButton context="sample-results" />
+                        </div>
                         <div className="grid grid-cols-2 gap-4">
                             <div className="flex justify-between items-center">
                                 <span className="text-sm font-medium text-gray-700">Tamaño de la muestra aprox.:</span>
-                                <span className="text-sm text-gray-900 font-bold">{estimatedSampleSize}</span>
+                                <span className="text-sm text-gray-900 font-bold">{formatNumber(estimatedSampleSize, 0)}</span>
                             </div>
                             <div className="flex justify-between items-center">
                                 <span className="text-sm font-medium text-gray-700">Intervalo muestral:</span>
-                                <span className="text-sm text-gray-900 font-bold">{sampleInterval.toFixed(2)}</span>
+                                <span className="text-sm text-gray-900 font-bold">{formatNumber(sampleInterval, 2)}</span>
                             </div>
                             <div className="flex justify-between items-center">
                                 <span className="text-sm font-medium text-gray-700">Suma contaminaciones tolerables:</span>
-                                <span className="text-sm text-gray-900 font-bold">{tolerableContamination.toFixed(2)}%</span>
+                                <span className="text-sm text-gray-900 font-bold">{formatNumber(tolerableContamination, 2)}%</span>
                             </div>
                         </div>
                         <div className="mt-4 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
@@ -369,25 +477,36 @@ const Planification: React.FC<PlanificationProps> = ({
                         </div>
                     </div>
                 </div>
-                <div className="w-48 flex-none flex flex-col space-y-4 mt-8">
+
+                {/* Panel de botones lateral */}
+                <div className="w-48 flex-none flex flex-col space-y-4 mt-2">
                     <button
                         onClick={handleEstimate}
-                        className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded shadow"
+                        disabled={
+                            !isExcelLoaded || 
+                            tolerableError <= 0 || 
+                            expectedError <= 0 || 
+                            expectedError >= tolerableError ||
+                            estimatedPopulationValue <= 0
+                        }
+                        className={`bg-blue-600  ${
+                            !isExcelLoaded || 
+                            tolerableError <= 0 || 
+                            expectedError <= 0 || 
+                            expectedError >= tolerableError ||
+                            estimatedPopulationValue <= 0
+                                ? 'bg-gray-400 cursor-not-allowed' 
+                                : 'hover:bg-blue-700'
+                        } text-white font-semibold py-2 px-4 rounded shadow`}
                     >
                         Estimar
                     </button>
                     <button
                         onClick={handleAccept}
-                        disabled={!hasEstimated} // Agrega esta línea
+                        disabled={!hasEstimated}
                         className={`bg-green-600 ${!hasEstimated ? 'bg-gray-400 cursor-not-allowed' : 'hover:bg-green-700'} text-white font-semibold py-2 px-4 rounded shadow`}
                     >
                         Aceptar
-                    </button>
-                    <button
-                        onClick={handlePrint}
-                        className="bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded shadow"
-                    >
-                        Imprimir
                     </button>
                     <button
                         onClick={() => setActiveTab("visualizar")}
@@ -395,12 +514,23 @@ const Planification: React.FC<PlanificationProps> = ({
                     >
                         Cancelar
                     </button>
+
+                     {/* NUEVO BOTÓN DE HISTORIAL */}
                     <button
-                        onClick={() => alert("Función de Ayuda: Consulta la documentación del software IDEA para los cálculos estadísticos o contacta al soporte.")}
-                        className="bg-gray-400 hover:bg-gray-500 text-white font-semibold py-2 px-4 rounded-full shadow"
+                        onClick={onOpenHistory}
+                        className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded shadow"
                     >
-                        ? Ayuda
+                        Ver Historial
                     </button>
+
+                    
+                    {/* Botón de ayuda general - CON TEXTO "AYUDA" */}
+                    <div className="flex justify-center">
+                        <HelpButton 
+                            context="general" 
+                            className="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold py-2 px-4 rounded-full shadow w-full" 
+                        />
+                    </div>
                 </div>
             </div>
         );

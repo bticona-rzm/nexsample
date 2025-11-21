@@ -1,13 +1,21 @@
-// app/api/mum/planification/route.ts
 import { NextResponse } from 'next/server';
+import { getConfidenceFactor } from '@/utils/tables';
 
-// Factores de Confianza simplificados para el backend
-const confidenceFactors: {
-    [confidenceLevel: number]: number[]
-} = {
-    90: [2.31, 3.89, 5.33, 6.69],
-    95: [3.00, 4.75, 6.30, 7.76],
-    99: [4.61, 6.64, 8.41, 10.05],
+// Y la función helper:
+const calculateIDEATaintings = (
+    expectedError: number,
+    sampleInterval: number,
+) => {  
+    // IDEA usa simplemente: Expected Error / Sample Interval
+    const totalTaintings = expectedError / sampleInterval;
+    
+    // Y para el porcentaje: (Total Taintings) × 100
+    const tolerableContaminationPercent = totalTaintings * 100;
+    
+    return {
+        totalTaintings: Math.round(totalTaintings * 1000000) / 1000000,
+        tolerableContamination: Math.round(tolerableContaminationPercent * 100) / 100
+    };
 };
 
 export async function POST(req: Request) {
@@ -21,79 +29,139 @@ export async function POST(req: Request) {
             errorType,
             tolerableError,
             expectedError,
-            modifyPrecision,
-            precisionValue,
+            estimatedPopulationValue,
         } = await req.json();
 
-        // 1. Calcular el valor total de la población
-        let estimatedPopulationValue = 0;
-        if (useFieldValue && selectedField) {
-            const sum = excelData.reduce((acc: number, row: any) => {
-                const value = parseFloat(row[selectedField]);
-                if (!isNaN(value)) {
-                    if (selectedPopulationType === "positive" && value > 0) {
-                        return acc + value;
+        // 1. Calcular valor de población
+        let populationValue = estimatedPopulationValue;
+        
+        if (!populationValue || populationValue === 0) {
+            if (useFieldValue && selectedField && excelData) {
+                const sum = excelData.reduce((acc: number, row: any) => {
+                    const value = parseFloat(row[selectedField]);
+                    if (!isNaN(value)) {
+                        if (selectedPopulationType === "positive" && value > 0) {
+                            return acc + value;
+                        }
+                        if (selectedPopulationType === "negative" && value < 0) {
+                            return acc + Math.abs(value);
+                        }
+                        if (selectedPopulationType === "absolute") {
+                            return acc + Math.abs(value);
+                        }
                     }
-                    if (selectedPopulationType === "negative" && value < 0) {
-                        return acc + Math.abs(value);
-                    }
-                    if (selectedPopulationType === "absolute") {
-                        return acc + Math.abs(value);
-                    }
-                }
-                return acc;
-            }, 0);
-            estimatedPopulationValue = sum;
-        } else {
-            // Si no se usa un campo de valor, la población es el número de registros
-            estimatedPopulationValue = excelData.length;
+                    return acc;
+                }, 0);
+                populationValue = sum;
+            } else if (!useFieldValue && excelData) {
+                populationValue = excelData.length;
+            }
         }
 
-        // 2. Convertir los errores a valores monetarios si son porcentajes
+        if (populationValue === 0) {
+            return NextResponse.json({ error: "El valor de la población es cero." }, { status: 400 });
+        }
+
+        // 2. Convertir errores a valores monetarios
         const tolerableErrorMonetary = errorType === "percentage"
-            ? (tolerableError / 100) * estimatedPopulationValue
+            ? (tolerableError / 100) * populationValue
             : tolerableError;
 
         const expectedErrorMonetary = errorType === "percentage"
-            ? (expectedError / 100) * estimatedPopulationValue
+            ? (expectedError / 100) * populationValue
             : expectedError;
 
-        // 3. Validaciones de negocio
-        if (estimatedPopulationValue === 0) {
-            return NextResponse.json({ error: "El valor de la población es cero." }, { status: 400 });
-        }
+        // 3. Validaciones
         if (expectedErrorMonetary >= tolerableErrorMonetary) {
-            return NextResponse.json({ error: "El error esperado debe ser menor que el error tolerable." }, { status: 400 });
+            return NextResponse.json({ 
+                error: "El error esperado debe ser menor que el error tolerable." 
+            }, { status: 400 });
         }
 
-        // 4. Obtener el factor de confianza y calcular los resultados
-        const currentConfidenceFactors = confidenceFactors[confidenceLevel];
-        if (!currentConfidenceFactors) {
-            return NextResponse.json({ error: "Nivel de confianza no válido." }, { status: 400 });
-        }
+        // 4. Obtener factor de confianza
+        const confidenceFactor = getConfidenceFactor(confidenceLevel);
 
-        // Determinar el índice del factor de confianza basado en el error esperado
-        const expectedErrorsCount = Math.min(Math.floor(expectedError / 10), 3);
-        const confidenceFactor = currentConfidenceFactors?.[expectedErrorsCount] || confidenceFactors[95][0];
+        // ✅ 5. CÁLCULO COMPLETO CON REGLAS IDEA
+        const calculateIDEA_Planification = (
+            populationValue: number,
+            confidenceLevel: number,
+            tolerableError: number,
+            expectedError: number
+        ) => {
+            const confidenceFactor = getConfidenceFactor(confidenceLevel);
+            
+            // 1. Tamaño de muestra con reglas IDEA
+            const basicSampleSize = (populationValue * confidenceFactor) / 
+                                (tolerableError - expectedError);
+            
+            let finalSampleSize = Math.ceil(basicSampleSize);
+            
+            // ✅ APLICAR REGLAS IDEA POR NIVEL DE CONFIANZA
+            if (confidenceLevel === 75 && finalSampleSize < 30) finalSampleSize = 30;
+            if (confidenceLevel === 80 && finalSampleSize < 30) finalSampleSize = 30;
+            if (confidenceLevel === 85 && finalSampleSize < 40) finalSampleSize = 40;
+            if (confidenceLevel === 90 && finalSampleSize < 50) finalSampleSize = 50;
+            if (confidenceLevel === 95 && finalSampleSize < 60) finalSampleSize = 60;
+            if (confidenceLevel === 99 && finalSampleSize < 80) finalSampleSize = 80;
+            
+            // ✅ IDEA redondea específicamente para ciertos rangos
+            if (confidenceLevel === 90 && finalSampleSize > 50 && finalSampleSize < 55) {
+                finalSampleSize = 50;
+            }
+            if (confidenceLevel === 95 && finalSampleSize > 60 && finalSampleSize < 70) {
+                finalSampleSize = 60;
+            }
+            
+            finalSampleSize = Math.min(finalSampleSize, populationValue);
+            
+            // 2. Intervalo muestral con redondeo IDEA (2 decimales)
+            const sampleInterval = Math.round((populationValue / finalSampleSize) * 100) / 100;
+            
+            // 3. High value limit (siempre igual al intervalo)
+            const highValueLimit = sampleInterval;
+            
+            // 4. Random start point (entre 0.01 y intervalo) con 2 decimales
+            const randomStart = Math.round((Math.random() * (sampleInterval - 0.01) + 0.01) * 100) / 100;
+            
+            // 5. Total taintings con alta precisión (6 decimales como IDEA)
+            const taintingResults = calculateIDEATaintings(
+                expectedError, 
+                sampleInterval, 
+            );
 
-        // 5. Cálculos finales
-        const newSampleInterval = tolerableErrorMonetary / confidenceFactor;
-        const newEstimatedSampleSize = Math.ceil(estimatedPopulationValue / newSampleInterval);
-        const newTolerableContamination = (confidenceFactor / newEstimatedSampleSize) * 100;
+            const totalTaintings = taintingResults.totalTaintings;
+            const tolerableContaminationPercent = totalTaintings * 100;
+            
+            // 6. Conclusión específica de IDEA
+            const conclusion = `La población podrá aceptarse a un nivel de confianza del ${confidenceLevel}% cuando no se observan más de ${totalTaintings} total taintings en una muestra de tamaño ${finalSampleSize}.`;
+            
+            return {
+                estimatedPopulationValue: populationValue,
+                estimatedSampleSize: finalSampleSize,
+                sampleInterval,
+                randomStartPoint: randomStart,
+                highValueLimit,
+                tolerableContamination: tolerableContaminationPercent, 
+                conclusion,
+                confidenceFactorUsed: confidenceFactor,
+                expectedTotalTaintings: totalTaintings,
+                minSampleSize: finalSampleSize
+            };
+        };
 
-        const conclusion =
-            `La población podrá aceptarse a un nivel de confianza del ${confidenceLevel}% cuando la proyección de los errores de la muestra no superen el ${newTolerableContamination.toFixed(2)}% del valor de la población.`;
+        const result = calculateIDEA_Planification(
+            populationValue,
+            confidenceLevel, 
+            tolerableErrorMonetary,
+            expectedErrorMonetary
+        );
 
-        return NextResponse.json({
-            estimatedPopulationValue,
-            estimatedSampleSize: newEstimatedSampleSize,
-            sampleInterval: newSampleInterval,
-            tolerableContamination: newTolerableContamination,
-            conclusion,
-            minSampleSize: Math.ceil(newEstimatedSampleSize * 0.75),
-        });
+        return NextResponse.json(result);
+
     } catch (error: any) {
         console.error('Error in planification API:', error);
-        return NextResponse.json({ error: "Ocurrió un error en el servidor." }, { status: 500 });
+        return NextResponse.json({ 
+            error: "Ocurrió un error en el servidor: " + error.message 
+        }, { status: 500 });
     }
 }

@@ -1,11 +1,14 @@
-// src/app/components/mum/evaluation/Evaluation.tsx (¡El archivo que ya tenías!)
+// src/app/components/mum/evaluation/Evaluation.tsx
 
 import React, { useState, Dispatch, SetStateAction } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import CellClassicalPPSForm from './CellClassicalPPS'; 
 import StringerBoundForm from './StringerBound'; 
 import Summary from './Summary'; 
+import { HelpButton } from './HelpButtonEvaluation';
+import { useLog } from '@/contexts/LogContext';
 
-// Props del componente principal - MODIFICAMOS handleEvaluation
+// ✅ ACTUALIZAR la interfaz
 interface EvaluationProps {
     isExtraccionDone: boolean;
     confidenceLevel: number;
@@ -27,24 +30,43 @@ interface EvaluationProps {
     highValueCountResume: number;
     headers: string[]; 
     setActiveTab: Dispatch<SetStateAction<string>>;
-    // handleEvaluation AHORA DEBE ACEPTAR EL MÉTODO
-    handleEvaluation: (method: 'cell-classical' | 'stringer-bound') => Promise<void>; 
+    handleEvaluation: (method: 'cell-classical' | 'stringer-bound', data?: any) => Promise<any>; // ← MODIFICADO
+    tolerableError:number;
+    selectedField: string | null;
+    onOpenHistory?: () => void; // ✅ Agregar esta prop
 }
 
 const Evaluation: React.FC<EvaluationProps> = (props) => {
     const [selectedMethod, setSelectedMethod] = useState<'cell-classical' | 'stringer-bound'>('cell-classical');
     const [showSummary, setShowSummary] = useState(false);
+    const [evaluationResults, setEvaluationResults] = useState<any>(null);
 
-    // Función para manejar el clic en el botón "Ok" de los formularios hijos
-    // Acepta el método de evaluación como argumento
-    const handleEvaluationProcess = async (method: 'cell-classical' | 'stringer-bound') => {
+    const {addLog} = useLog();
+
+    // ✅ CORREGIDO - Manejar datos de evaluación
+    const handleEvaluationProcess = async (method: 'cell-classical' | 'stringer-bound', result?: any) => {
         try {
-            // Llama a la función del padre con el método seleccionado
-            await props.handleEvaluation(method);
-            setShowSummary(true);
+            if (result) {
+                // Guardar los datos directamente
+                setEvaluationResults(result);
+                setShowSummary(true);
+            } else {
+                // Fallback: usar la función original
+                const results = await props.handleEvaluation(method);
+                if (results) {
+                    setEvaluationResults(results);
+                }
+                setShowSummary(true);
+            }
         } catch (error) {
             console.error("Error durante la evaluación:", error);
-            alert("Ocurrió un error al realizar la evaluación. Por favor, verifica tus datos e intenta de nuevo.");
+            addLog(
+                'Error en proceso de evaluación',
+                `Método: ${method}\nError: ${error}`,
+                'evaluación',
+                'error'
+            );
+            alert("Ocurrió un error al realizar la evaluación.");
         }
     };
 
@@ -52,87 +74,177 @@ const Evaluation: React.FC<EvaluationProps> = (props) => {
         setShowSummary(false); 
     };
 
+    // ✅ Manejar cambio de método con log
+    const handleMethodChange = (method: 'cell-classical' | 'stringer-bound') => {
+        setSelectedMethod(method);
+        addLog(
+            'Usuario cambió método de evaluación',
+            `Nuevo método: ${method === 'cell-classical' ? 'Cell & Classical PPS' : 'Stringer Bound'}`,
+            'evaluación',
+            'user'
+        );
+    };
+
+    // ✅ Manejar cambio de precisión con log
+    const handlePrecisionChange = (value: number) => {
+        props.setPrecisionValue(value);
+        addLog(
+            'Usuario modificó valor de precisión',
+            `Nuevo valor: ${value}`,
+            'evaluación',
+            'user'
+        );
+    };
+
     return (
         <div className="p-6 bg-white rounded-lg shadow-md">
-            <h2 className="text-2xl font-bold text-center text-gray-800 mb-4">MUM - Evaluación</h2>
+            <div className="flex items-center justify-between mb-8">
+                <h2 className="text-2xl font-bold text-center text-gray-800">
+                    MUM - Evaluación
+                </h2>
+                <HelpButton context="general" />
+            </div>
             
-            {/* Opciones de evaluación */}
-            {!showSummary && (
-                <div className="flex justify-center mb-6">
-                    {/* ... (Botones de selección del método - Código sin cambios) ... */}
-                    <div className="relative inline-flex rounded-full bg-gray-200 p-1">
-                        <button
-                            onClick={() => setSelectedMethod('cell-classical')}
-                            className={`py-2 px-4 rounded-full text-sm font-medium transition-colors duration-300 ${
-                                selectedMethod === 'cell-classical' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-700 hover:bg-gray-300'
-                            }`}
-                        >
-                            Evaluación Celda y PPS Clásico
-                        </button>
-                        <button
-                            onClick={() => setSelectedMethod('stringer-bound')}
-                            className={`py-2 px-4 rounded-full text-sm font-medium transition-colors duration-300 ${
-                                selectedMethod === 'stringer-bound' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-700 hover:bg-gray-300'
-                            }`}
-                        >
-                            Evaluación Stringer Bound
-                        </button>
-                    </div>
-                </div>
-            )}
+            {/* Toggle Switch Animado - Solo se muestra cuando NO hay summary */}
+            <AnimatePresence>
+                {!showSummary && (
+                    <motion.div 
+                        className="flex justify-center mb-8"
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        transition={{ duration: 0.2 }}
+                    >
+                        <div className="relative bg-gray-100 rounded-full p-1 shadow-inner">
+                            {/* Fondo deslizante */}
+                            <motion.div
+                                className="absolute top-1 bottom-1 bg-blue-600 rounded-full shadow-md"
+                                initial={false}
+                                animate={{
+                                    left: selectedMethod === 'cell-classical' ? '4px' : '50%',
+                                    width: 'calc(50% - 8px)'
+                                }}
+                                transition={{
+                                    type: "spring",
+                                    stiffness: 400,
+                                    damping: 30
+                                }}
+                            />
+                            
+                            {/* Botones */}
+                            <button
+                                onClick={() => handleMethodChange('cell-classical')}
+                                className={`relative z-10 py-3 px-8 rounded-full text-sm font-medium transition-colors duration-200 ${
+                                    selectedMethod === 'cell-classical' 
+                                        ? 'text-white' 
+                                        : 'text-gray-600 hover:text-gray-800'
+                                }`}
+                            >
+                                Cell & Classical PPS
+                            </button>
+                            
+                            <button
+                                onClick={() => handleMethodChange('stringer-bound')}
+                                className={`relative z-10 py-3 px-8 rounded-full text-sm font-medium transition-colors duration-200 ${
+                                    selectedMethod === 'stringer-bound' 
+                                        ? 'text-white' 
+                                        : 'text-gray-600 hover:text-gray-800'
+                                }`}
+                            >
+                                Stringer Bound
+                            </button>
+                        </div>
+                            <div className="flex justify-center mb-4">
+                                <HelpButton context="method-selection" />
+                            </div>
+                    </motion.div>
+                    
+                )}
+            </AnimatePresence>
 
-            {/* Renderizar el formulario - AHORA PASAMOS handleEvaluationProcess */}
-            {!showSummary && (
-                <>
-                    {selectedMethod === 'cell-classical' && (
-                        <CellClassicalPPSForm 
-                            // Pasar el handleEvaluationProcess modificado que acepta el método
-                            onOk={handleEvaluationProcess} 
+            {/* Contenido que se desliza - Solo formularios cuando NO hay summary */}
+            <AnimatePresence mode="wait">
+                {!showSummary && (
+                    <motion.div
+                        key={selectedMethod}
+                        initial={{ opacity: 0, x: selectedMethod === 'cell-classical' ? -20 : 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: selectedMethod === 'cell-classical' ? -20 : 20 }}
+                        transition={{ duration: 0.3, ease: "easeOut" }}
+                    >
+                        {selectedMethod === 'cell-classical' && (
+                            <CellClassicalPPSForm 
+                                onOk={handleEvaluationProcess} // ← Esta función ahora acepta 2 parámetros
+                                confidenceLevel={props.confidenceLevel}
+                                precisionValue={props.precisionValue}
+                                setPrecisionValue={handlePrecisionChange}
+                                estimatedPopulationValue={props.estimatedPopulationValue}
+                                estimatedSampleSize={props.estimatedSampleSize}
+                                sampleInterval={props.sampleInterval}
+                                tolerableError={props.tolerableError}
+                                highValueLimit={props.highValueLimit}
+                                selectedField={props.selectedField}
+                            />
+                        )}
+                        {selectedMethod === 'stringer-bound' && (
+                            <StringerBoundForm 
+                                onOk={handleEvaluationProcess} // ← También actualizar aquí si es necesario
+                                confidenceLevel={props.confidenceLevel}
+                                estimatedPopulationValue={props.estimatedPopulationValue}
+                                estimatedSampleSize={props.estimatedSampleSize}
+                                sampleInterval={props.sampleInterval}
+                                tolerableError={props.tolerableError}
+                                highValueLimit={props.highValueLimit}
+                                precisionValue={props.precisionValue}
+                                setPrecisionValue={handlePrecisionChange}
+                                selectedField={props.selectedField}
+                            />
+                        )}
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Mostrar el resumen - Solo cuando showSummary es true */}
+            <AnimatePresence>
+                {showSummary && (
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        transition={{ duration: 0.3 }}
+                    >
+                        <Summary 
+                            isEvaluationDone={props.isExtraccionDone} 
                             confidenceLevel={props.confidenceLevel}
+                            sampleInterval={props.sampleInterval}
+                            highValueLimit={props.highValueLimit}
                             precisionValue={props.precisionValue}
-                            setPrecisionValue={props.setPrecisionValue}
-                            estimatedPopulationValue={props.estimatedPopulationValue}
+                            populationExcludingHigh={props.populationExcludingHigh}
+                            highValueTotal={props.highValueTotal}
+                            populationIncludingHigh={props.populationIncludingHigh}
                             estimatedSampleSize={props.estimatedSampleSize}
-                        />
-                    )}
-                    {selectedMethod === 'stringer-bound' && (
-                        <StringerBoundForm 
-                            // Pasar el handleEvaluationProcess modificado que acepta el método
-                            onOk={handleEvaluationProcess} 
-                            confidenceLevel={props.confidenceLevel}
-                            estimatedPopulationValue={props.estimatedPopulationValue}
-                            estimatedSampleSize={props.estimatedSampleSize}
-                        />
-                    )}
-                </>
-            )}
 
-            {/* Mostrar el resumen (código sin cambios) */}
-            {showSummary && (
-                <Summary 
-                    isEvaluationDone={props.isExtraccionDone} 
-                    confidenceLevel={props.confidenceLevel}
-                    sampleInterval={props.sampleInterval}
-                    highValueLimit={props.highValueLimit}
-                    precisionValue={props.precisionValue}
-                    populationExcludingHigh={props.populationExcludingHigh}
-                    highValueTotal={props.highValueTotal}
-                    populationIncludingHigh={props.populationIncludingHigh}
-                    estimatedSampleSize={props.estimatedSampleSize}
-                    numErrores={props.numErrores}
-                    errorMasProbableBruto={props.errorMasProbableBruto}
-                    errorMasProbableNeto={props.errorMasProbableNeto}
-                    precisionTotal={props.precisionTotal}
-                    limiteErrorSuperiorBruto={props.limiteErrorSuperiorBruto}
-                    limiteErrorSuperiorNeto={props.limiteErrorSuperiorNeto}
-                    highValueCountResume={props.highValueCountResume}
-                    setActiveTab={props.setActiveTab}
-                    // handleSummary/handleEvaluation ahora deberá aceptar el método si lo necesita
-                    handleSummary={() => props.handleEvaluation(selectedMethod)} // Adaptamos el handleSummary
-                    evaluationMethod={selectedMethod} 
-                    onBack={handleBack} 
-                />
-            )}
+                            // ✅ CORREGIR: Usar SOLO evaluationResults si existe
+                            numErrores={evaluationResults ? evaluationResults.numErrores : 0}
+                            errorMasProbableBruto={evaluationResults ? evaluationResults.errorMasProbableBruto : props.errorMasProbableBruto}
+                            errorMasProbableNeto={evaluationResults ? evaluationResults.errorMasProbableNeto : props.errorMasProbableNeto}
+                            precisionTotal={evaluationResults?.precisionTotal || props.precisionTotal}
+                            precisionTotalUnder={evaluationResults?.precisionTotalUnder || props.precisionTotal} // ← Temporalmente mismo valor
+                            limiteErrorSuperiorBruto={evaluationResults ? evaluationResults.limiteErrorSuperiorBruto : props.limiteErrorSuperiorBruto}
+                            limiteErrorSuperiorNeto={evaluationResults ? evaluationResults.limiteErrorSuperiorNeto : props.limiteErrorSuperiorNeto}
+                            highValueCountResume={evaluationResults ? evaluationResults.highValueCountResume : props.highValueCountResume}
+                            
+                            setActiveTab={props.setActiveTab}
+                            handleSummary={() => props.handleEvaluation(selectedMethod)}
+                            evaluationMethod={selectedMethod} 
+                            onBack={handleBack}
+                            
+                            // ✅ PASAR LOS DATOS DETALLADOS DE CELL CLASSICAL
+                            cellClassicalData={evaluationResults?.cellClassicalData}
+                        />
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };

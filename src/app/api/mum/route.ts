@@ -35,6 +35,10 @@ export async function POST(request: Request) {
             expectedError: number;
             modifyPrecision: boolean;
             precisionValue: number;
+            highValueCount: number;        // Número real de elementos de valor alto
+            highValueTotal: number;        // Suma real de valores altos  
+            populationExcludingHigh: number; // Población sin valores altos
+            populationIncludingHigh: number;
         };
 
         if (!selectedField) {
