@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { FileBarChart, Download, History, Upload, Printer} from "lucide-react";
+import { FileBarChart, Download, History, Upload, Printer } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { formatDate } from "@/lib/format";
 import { Button } from "@/components/ui/button";
@@ -55,256 +55,251 @@ const PROGRESS_CSS = `
     100% { background-position: -200% 0; }
   }
 `;
-  // === COMPONENTES DE TABLAS ===
-  const TablaHistorial = ({ historial }: { historial: any[] }) => (
-    <div className="overflow-x-auto bg-white rounded shadow-md">
-      <table className="min-w-full divide-y divide-gray-200">
-        <thead className="bg-gray-50">
-          <tr>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">NOMBRE</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">FECHA</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">USUARIO</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">REGISTROS</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">RANGO</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">SEMILLA</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">DUPLICADOS</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">ARCHIVO FUENTE</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">HASH</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">TIPO</th>
+// === COMPONENTES DE TABLAS ===
+const TablaHistorial = ({ historial }: { historial: any[] }) => (
+  <div className="overflow-x-auto bg-white rounded shadow-md">
+    <table className="min-w-full divide-y divide-gray-200">
+      <thead className="bg-gray-50">
+        <tr>
+          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">NOMBRE</th>
+          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">FECHA</th>
+          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">USUARIO</th>
+          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">REGISTROS</th>
+          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">RANGO</th>
+          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">SEMILLA</th>
+          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">DUPLICADOS</th>
+          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">ARCHIVO FUENTE</th>
+          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">HASH</th>
+          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">TIPO</th>
+        </tr>
+      </thead>
+      <tbody>
+        {historial.map((h, i) => (
+          <tr key={i} className="text-sm text-gray-600">
+            <td className="px-6 py-2">{h.name}</td>
+            <td className="px-6 py-2">{formatDate(h.fecha)}</td>
+            <td className="px-6 py-2">{h.userDisplay}</td>
+            <td className="px-6 py-2">{h.records}</td>
+            <td className="px-6 py-2">{h.range}</td>
+            <td className="px-6 py-2">{h.seed}</td>
+            <td className="px-6 py-2">{Boolean(h.allowDuplicates) ? "Sí" : "No"}</td>
+            <td className="px-6 py-2">{h.source || "Desconocido"}</td>
+            <td className="px-6 py-2 font-mono text-xs">{h.hash}</td>
+            <td className="px-6 py-2 text-center font-bold">
+              {h.tipo?.toLowerCase() === "masivo" ? (
+                <span className="bg-[#e7b952] text-[#003055] px-3 py-1 rounded font-semibold">
+                  Masivo
+                </span>
+              ) : (
+                <span className="bg-[#5e7eb9] text-white px-3 py-1 rounded font-semibold">
+                  Estandar
+                </span>
+              )}
+            </td>
           </tr>
-        </thead>
+        ))}
+      </tbody>
+    </table>
+  </div>
+);
+
+const TablaGenerica = ({ rows, columns }: { rows: any[]; columns?: string[] }) => {
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [paginaActual, setPaginaActual] = useState(1);
+  const filasPorPagina = 10;
+
+  useEffect(() => {
+    setPaginaActual(1);
+  }, [rows]);
+
+  // =============================
+  // 1. Generar columnas dinámicas
+  // =============================
+  const columnDefs =
+    (columns && columns.length > 0 ? columns : rows.length > 0 ? Object.keys(rows[0]) : [])
+      .map((col) => ({
+        accessorKey: col,
+        header: () => (
+          <div className="flex items-center gap-1 cursor-pointer select-none">
+            {col === "_POS_ORIGINAL" ? "Posición Original" : col}
+
+            <span>
+              {sorting.find((s) => s.id === col)?.desc === false && <ChevronUp size={14} />}
+              {sorting.find((s) => s.id === col)?.desc === true && <ChevronDown size={14} />}
+            </span>
+          </div>
+        ),
+      }));
+
+  // =============================
+  // 2. Crear tabla TanStack
+  // =============================
+  const table = useReactTable({
+    data: rows,
+    columns: [
+      {
+        accessorKey: "__row_number",
+        header: "Nro",
+        cell: (info) => info.row.index + 1,
+      },
+      ...columnDefs,
+    ],
+    state: { sorting },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+  });
+
+  // =============================
+  // 3. Obtener filas ordenadas y paginadas
+  // =============================
+  const sortedRows = table.getRowModel().rows.map((r) => r.original);
+  const totalPaginas = Math.ceil(sortedRows.length / filasPorPagina);
+  const filasActuales = sortedRows.slice(
+    (paginaActual - 1) * filasPorPagina,
+    paginaActual * filasPorPagina
+  );
+
+  return (
+    <div className="bg-white rounded shadow-md">
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50 sticky top-0 z-10">
+            <tr>
+              {table.getHeaderGroups()[0].headers.map((header) => (
+                <th
+                  key={header.id}
+                  className="px-6  py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider cursor-pointer"
+                  onClick={header.column.getToggleSortingHandler()}
+                >
+                  {flexRender(header.column.columnDef.header, header.getContext())}
+                </th>
+              ))}
+            </tr>
+          </thead>
           <tbody>
-            {historial.map((h, i) => (
-              <tr key={i} className="text-sm text-gray-600">
-                <td className="px-6 py-2">{h.name}</td>
-                <td className="px-6 py-2">{formatDate(h.fecha)}</td>
-                <td className="px-6 py-2">{h.userDisplay}</td>
-                <td className="px-6 py-2">{h.records}</td>
-                <td className="px-6 py-2">{h.range}</td>
-                <td className="px-6 py-2">{h.seed}</td>
-                <td className="px-6 py-2">{Boolean(h.allowDuplicates) ? "Sí" : "No"}</td>
-                <td className="px-6 py-2">{h.source || "Desconocido"}</td>
-                <td className="px-6 py-2 font-mono text-xs">{h.hash}</td>
-                <td className="px-6 py-2 text-center font-bold">
-                  {h.tipo?.toLowerCase() === "masivo" ? (
-                  <span className="bg-[#e7b952] text-[#003055] px-3 py-1 rounded font-semibold">
-                    Masivo
-                  </span>
-                ) : (
-                  <span className="bg-[#5e7eb9] text-white px-3 py-1 rounded font-semibold">
-                    Estandar
-                  </span>
-                )}
+            {filasActuales.map((row, i) => (
+              <tr
+                key={i}
+                className="hover:bg-gray-50 transition border-b border-gray-200"
+                style={{ height: "48px" }} // ALTURA MÁS PROFESIONAL
+              >
+                {/* Columna NRO */}
+                <td className="px-6 py-3 text-[15px] text-gray-700 font-medium">
+                  {(paginaActual - 1) * filasPorPagina + i + 1}
                 </td>
+
+                {/* Columnas dinámicas */}
+                {columnDefs.map((col, j) => {
+                  const isWide =
+                    col.accessorKey?.toLowerCase().includes("glosa") ||
+                    col.accessorKey?.toLowerCase().includes("descripcion");
+
+                  return (
+                    <td
+                      key={j}
+                      className={`px-6 py-3 text-[15px] text-gray-700 ${isWide
+                          ? "max-w-[350px] truncate hover:whitespace-normal"
+                          : "max-w-[200px] truncate hover:whitespace-normal"
+                        }`}
+                      title={String(row[col.accessorKey] ?? "")} // tooltip texto completo
+                    >
+                      {String(row[col.accessorKey] ?? "")}
+                    </td>
+                  );
+                })}
               </tr>
             ))}
           </tbody>
-      </table>
+        </table>
+      </div>
+
+      {/* === Paginación === */}
+      {/* === Paginación (MISMO DISEÑO, SOLO REORDENADA Y CON INPUT) === */}
+      {sortedRows.length > filasPorPagina && (
+        <div className="flex items-center justify-between px-6 py-4 bg-gray-50 rounded-b">
+
+          {/* IZQUIERDA: Inicio + Anterior */}
+          <div className="flex items-center gap-2">
+            {/* Botón: Primera página */}
+            <button
+              onClick={() => setPaginaActual(1)}
+              disabled={paginaActual === 1}
+              className={`flex items-center gap-1 px-3 py-2 rounded font-medium transition ${paginaActual === 1
+                  ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                  : "bg-[#e7b952] text-white hover:bg-[#edc977]"
+                }`}
+            >
+              ⏮
+            </button>
+
+            {/* Botón: Anterior */}
+            <button
+              onClick={() => setPaginaActual((p) => Math.max(p - 1, 1))}
+              disabled={paginaActual === 1}
+              className={`flex items-left gap-2 px-4 py-2 rounded font-medium transition ${paginaActual === 1
+                  ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                  : "bg-[#e7b952] text-white hover:bg-[#edc977]"
+                }`}
+            >
+              Anterior
+            </button>
+          </div>
+
+          {/* CENTRO: Página X de Y + Input para escribir página */}
+          <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
+            Página
+
+            <input
+              type="number"
+              min={1}
+              max={totalPaginas}
+              value={paginaActual}
+              onChange={(e) => {
+                let value = Number(e.target.value);
+                if (!Number.isNaN(value)) {
+                  value = Math.max(1, Math.min(totalPaginas, value));
+                  setPaginaActual(value);
+                }
+              }}
+              className="w-14 px-2 py-1 border rounded text-center"
+            />
+
+            de {totalPaginas}
+          </div>
+
+          {/* DERECHA: Siguiente + Última */}
+          <div className="flex items-center gap-2">
+
+            {/* Botón: Siguiente */}
+            <button
+              onClick={() => setPaginaActual((p) => Math.min(p + 1, totalPaginas))}
+              disabled={paginaActual === totalPaginas}
+              className={`flex items-center gap-2 px-4 py-2 rounded font-medium transition ${paginaActual === totalPaginas
+                  ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                  : "bg-[#e7b952] text-white hover:bg-[#edc977]"
+                }`}
+            >
+              Siguiente
+            </button>
+
+            {/* Botón: Última página */}
+            <button
+              onClick={() => setPaginaActual(totalPaginas)}
+              disabled={paginaActual === totalPaginas}
+              className={`flex items-center gap-1 px-3 py-2 rounded font-medium transition ${paginaActual === totalPaginas
+                  ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                  : "bg-[#e7b952] text-white hover:bg-[#edc977]"
+                }`}
+            >
+              ⏭
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
-
-  const TablaGenerica = ({ rows, columns }: { rows: any[]; columns?: string[] }) => {
-    const [sorting, setSorting] = useState<SortingState>([]);
-    const [paginaActual, setPaginaActual] = useState(1);
-    const filasPorPagina = 10;
-
-    useEffect(() => {
-      setPaginaActual(1);
-    }, [rows]);
-
-    // =============================
-    // 1. Generar columnas dinámicas
-    // =============================
-    const columnDefs =
-      (columns && columns.length > 0 ? columns : rows.length > 0 ? Object.keys(rows[0]) : [])
-        .map((col) => ({
-          accessorKey: col,
-          header: () => (
-            <div className="flex items-center gap-1 cursor-pointer select-none">
-              {col === "_POS_ORIGINAL" ? "Posición Original" : col}
-
-              <span>
-                {sorting.find((s) => s.id === col)?.desc === false && <ChevronUp size={14} />}
-                {sorting.find((s) => s.id === col)?.desc === true && <ChevronDown size={14} />}
-              </span>
-            </div>
-          ),
-        }));
-
-    // =============================
-    // 2. Crear tabla TanStack
-    // =============================
-    const table = useReactTable({
-      data: rows,
-      columns: [
-        {
-          accessorKey: "__row_number",
-          header: "Nro",
-          cell: (info) => info.row.index + 1,
-        },
-        ...columnDefs,
-      ],
-      state: { sorting },
-      onSortingChange: setSorting,
-      getCoreRowModel: getCoreRowModel(),
-      getSortedRowModel: getSortedRowModel(),
-    });
-
-    // =============================
-    // 3. Obtener filas ordenadas y paginadas
-    // =============================
-    const sortedRows = table.getRowModel().rows.map((r) => r.original);
-    const totalPaginas = Math.ceil(sortedRows.length / filasPorPagina);
-    const filasActuales = sortedRows.slice(
-      (paginaActual - 1) * filasPorPagina,
-      paginaActual * filasPorPagina
-    );
-
-    return (
-      <div className="bg-white rounded shadow-md">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50 sticky top-0 z-10">
-              <tr>
-                {table.getHeaderGroups()[0].headers.map((header) => (
-                  <th
-                    key={header.id}
-                    className="px-6  py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider cursor-pointer"
-                    onClick={header.column.getToggleSortingHandler()}
-                  >
-                    {flexRender(header.column.columnDef.header, header.getContext())}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filasActuales.map((row, i) => (
-                <tr
-                  key={i}
-                  className="hover:bg-gray-50 transition border-b border-gray-200"
-                  style={{ height: "48px" }} // ALTURA MÁS PROFESIONAL
-                >
-                  {/* Columna NRO */}
-                  <td className="px-6 py-3 text-[15px] text-gray-700 font-medium">
-                    {(paginaActual - 1) * filasPorPagina + i + 1}
-                  </td>
-
-                  {/* Columnas dinámicas */}
-                  {columnDefs.map((col, j) => {
-                    const isWide =
-                      col.accessorKey?.toLowerCase().includes("glosa") ||
-                      col.accessorKey?.toLowerCase().includes("descripcion");
-
-                    return (
-                      <td
-                        key={j}
-                        className={`px-6 py-3 text-[15px] text-gray-700 ${
-                          isWide
-                            ? "max-w-[350px] truncate hover:whitespace-normal"
-                            : "max-w-[200px] truncate hover:whitespace-normal"
-                        }`}
-                        title={String(row[col.accessorKey] ?? "")} // tooltip texto completo
-                      >
-                        {String(row[col.accessorKey] ?? "")}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* === Paginación === */}
-        {/* === Paginación (MISMO DISEÑO, SOLO REORDENADA Y CON INPUT) === */}
-        {sortedRows.length > filasPorPagina && (
-          <div className="flex items-center justify-between px-6 py-4 bg-gray-50 rounded-b">
-
-            {/* IZQUIERDA: Inicio + Anterior */}
-            <div className="flex items-center gap-2">
-              {/* Botón: Primera página */}
-              <button
-                onClick={() => setPaginaActual(1)}
-                disabled={paginaActual === 1}
-                className={`flex items-center gap-1 px-3 py-2 rounded font-medium transition ${
-                  paginaActual === 1
-                    ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                    : "bg-[#e7b952] text-white hover:bg-[#edc977]"
-                }`}
-              >
-                ⏮
-              </button>
-
-              {/* Botón: Anterior */}
-              <button
-                onClick={() => setPaginaActual((p) => Math.max(p - 1, 1))}
-                disabled={paginaActual === 1}
-                className={`flex items-left gap-2 px-4 py-2 rounded font-medium transition ${
-                  paginaActual === 1
-                    ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                    : "bg-[#e7b952] text-white hover:bg-[#edc977]"
-                }`}
-              >
-                Anterior
-              </button>
-            </div>
-
-            {/* CENTRO: Página X de Y + Input para escribir página */}
-            <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
-              Página
-
-              <input
-                type="number"
-                min={1}
-                max={totalPaginas}
-                value={paginaActual}
-                onChange={(e) => {
-                  let value = Number(e.target.value);
-                  if (!Number.isNaN(value)) {
-                    value = Math.max(1, Math.min(totalPaginas, value));
-                    setPaginaActual(value);
-                  }
-                }}
-                className="w-14 px-2 py-1 border rounded text-center"
-              />
-
-              de {totalPaginas}
-            </div>
-
-            {/* DERECHA: Siguiente + Última */}
-            <div className="flex items-center gap-2">
-
-              {/* Botón: Siguiente */}
-              <button
-                onClick={() => setPaginaActual((p) => Math.min(p + 1, totalPaginas))}
-                disabled={paginaActual === totalPaginas}
-                className={`flex items-center gap-2 px-4 py-2 rounded font-medium transition ${
-                  paginaActual === totalPaginas
-                    ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                    : "bg-[#e7b952] text-white hover:bg-[#edc977]"
-                }`}
-              >
-                Siguiente
-              </button>
-
-              {/* Botón: Última página */}
-              <button
-                onClick={() => setPaginaActual(totalPaginas)}
-                disabled={paginaActual === totalPaginas}
-                className={`flex items-center gap-1 px-3 py-2 rounded font-medium transition ${
-                  paginaActual === totalPaginas
-                    ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                    : "bg-[#e7b952] text-white hover:bg-[#edc977]"
-                }`}
-              >
-                ⏭
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
+};
 
 export default function MuestraPage() {
   const { data: session } = useSession();
@@ -334,13 +329,13 @@ export default function MuestraPage() {
     exports: [],
   });
   // Activar las pestañas de las tablas
-  const [activeTab, setActiveTab] = useState<string | null>(( ) => {
+  const [activeTab, setActiveTab] = useState<string | null>(() => {
     if (typeof window !== "undefined") {
       return localStorage.getItem("activeTab") || null;
     }
     return null;
   });
-  
+
   // nuevo estado: subtabs estilo parametrización
   const [subTab, setSubTab] = useState<"estandar" | "masivo">("estandar");
   // Estado: parámetros del muestreo (persistentes)
@@ -421,19 +416,6 @@ export default function MuestraPage() {
     localStorage.setItem("tabs", JSON.stringify(lightTabs));
   }, [tabs]);
 
-  // Guardar historial / parámetros según pestaña activa
-  useEffect(() => {
-    if (activeTab && activeTab !== "historial") {
-      const rows = tabs.find((t) => t.id === activeTab)?.rows || [];
-      setSampleParams((prev) => ({
-        ...prev,
-        start: 1,
-        end: rows.length,
-        totalRows: rows.length,
-      }));
-    }
-  }, [activeTab, tabs]);
-
   // Guardar pestaña activa
   useEffect(() => {
     if (activeTab) localStorage.setItem("activeTab", activeTab);
@@ -492,29 +474,27 @@ export default function MuestraPage() {
   const [useStreaming, setUseStreaming] = useState(false);
   const [masivoStatus, setMasivoStatus] = useState<string>("");
   const [progressLines, setProgressLines] = useState<string[]>([]);
-  const [showHistorial, setShowHistorial] = useState(false);
-  //Estados de los historiales de muestra importaciones y exportacion
+  // === Estados de Historial ===
   const [historialCategoria, setHistorialCategoria] =
-  useState<"imports" | "muestras" | "exports" | "todo">("todo");
+    useState<"imports" | "muestras" | "exports" | "todo">("todo");
+
   const [searchTerm, setSearchTerm] = useState("");
+
   const filteredHistorial = [
-    ...historial.imports,
-    ...historial.muestras,
-    ...historial.exports,
+    ...(historial?.imports ?? []),
+    ...(historial?.muestras ?? []),
+    ...(historial?.exports ?? []),
   ].filter((h) => {
-    // filtro por categoría (las 3 tablas)
+    // Filtrar por categoría
     if (historialCategoria === "imports" && h.origen !== "import") return false;
     if (historialCategoria === "muestras" && h.origen !== "muestra") return false;
     if (historialCategoria === "exports" && h.origen !== "export") return false;
 
-    // filtro por tipo
-    if (subHistorial === "estandar" && h.tipo !== "estandar") return false;
-    if (subHistorial === "masivo" && h.tipo !== "masivo") return false;
-
-    // filtro por texto
-    const txt = `${h.name} ${h.source} ${h.hash} ${h.userDisplay}`.toLowerCase();
+    // Filtrar por texto
+    const txt = `${h.name ?? ""} ${h.source ?? ""} ${h.hash ?? ""} ${h.userDisplay ?? ""}`.toLowerCase();
     return txt.includes(searchTerm.toLowerCase());
   });
+
 
   // === Estado para paginación ===
   const [currentPage, setCurrentPage] = useState(1);
@@ -533,13 +513,13 @@ export default function MuestraPage() {
   });
   // Dataset de pestaña activa (ya lo tienes)
   const currentRows =
-    activeTab === "historial"
-      ? []
-      : tabs.find((t) => t.id === activeTab)?.rows || [];
-  // Referencias a las pestañas activas (para modales)
+  activeTab === "historial"
+    ? filteredHistorial
+    : tabs.find((t) => t.id === activeTab)?.rows || [];
+   // Referencias a las pestañas activas (para modales)
+  
   const currentTab = tabs.find((t) => t.id === selectedTabId);
   const currentTabMasivo = tabs.find((t) => t.id === selectedTabIdMasivo);
-  
   useEffect(() => {
     if (!showModalMasivo || !selectedTabIdMasivo) return;
 
@@ -634,10 +614,10 @@ export default function MuestraPage() {
   }, [showModalMasivo, selectedTabIdMasivo, tabs, activeTab, useHeadersMasivo]);
 
   useEffect(() => {
-  const current = tabs.find(t => t.id === activeTab);
-  if (current?.type === "masivo") {
-    setSelectedTabIdMasivo(current.id);
-  }
+    const current = tabs.find(t => t.id === activeTab);
+    if (current?.type === "masivo") {
+      setSelectedTabIdMasivo(current.id);
+    }
   }, [activeTab, tabs]);
 
   // === AUTO-NOMBRE DEL ARCHIVO PARA EL MODAL ESTÁNDAR ===
@@ -684,6 +664,34 @@ export default function MuestraPage() {
     return () => clearInterval(interval);
   }, [showModalMasivo, indexInfo]);
 
+    // Guardar historial / parámetros según pestaña activa
+  useEffect(() => {
+    if (activeTab && activeTab !== "historial") {
+      const rows = tabs.find((t) => t.id === activeTab)?.rows || [];
+      setSampleParams((prev) => ({
+        ...prev,
+        start: 1,
+        end: rows.length,
+        totalRows: rows.length,
+      }));
+    }
+  }, [activeTab, tabs]);
+
+  // Recargar historial automáticamente cada vez que activeTab sea "historial"
+  useEffect(() => {
+    if (activeTab === "historial") {
+      openHistorial();
+    }
+  }, [activeTab]);
+  
+  useEffect(() => {
+    if (activeTab === "historial") {
+      // evitar loop: solo cargar una vez
+      openHistorial();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+
   // Sanitize rows for display: remove columns named __EMPTY* and columns that are entirely empty
   const sanitizeRows = (rows: any[]) => {
     if (!Array.isArray(rows) || rows.length === 0) return rows;
@@ -694,7 +702,7 @@ export default function MuestraPage() {
     const visibleCols = cols.filter((col) => {
       if (/^__?EMPTY/i.test(col)) return false;
       const allEmpty = sample.every((r) => {
-        const v = r[col]; 
+        const v = r[col];
         return v === undefined || v === null || String(v).trim() === "" || String(v).toLowerCase() === "null";
       });
       return !allEmpty;
@@ -742,19 +750,18 @@ export default function MuestraPage() {
   // === Muestreo vía API con validaciones y manejo de error ===
   const handleOk = async () => {
     if (!validateParams()) return;
-
     const currentTab = tabs.find((t) => t.id === activeTab);
     if (!currentTab) {
       alert("No hay pestaña activa con datos cargados");
       return;
     }
-
     if (!currentTab.datasetId) {
       alert("Este dataset no tiene identificador válido.");
       return;
     }
 
     try {
+      // 2️⃣ Generar muestreo
       const response = await fetch("/api/muestra", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -769,7 +776,6 @@ export default function MuestraPage() {
           fileName: sampleParams.fileName || currentTab.name, //  Nombre visible
         }),
       });
-
 
       //  Manejo de errores de red o backend
       if (!response.ok) {
@@ -796,29 +802,26 @@ export default function MuestraPage() {
       ]);
       // Forzar reinicio de paginación una vez se active la nueva pestaña
       setTimeout(() => setCurrentPage(1), 50);
-      // Activar la nueva pestaña
       setActiveTab(newTabId);
-      
-      //  Agregar entrada al historial
+
+      // 5 Guardar en historial estándar en el backend
       setHistorial(prev => ({
         ...prev,
         muestras: [
           ...prev.muestras,
-        {
-          id: newTabId,
-          hash,
-          name: datasetName || sampleParams.fileName || `Muestra-${newTabId}`,
-          date: new Date().toLocaleString(),
-          user: "Administrador",
-          records: sample.length,
-          range: `${sampleParams.start} - ${sampleParams.end}`,
-          seed: sampleParams.seed,
-          allowDuplicates: sampleParams.allowDuplicates ? "Sí" : "No",
-          source: currentTab.fileName || "dataset local",
-        }]
+          {
+            id: newTabId,
+            hash,
+            name: datasetName || sampleParams.fileName || `Muestra-${newTabId}`,
+            date: new Date().toLocaleString(),
+            user: "Administrador",
+            records: sample.length,
+            range: `${sampleParams.start} - ${sampleParams.end}`,
+            seed: sampleParams.seed,
+            allowDuplicates: sampleParams.allowDuplicates ? "Sí" : "No",
+            source: currentTab.fileName || "dataset local",
+          }]
       }));
-    
-      // Cerrar modal
       setShowModal(false);
     } catch (e: any) {
       alert(`Error inesperado: ${e.message}`);
@@ -937,7 +940,7 @@ export default function MuestraPage() {
         start,
         end: endLine,
         allowDuplicates: sampleParamsMasivo.allowDuplicates,
-      }); 
+      });
       // muestreo con timeout de 60s
       const res = await withTimeout(
         fetch("/api/muestra-masiva", {
@@ -966,7 +969,7 @@ export default function MuestraPage() {
         }
         throw new Error(err?.error || "Error generando muestra masiva en el backend.");
       }
-      
+
       const data = await res.json();
       // data: { ok, sample, hash, archivoResultado, message }
 
@@ -977,16 +980,16 @@ export default function MuestraPage() {
       // Construir filas visibles para la UI (mapear COL_1 -> nombre real, etc)
       const displayRows = Array.isArray(data.sample)
         ? data.sample.map((r: any) => {
-            if (sourceCols.length === 0) return r;
-            const out: Record<string, any> = {};
-            let i = 1;
-            for (const colName of sourceCols) {
-              out[colName] = r[`COL_${i}`];
-              i++;
-            }
-            if (r._POS_ORIGINAL != null) out["_POS_ORIGINAL"] = r._POS_ORIGINAL;
-            return out;
-          })
+          if (sourceCols.length === 0) return r;
+          const out: Record<string, any> = {};
+          let i = 1;
+          for (const colName of sourceCols) {
+            out[colName] = r[`COL_${i}`];
+            i++;
+          }
+          if (r._POS_ORIGINAL != null) out["_POS_ORIGINAL"] = r._POS_ORIGINAL;
+          return out;
+        })
         : [];
 
       const displayColumns =
@@ -1177,7 +1180,7 @@ export default function MuestraPage() {
       console.error("Error al exportar muestra masiva:", e);
     }
   };
-  
+
   // === Exportar por STREAMING (ideal para grandes muestreos) ===
   const exportDataMasivoStreaming = async (format: string) => {
     // usamos la pestaña activa o la elegida en el select
@@ -1443,17 +1446,18 @@ export default function MuestraPage() {
 
         while (!success && attempt < 3) {
           try {
-            const res = await fetch("/api/masiva-chunk", { 
+            const res = await fetch("/api/masiva-chunk", {
               method: "POST",
               headers: {
                 "x-user-id": userId || "",
-              }, 
-              body: formData });
-              
-              if (res.headers.get("x-background-process")) {
-                console.log("🕐 El servidor sigue procesando en segundo plano...");
-                continue; // pasa al siguiente chunk o espera meta.json
-                }
+              },
+              body: formData
+            });
+
+            if (res.headers.get("x-background-process")) {
+              console.log("🕐 El servidor sigue procesando en segundo plano...");
+              continue; // pasa al siguiente chunk o espera meta.json
+            }
             if (res.ok) {
               // 💾 Guardar progreso local
               localStorage.setItem(resumeKey, (i + 1).toString());
@@ -1549,22 +1553,22 @@ export default function MuestraPage() {
         //  Crear vista previa 50/50 (primeras 50 y últimas 50 filas)
         const startRows = Array.isArray(cleanRes.previewStart)
           ? cleanRes.previewStart
-              .slice(0, 50)
-              .map((r: any) => ({ ...r, _section: "inicio" }))
+            .slice(0, 50)
+            .map((r: any) => ({ ...r, _section: "inicio" }))
           : [];
 
         const endRows = Array.isArray(cleanRes.previewEnd)
           ? cleanRes.previewEnd
-              .slice(-50)
-              .map((r: any) => ({ ...r, _section: "final" }))
+            .slice(-50)
+            .map((r: any) => ({ ...r, _section: "final" }))
           : [];
 
         const combinedPreview = [...startRows, ...endRows];
         const rowsToDisplay = hasHeader
           ? combinedPreview.slice(1)
           : combinedPreview.length > 0
-          ? combinedPreview
-          : [{ line: "…" }];
+            ? combinedPreview
+            : [{ line: "…" }];
 
         // 🧾 Crear nueva pestaña con dataset limpio
         const cleanedId = `msv_clean_${Date.now()}`;
@@ -1667,7 +1671,7 @@ export default function MuestraPage() {
       const totalSizeMB = (uploadedFileMasivo.size / 1024 / 1024).toFixed(2);
       alert(`✅ Archivo subido correctamente aceptar carga meta datos(${totalSizeMB} MB en ${totalChunks} partes)`);
       localStorage.removeItem(resumeKey); // 🧹 Limpieza del progreso
-      
+
       console.log("📩 Respuesta backend masiva-chunk:", finalResult);
       // === Esperar meta.json con total real ===
       if (finalResult?.fileName) {
@@ -1716,10 +1720,10 @@ export default function MuestraPage() {
           const columns = Array.isArray(metaData.columns) ? metaData.columns : ["COL1"];
           const rowsPreview = Array.isArray(metaData.rowsPreview)
             ? metaData.rowsPreview.map((rowArr: any[]) => {
-                const rowObj: Record<string, any> = {};
-                columns.forEach((col: string, i: number) => (rowObj[col] = rowArr[i] ?? ""));
-                return rowObj;
-              })
+              const rowObj: Record<string, any> = {};
+              columns.forEach((col: string, i: number) => (rowObj[col] = rowArr[i] ?? ""));
+              return rowObj;
+            })
             : [];
 
           // === Crear nueva pestaña visual ===
@@ -1786,7 +1790,7 @@ export default function MuestraPage() {
 
           // Usa el último fileName conocido si lo tienes en finalResult
           const fileToRecover =
-          datasetNameMasivo || uploadedFileMasivo?.name?.replace(/\s+/g, "_");
+            datasetNameMasivo || uploadedFileMasivo?.name?.replace(/\s+/g, "_");
           if (fileToRecover) {
             const res = await fetch("/api/masiva-info", {
               method: "POST",
@@ -1804,8 +1808,8 @@ export default function MuestraPage() {
 
               // Crear nueva pestaña usando los datos recuperados
               const recoveredId = `msv_recover_${Date.now()}`;
-              const startRows = meta.previewStart?.map((r:any)=>({ ...r, _SECTION:"inicio"})) || [];
-              const endRows = meta.previewEnd?.map((r:any)=>({ ...r, _SECTION:"final"})) || [];
+              const startRows = meta.previewStart?.map((r: any) => ({ ...r, _SECTION: "inicio" })) || [];
+              const endRows = meta.previewEnd?.map((r: any) => ({ ...r, _SECTION: "final" })) || [];
               const rowsToDisplay = useHeadersMasivo
                 ? [...startRows, ...endRows].slice(1)
                 : [...startRows, ...endRows];
@@ -1849,10 +1853,10 @@ export default function MuestraPage() {
 
   // === ABRIR HISTORIAL (fusionado estándar + masivo) ===
   const openHistorial = async () => {
-    setActiveTab("historial");
     console.log("🟢 Ejecutando openHistorial combinado.");
-
+    setActiveTab("historial");
     try {
+      // === Sesión ===
       const sessionRes = await fetch("/api/auth/session", { credentials: "include" });
       const session = await sessionRes.json();
       const userId = session?.user?.id;
@@ -1861,10 +1865,10 @@ export default function MuestraPage() {
         alert("No se encontró sesión de usuario.");
         return;
       }
+      // --- Función auxiliar para normalizar fechas ----
+      const normalizeFecha = (x: any) =>
+        x.fecha || x.createdAt || x.date || null;
 
-      console.log("🧍 ID de sesión:", userId);
-
-      // 1) → Historial estándar
       const resEstandar = await fetch("/api/muestra", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1872,29 +1876,24 @@ export default function MuestraPage() {
         body: JSON.stringify({ action: "historial", userId }),
       });
 
-      const dataEstandar = resEstandar.ok ? await resEstandar.json() : null;
+      const dataEstandar = resEstandar.ok ? await resEstandar.json() : {};
 
-      // Soportar tanto objeto {imports, muestras, exports} como array simple
-      let imports: any[] = [];
-      let muestras: any[] = [];
-      let exports: any[] = [];
+      // Tu API devuelve dataEstandar.data
+      const estandarList = Array.isArray(dataEstandar?.data)
+        ? dataEstandar.data
+        : [];
 
-      if (Array.isArray(dataEstandar)) {
-        // API vieja: solo devolvía un array de muestras
-        muestras = dataEstandar;
-      } else if (dataEstandar && typeof dataEstandar === "object") {
-        imports = Array.isArray(dataEstandar.imports)
-          ? dataEstandar.imports
-          : [];
-        muestras = Array.isArray(dataEstandar.muestras)
-          ? dataEstandar.muestras
-          : (Array.isArray(dataEstandar.historial) ? dataEstandar.historial : []);
-        exports = Array.isArray(dataEstandar.exports)
-          ? dataEstandar.exports
-          : [];
-      }
+      const muestrasEstandar = estandarList.map((x: any) => ({
+        ...x,
+        origen: "muestra",
+        fecha: normalizeFecha(x),
+        tipo: "estandar",
+      }));
 
-      // 2) → Historial MASIVO
+      // IMPORTACIONES Y EXPORTACIONES aún no existen en tu API
+      const imports: any[] = [];
+      const exports: any[] = [];
+
       const resMasivo = await fetch("/api/muestra-masiva", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1902,31 +1901,41 @@ export default function MuestraPage() {
         body: JSON.stringify({ action: "historial", userId }),
       });
 
+      let muestrasMasivo: any[] = [];
+
       if (resMasivo.ok) {
         const dataMasivo = await resMasivo.json();
-        const masivo =
-          Array.isArray(dataMasivo?.muestras)
-            ? dataMasivo.muestras
-            : Array.isArray(dataMasivo)
-            ? dataMasivo
-            : [];
 
-        muestras = [...muestras, ...masivo];
-        console.log("📘 Estándar:", muestras.length, "Masivo:", masivo.length);
+        if (Array.isArray(dataMasivo)) {
+          muestrasMasivo = dataMasivo.map((x: any) => ({
+            ...x,
+            origen: "muestra",
+            tipo: "masivo",
+            fecha: normalizeFecha(x),
+          }));
+        } else if (Array.isArray(dataMasivo?.muestras)) {
+          muestrasMasivo = dataMasivo.muestras.map((x: any) => ({
+            ...x,
+            origen: "muestra",
+            tipo: "masivo",
+            fecha: normalizeFecha(x),
+          }));
+        } else {
+          console.warn("⚠️ Respuesta inesperada de /api/muestra-masiva:", dataMasivo);
+        }
       }
 
-      // 3) → Guardar en estructura HistorialState
       setHistorial({
         imports,
-        muestras,
+        muestras: [...muestrasEstandar, ...muestrasMasivo],
         exports,
       });
 
-      console.log("📦 Historial fusionado cargado");
+      console.log("🟢 Historial fusionado cargado");
     } catch (err) {
       console.error("❌ Error cargando historial:", err);
-      alert("No se pudo cargar el historial.");
-      // Muy importante: resetear con el mismo shape
+
+      // Estructura segura vacía
       setHistorial({
         imports: [],
         muestras: [],
@@ -1950,29 +1959,27 @@ export default function MuestraPage() {
       </h1>
       {/* === Barra de SubTabs al estilo parametrización === */}
       <div className="border-b border-gray-200">
-          <nav className="flex space-x-6" aria-label="Tabs">
-            <button
-              onClick={() => setSubTab("estandar")}
-              className={`px-3 py-2 text-sm font-medium ${
-                subTab === "estandar"
-                  ? "border-b-2 border-blue-600 text-blue-600"
-                  : "text-gray-500 hover:text-gray-700"
+        <nav className="flex space-x-6" aria-label="Tabs">
+          <button
+            onClick={() => setSubTab("estandar")}
+            className={`px-3 py-2 text-sm font-medium ${subTab === "estandar"
+                ? "border-b-2 border-blue-600 text-blue-600"
+                : "text-gray-500 hover:text-gray-700"
               }`}
-            >
-              Data Estandar
-            </button>
-            <button
-              onClick={() => setSubTab("masivo")}
-              className={`px-3 py-2 text-sm font-medium ${
-                subTab === "masivo"
-                
-                  ? "border-b-2 border-red-600 text-red-600"
-                  : "text-gray-500 hover:text-gray-700"
+          >
+            Data Estandar
+          </button>
+          <button
+            onClick={() => setSubTab("masivo")}
+            className={`px-3 py-2 text-sm font-medium ${subTab === "masivo"
+
+                ? "border-b-2 border-red-600 text-red-600"
+                : "text-gray-500 hover:text-gray-700"
               }`}
-            >
-              Data Masivo
-            </button>
-          </nav>
+          >
+            Data Masivo
+          </button>
+        </nav>
       </div>
       {loadingMeta && (
         <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-[9999]">
@@ -1984,969 +1991,1052 @@ export default function MuestraPage() {
         </div>
       )}
 
-        {/* === Contenido dinámico según el subTab === */}
-        <div className="flex flex-1">
-          {/* Contenido según subTab */}
-          <div className="flex-1 p-4 overflow-x-auto overflow-y-auto">
-            {/* === ESTANDAR === */}
-            {subTab === "estandar" ? (
-              <>
-                {/* Barra de pestañas dinámicas */}
-                <div className="flex space-x-2 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300">
-                  {tabs.map((tab) => (
-                    <div
-                      key={tab.id}
-                      className={`flex items-center px-4 py-1 rounded-t-lg cursor-pointer select-none ${
-                        activeTab === tab.id
-                          ? "bg-gradient-to-r from-[#003055] to-[#005080] text-white shadow-md"
-                          : "bg-gray-400 text-gray-100 hover:bg-[#005080]"
+      {/* === Contenido dinámico según el subTab === */}
+      <div className="flex flex-1">
+        <div className="flex-1 p-4 overflow-x-auto overflow-y-auto">
+          {/* === ESTANDAR === */}
+          {subTab === "estandar" && (
+            <>
+              {/* Barra de pestañas */}
+              <div className="flex space-x-2 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300">
+                {tabs.map((tab) => (
+                  <div
+                    key={tab.id}
+                    className={`flex items-center px-4 py-1 rounded-t-lg cursor-pointer select-none ${activeTab === tab.id
+                        ? "bg-gradient-to-r from-[#003055] to-[#005080] text-white shadow-md"
+                        : "bg-gray-400 text-gray-100 hover:bg-[#005080]"
                       }`}
-                      onClick={() => setActiveTab(tab.id)}
+                    onClick={() => setActiveTab(tab.id)}
+                  >
+                    <span className="truncate max-w-[100px]">{tab.name}</span>
+                    <button
+                      onClick={() => closeTab(tab.id)}
+                      className="ml-2 text-xs font-bold hover:text-red-500"
                     >
-                      <span className="truncate max-w-[100px]">{tab.name}</span>
-                      <button
-                        onClick={() => closeTab(tab.id)}
-                        className="ml-2 text-xs font-bold hover:text-red-500"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  ))}
-                </div>
-                {/* Contenido del tab seleccionado */}
-                {activeTab === "historial" ? (
-                  (historial.imports.length +
-                    historial.muestras.length +
-                    historial.exports.length) === 0 ? (
-                    <div className="p-6 text-gray-500 text-center">
-                      No hay registros en el historial aún.
-                    </div>
-                  ) : (
-                    <TablaHistorial 
-                    historial={[
-                      ...historial.imports,
-                      ...historial.muestras,
-                      ...historial.exports,
-                      ]}
-                    />
-                  )
-                ) : tabs.length === 0 || !activeTab ? (
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Contenido */}
+              {activeTab === "historial" ? (
+                filteredHistorial.length === 0 ? (
                   <div className="p-6 text-gray-500 text-center">
-                    No hay datos cargados. Usa <b>Cargar Datos</b>.
+                    No hay registros en el historial aún.
                   </div>
                 ) : (
-                  <TablaGenerica
+                  <>
+                    <div className="space-y-4">
+                      {/* Filtros */}
+                      <div className="flex gap-2 flex-wrap">
+                        <button
+                          onClick={() => setHistorialCategoria("imports")}
+                          className={`px-4 py-2 rounded ${historialCategoria === "imports"
+                              ? "bg-blue-600 text-white"
+                              : "bg-gray-300"
+                            }`}
+                        >
+                          Importaciones
+                        </button>
+
+                        <button
+                          onClick={() => setHistorialCategoria("muestras")}
+                          className={`px-4 py-2 rounded ${historialCategoria === "muestras"
+                              ? "bg-blue-600 text-white"
+                              : "bg-gray-300"
+                            }`}
+                        >
+                          Muestreos
+                        </button>
+
+                        <button
+                          onClick={() => setHistorialCategoria("exports")}
+                          className={`px-4 py-2 rounded ${historialCategoria === "exports"
+                              ? "bg-blue-600 text-white"
+                              : "bg-gray-300"
+                            }`}
+                        >
+                          Exportaciones
+                        </button>
+
+                        <button
+                          onClick={() => setHistorialCategoria("todo")}
+                          className={`px-4 py-2 rounded ${historialCategoria === "todo"
+                              ? "bg-green-600 text-white"
+                              : "bg-gray-300"
+                            }`}
+                        >
+                          Todo
+                        </button>
+                      </div>
+
+                      {/* Buscador */}
+                      <input
+                        type="text"
+                        placeholder="Buscar por nombre, usuario, archivo, hash..."
+                        className="w-full border px-4 py-2 rounded"
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                      />
+                    </div>
+
+                    <TablaHistorial historial={filteredHistorial} />
+                  </>
+                )
+              ) : (
+                <TablaGenerica
                   rows={sanitizeRows(currentRows)}
-                  columns={tabs.find(t => t.id === activeTab)?.columns || []}
-                  />
-                )}
-              </>
-            ) : (
-              <>
-                {/* === MASIVO === */}
-                <div className="flex space-x-2 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300">
-                  {tabs.map((tab) => (
-                    <div
-                      key={tab.id}
-                      className={`flex items-center px-4 py-1 rounded-t-lg cursor-pointer select-none ${
-                        activeTab === tab.id
-                          ? "bg-gradient-to-r from-[#550000] to-[#800000] text-white shadow-md"
-                          : "bg-gray-400 text-gray-100 hover:bg-[#800000]"
-                      }`}
-                      onClick={() => setActiveTab(tab.id)}
-                    >
-                      <span className="truncate max-w-[100px]">{tab.name}</span>
-                      <button
-                        onClick={() => closeTab(tab.id)}
-                        className="ml-2 text-xs font-bold hover:text-red-500"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  ))}
-                </div>
-                {/* Contenido del tab masivo */}    
-                {activeTab === "historial" ? (
-                  (historial.imports.length +
-                    historial.muestras.length +
-                    historial.exports.length) === 0 ? (
-                    <div className="p-6 text-gray-500 text-center">
-                      No hay registros en el historial aún (Data Masivo).
-                    </div>
-                  ) : (
-                    <TablaHistorial
-                    historial={[
-                      ...historial.imports,
-                      ...historial.muestras,
-                      ...historial.exports,
-                      ]}
-                    />
-                  )
-                ) : tabs.length === 0 || !activeTab ? (
-                  <div className="p-6 text-gray-500 text-center">
-                    No hay datos cargados. Usa <b>Cargar Datos</b> (Data Masivo).
-                  </div>
-                ) : (
-                  <TablaGenerica 
-                  rows={sanitizeRows(currentRows)}
-                  columns={tabs.find(t => t.id === activeTab)?.columns || []}
-                  />
-                )}
-              </>
-            )}
-          </div>
-          {/* SIDEBAR */}
-          <div className="w-60 bg-gray-50 p-6 space-y-4 self-start">
-            {/* Cargar Datos */}
-            <button
-              onClick={() => {
-                if (subTab === "estandar") {
-                  setDatasetName("");
-                  setUploadedFile(null);
-                  setShowUploadModal(true); // modal estándar
-                } else {
-                  setDatasetNameMasivo("");
-                  setUploadedFileMasivo(null);
-                  setShowUploadModalMasivo(true);
-                }
-              }}
-              className="w-full flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded shadow transition-colors"
-            >
-              <Upload size={18} />
-              Cargar Datos
-            </button>
-
-            {/* Muestreo */}
-            <button
-              onClick={() => {
-                // === MUETREO MASIVO ===
-                if (subTab === "masivo") {
-                  const activeDataset = tabs.find(t => t.id === activeTab && t.type === "masivo");
-                  if (!activeDataset) {
-                    alert("⚠️ Selecciona primero una pestaña masiva antes de abrir el muestreo.");
-                    return;
-                  }
-                  // Fijar dataset actual para el modal
-                  setSelectedTabIdMasivo(activeDataset.id);
-                  setShowModalMasivo(true);
-                }
-                // === MUESTREO ESTÁNDAR (sin cambios)
-                else if (subTab === "estandar") {
-                  const tab = tabs.find(t => t.id === activeTab);
-                  if (!tab) return;
-
-                  // 1️⃣ MUY IMPORTANTE: asignar pestaña activa
-                  setSelectedTabId(activeTab ?? "");
-                  const totalRows = tab.totalRows ?? tab.rows?.length ?? 0;
-                  // 2️⃣ NO BORRAR EL FILE NAME
-                  const nombreDetectado =
-                    tab.displayName ||
-                    tab.fileName ||
-                    tab.name ||
-                    `Dataset_${activeTab}`;
-
-                  // 3️⃣ Cargar valores iniciales
-                  setSampleParams(prev => ({
-                    ...prev,
-                    records: 0,
-                    fileName: nombreDetectado,
-                    seed: Math.floor(Math.random() * 9000) + 1000,
-                    start: 1,
-                    end: totalRows,
-                    totalRows,
-                  }));
-
-                  // 4️⃣ Abrir modal
-                  setShowModal(true);
-                }
-              }}
-              className="w-full flex items-center gap-2 bg-gray-400 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded shadow transition-colors"
-            >
-              <FileBarChart size={18} />
-              Muestreo
-            </button>
-
-            {/* Exportar */}
-            <button
-              onClick={() => {
-                if (subTab === "estandar") {
-                  setShowExportModal(true);
-                } else {
-                  setShowExportModalMasivo(true);
-                }
-              }}
-              className="w-full flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded shadow transition-colors"
-            >
-              <Download size={18} />
-              Exportar DataSet
-            </button>
-
-            {/* Historial */}
-            <button
-              onClick={() => openHistorial()} 
-              className="w-full flex items-center gap-2 bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-2 px-4 rounded shadow transition-colors"
-            >
-              <History size={18} />
-              Historial
-            </button>
-
-            {/* Imprimir Historial */}
-            <button
-              onClick={async () => {
-                if (pdfLoading) return;
-                try {
-                  setPdfLoading(true);
-                  await exportPdf();
-                } finally {
-                  setPdfLoading(false);
-                }
-              }}
-              disabled={pdfLoading}
-              className={`w-full flex items-center gap-2 ${pdfLoading ? 'bg-purple-300 cursor-wait' : 'bg-purple-600 hover:bg-purple-900'} text-white font-semibold py-2 px-4 rounded shadow transition-colors`}
-            >
-              <Printer size={18} />
-              {pdfLoading ? 'Generando PDF...' : 'Imprimir Historial'}
-            </button>
-
-            {/* Limpiar Historial */}
-            {/* <button
-              onClick={() => {
-                if (subTab === "estandar") {
-                  clearHistorial();
-                } else {
-                  clearHistorialMasivo();
-                }
-              }}
-              className="w-full flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded shadow transition-colors"
-            >
-              <Trash2 size={18} />
-              Limpiar Historial
-            </button> */}
-          </div>
-        </div>
-        
-        {/* MODAL: Muestreo */}
-        {showModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/30">
-            <div className="bg-white p-6 rounded-lg shadow-lg w-96 space-y-4 z-50">
-              <h2 className="text-lg font-bold mb-2">Opciones de Muestra:</h2>
-              <div className="space-y-3">
-                {/* Número de registros */}
-                <label className="flex justify-between">
-                  Número de Registros:
-                  <input
-                    type="number"
-                    min="1"
-                    value={sampleParams.records ?? ""}
-                    onChange={(e) =>
-                      setSampleParams((prev) => ({
-                        ...prev,
-                        records: e.target.value === "" ? 0 : parseInt(e.target.value, 10),
-                      }))
-                    }
-                    className="border rounded px-2 py-1 w-20 text-center no-spin"
-                  />
-                </label>
-
-                {/* Semilla */}
-                <label className="flex justify-between">
-                  Semilla Número Aleatorio:
-                  <input
-                    type="number"
-                    min="1"
-                    value={sampleParams.seed ?? ""}
-                    onChange={(e) =>
-                      setSampleParams((prev) => ({
-                        ...prev,
-                        seed: e.target.value === "" ? 0 : parseInt(e.target.value, 10),
-                      }))
-                    }
-                    className="border rounded px-2 py-1 w-20 text-center no-spin"
-                  />
-                </label>
-
-                {/* Inicio */}
-                <label className="flex justify-between">
-                  Inicio:
-                  <input
-                    type="number"
-                    min="1"
-                    value={sampleParams.start ?? ""}
-                    onChange={(e) => {
-                      const v = e.target.value === "" ? 0 : parseInt(e.target.value, 10);
-                      setSampleParams((prev) => ({
-                        ...prev,
-                        start: Math.max(1, v), // nunca menor que 1
-                      }));
-                    }}
-                    className="border rounded px-2 py-1 w-20 text-center no-spin"
-                  />
-                </label>
-
-                {/* Fin */}
-                <label className="flex justify-between">
-                  Fin:
-                  <input
-                    type="number"
-                    min="1"
-                    value={sampleParams.end ?? ""}
-                    onChange={(e) => {
-                      const v = e.target.value === "" ? 0 : parseInt(e.target.value, 10);
-                      const maxLen = currentRows.length || Number.MAX_SAFE_INTEGER;
-                      setSampleParams((prev) => ({
-                        ...prev,
-                        end: Math.min(Math.max(1, v), maxLen), // clamp entre 1 y dataset.length
-                      }));
-                    }}
-                    className="border rounded px-2 py-1 w-20 text-center no-spin"
-                  />
-                </label>
-
-                {/* Checkbox duplicados */}
-                <label className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    checked={sampleParams.allowDuplicates}
-                    onChange={(e) =>
-                      setSampleParams((prev) => ({
-                        ...prev,
-                        allowDuplicates: e.target.checked,
-                      }))
-                    }
-                  />
-                  <span>Seleccionar Duplicados</span>
-                </label>
-
-                {/* Nombre del archivo */}
-                <label className="flex justify-between">
-                  Nombre del Archivo:
-                  <input
-                    type="text"
-                    value={sampleParams.fileName}
-                    onChange={(e) =>
-                    setSampleParams((prev) => ({ ...prev, fileName: e.target.value }))
-                    }
-                    className="border rounded px-2 py-1 w-40"
-                  />
-                </label>
-                <p className="italic text-gray-600 text-sm text-right mb-2">
-                  El archivo tiene {(tabs.find(t => t.id === activeTab)?.totalRows ?? currentRows.length ?? 0)} filas cargadas.
-                </p>
-              </div>
-
-              <div className="flex justify-end space-x-1 mt-2">
-                <button
-                  onClick={handleOk}
-                  className="bg-sky-600 text-white px-4 py-2 rounded"
-                >
-                  Aceptar
-                </button>
-                <button
-                  onClick={() => setShowModal(false)}
-                  className="bg-gray-400 text-white px-4 py-2 rounded"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-        {/* MODAL: Muestreo Masivo */}
-        {showModalMasivo && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/30">
-            <div className="bg-white p-6 rounded-lg shadow-lg w-96 space-y-4 z-50">
-              <h2 className="text-lg font-bold mb-2">Opciones de Muestra (Masivo):</h2>
-              <div className="space-y-3">
-                {/* Número de registros */}
-                <label className="flex justify-between">
-                  Número de Registros:
-                  <input
-                    type="number"
-                    min="1"
-                    value={sampleParamsMasivo.records ?? ""}
-                    onChange={(e) =>
-                      setSampleParamsMasivo((prev) => ({
-                        ...prev,
-                        records: e.target.value === "" ? 0 : parseInt(e.target.value, 10),
-                      }))
-                    }
-                    className="border rounded px-2 py-1 w-20 text-center no-spin"
-                  />
-                </label>
-
-                {/* Semilla */}
-                <label className="flex justify-between">
-                  Semilla Número Aleatorio:
-                  <input
-                    type="number"
-                    min="1"
-                    value={sampleParamsMasivo.seed ?? ""}
-                    onChange={(e) =>
-                      setSampleParamsMasivo((prev) => ({
-                        ...prev,
-                        seed: e.target.value === "" ? 0 : parseInt(e.target.value, 10),
-                      }))
-                    }
-                    className="border rounded px-2 py-1 w-20 text-center no-spin"
-                  />
-                </label>
-
-                {/* Inicio */}
-                <label className="flex justify-between">
-                  Inicio:
-                  <input
-                    type="number"
-                    min="1"
-                    value={sampleParamsMasivo.start ?? ""}
-                    onChange={(e) => {
-                      const v = e.target.value === "" ? 0 : parseInt(e.target.value, 10);
-                      setSampleParamsMasivo((prev) => ({
-                        ...prev,
-                        start: Math.max(1, v),
-                      }));
-                    }}
-                    className="border rounded px-2 py-1 w-20 text-center no-spin"
-                  />
-                </label>
-
-                {/* Fin */}
-                <label className="flex justify-between">
-                  Fin:
-                  <input
-                    type="number"
-                    min="1"
-                    value={sampleParamsMasivo.end ?? ""}
-                    onChange={(e) => {
-                      const v = e.target.value === "" ? 0 : parseInt(e.target.value, 10);
-                      setSampleParamsMasivo((prev) => ({
-                        ...prev,
-                        end: Math.max(1, v),
-                      }));
-                    }}
-                    className="border rounded px-2 py-1 w-20 text-center no-spin"
-                  />
-                </label>
-
-                {/* Checkbox duplicados */}
-                <label className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    checked={sampleParamsMasivo.allowDuplicates}
-                    onChange={(e) =>
-                      setSampleParamsMasivo((prev) => ({
-                        ...prev,
-                        allowDuplicates: e.target.checked,
-                      }))
-                    }
-                  />
-                  <span>Seleccionar Duplicados</span>
-                </label>
-
-                {/* Nombre del archivo */}
-                <label className="flex justify-between">
-                  Nombre del Archivo:
-                  <input
-                    type="text"
-                    value={sampleParamsMasivo.fileName}
-                    onChange={(e) =>
-                      setSampleParamsMasivo((prev) => ({ ...prev, fileName: e.target.value }))
-                    }
-                    className="border rounded px-2 py-1 w-40"
-                  />
-                </label>
-                <p className="italic text-gray-600 text-sm text-right mb-2">
-                  Mostrando {(currentTabMasivo?.rows?.filter?.((r:any)=>!r?.__sep).length ?? 0)} de{" "}
-                  {(indexInfo.adjustedTotalRows ?? sampleParamsMasivo.totalRows ?? currentTabMasivo?.totalRows ?? 0).toLocaleString("es-BO")}{" "}
-                  filas reales detectadas.
-                </p>
-              </div>
-              {/* Estado del índice */}
-              <div className="mt-3 p-2 bg-gray-50 rounded border border-gray-200 text-sm">
-                <strong>Estado del índice:</strong>
-                <span
-                  className={`ml-2 font-semibold ${
-                    indexInfo.exists ? "text-green-600" : "text-orange-600"
-                  }`}
-                >
-                  {indexInfo.message}
-                </span>
-                {/* === Barra de progreso del indexado === */}
-                {!indexInfo.exists && (
-                  <div className="mt-4 bg-gray-100 p-3 rounded shadow-sm">
-                    <p className="text-sm text-blue-700 font-semibold mb-1 text-center">
-                      📊 Indexando {progressFile || "archivo"}...
-                    </p>
-
-                    {/* Filas procesadas */}
-                    <p className="text-xs text-gray-600 text-center mb-2">
-                      {processedLines.toLocaleString("es-BO")} filas procesadas
-                    </p>
-
-                    {/* Barra visual */}
-                    <div className="w-full bg-gray-300 rounded-full h-3 overflow-hidden">
-                      <div
-                        className="h-full bg-blue-500 transition-all duration-300"
-                        style={{ width: `${progressLog || 0}%` }}
-                      ></div>
-                    </div>
-
-                    {/* Porcentaje */}
-                    <p className="text-xs text-gray-700 mt-1 text-center">
-                      {progressLog.toFixed(2)}%
-                    </p>
-                  </div>
-                )}
-                {/* === Indexado completado === */}
-                {indexInfo.exists && (
-                  <div className="mt-3 text-green-600 text-center font-semibold text-sm">
-                    ✅ Indexado completado correctamente
-                  </div>
-                )}
-              </div>
-              {/* Estado dinámico del proceso masivo */}
-              {isSampling && (
-                <div className="mt-4 text-center">
-                  {progressIndex > 0 && (
-                    <div className="w-full bg-gray-200 h-2 rounded mt-2">
-                      <div className="bg-blue-500 h-2 rounded transition-all duration-500"
-                      style={{ width: `${progressIndex}%` }}>
-                      </div>
-                    </div>
-                  )}
-                  <p className="text-xs text-gray-700 mt-1">
-                    Progreso: {progressIndex.toFixed(2)}%
-                  </p>
-                  <div className="flex items-center justify-center space-x-3">
-                    {/* 🔄 Spinner animado */}
-                    <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                    {/* Mensaje dinámico */}
-                    <span className="text-blue-700 font-medium text-sm">
-                      {masivoStatus || "Procesando muestreo masivo..."}
-                    </span>
-                  </div>
-                  {/* Barra de progreso real del indexado */}
-                  {masivoStatus.toLowerCase().includes("indice") && (
-                    <div className="mt-3">
-                      <div className="text-xs text-gray-600 mb-1">
-                        Progreso del indexado: {progressIndex.toFixed(1)}%
-                      </div>
-                      <div className="w-full bg-gray-200 h-2 rounded-full">
-                        <div
-                          className="bg-blue-500 h-2 rounded-full transition-all duration-500"
-                          style={{ width: `${progressIndex}%` }}
-                        />
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-              {/* === PROGRESO EN VIVO DEL LOG === */}
-              {progressLines.length > 0 && (
-                <div className="bg-neutral-900 text-white p-2 mt-3 text-xs font-mono rounded max-h-40 overflow-y-auto border border-gray-700">
-                  {progressLines.map((l, i) => (
-                    <div key={i}>{l}</div>
-                  ))}
-                </div>
-              )}
-              <div className="flex justify-end space-x-1 mt-2">
-                <Button
-                  onClick={handleOkMasivo}
-                  disabled={isSampling}
-                  className={`${
-                    isSampling ? "bg-gray-400 cursor-not-allowed" : "bg-blue-500 hover:bg-blue-600"
-                  } text-white px-4 py-2 rounded`}
-                >
-                  {isSampling ? (
-                    <div className="flex items-center justify-center space-x-2">
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      <span>Procesando...</span>
-                    </div>
-                  ) : (
-                    "Aceptar"
-                  )}
-                </Button>
-                <button
-                  onClick={() => {
-                    setShowModalMasivo(false);
-                    setMasivoStatus("");
-                    setIsSampling(false);
-                    setProgressLog(0);
-                    setProcessedLines(0);
-                    setProgressFile("");
-                  }} className="bg-gray-400 text-white px-4 py-2 rounded">
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-        {/* MODAL: Cargar Datos */}
-        {showUploadModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/30">
-            <div className="bg-white p-6 rounded-lg shadow-lg w-[32rem] space-y-4">
-              <h2 className="text-lg font-bold mb-2">Cargar Datos</h2>
-              <div className="space-y-3">
-
-                {/* Selección de archivo */}
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-gray-700">Archivo:</span>
-                  <div className="flex items-center space-x-3 w-full ml-4">
-                    {/* Input oculto */}
-                    <input
-                      id="fileInput"
-                      type="file"
-                      accept=".xlsx,.xls,.csv,.txt,.json,.xml"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          setUploadedFile(file);
-
-                          //  Extraer nombre base sin extensión
-                          const baseName = file.name.replace(/\.[^/.]+$/, "");
-                          setDatasetName(baseName);
-                        } else {
-                          setUploadedFile(null);
-                        }
-                      }}
-                    />
-                    {/* Botón abrir selector */}
-                    <button
-                      type="button"
-                      onClick={() => document.getElementById("fileInput")?.click()}
-                      className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded shadow text-sm"
-                    >
-                      Seleccionar Archivo
-                    </button>
-                    {/* Nombre del archivo */}
-                    <span className="flex-grow text-gray-900 text-sm text-right pl-3 truncate">
-                      {uploadedFile ? uploadedFile.name : "Ningún archivo seleccionado"}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Nombre dataset */}
-                <label className="flex justify-between items-center">
-                  <span className="text-sm font-medium text-gray-700">Nombre del Dataset:</span>
-                  <input
-                    type="text"
-                    value={datasetName}
-                    onChange={(e) => setDatasetName(e.target.value)}
-                    placeholder="Ej: Ventas2024"
-                    className="border rounded px-2 py-1 w-48"
-                  />
-                </label>
-
-                {/* Checkbox cabecera */}
-                <label className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    checked={useHeaders}
-                    onChange={(e) => setUseHeaders(e.target.checked)}
-                  />
-                  <span className="text-sm">Usar primera fila como cabecera</span>
-                </label>
-
-                {/* Loader de progreso */}
-                {uploading && (
-                  <div className="w-full mt-4">
-                    <div className="text-sm text-gray-600 mb-1">Subiendo archivo... {progress}%</div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div
-                        className="bg-blue-600 h-2 rounded-full transition-all"
-                        style={{ width: `${progress}%` }}
-                      ></div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Botones */}
-              <div className="flex justify-end space-x-2 mt-4">
-                <button
-                  onClick={handleFileUpload}
-                  disabled={uploading}
-                  className={`px-4 py-2 rounded text-white ${
-                    uploading
-                      ? "bg-gray-400 cursor-not-allowed"
-                      : "bg-blue-600 hover:bg-blue-700"
-                  }`}
-                >
-                  {uploading ? "Cargando..." : "Aceptar"}
-                </button>
-                <button
-                  onClick={() => setShowUploadModal(false)}
-                  disabled={uploading}
-                  className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-gray-500"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-        {/* MODAL: Cargar Datos Masivo */}
-        {showUploadModalMasivo && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/30">
-            <div className="bg-white p-6 rounded-lg shadow-lg w-[32rem] space-y-4">
-              <h2 className="text-lg font-bold mb-2">Cargar Datos Masivos</h2>
-              <div className="space-y-3">
-                {/* Selección de archivo */}
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-gray-700">Archivo:</span>
-                  <div className="flex items-center space-x-3 w-full ml-4">
-                    <input
-                      id="fileInputMasivo"
-                      type="file"
-                      accept=".csv,.json,.xml,.txt"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          setUploadedFileMasivo(file);
-
-                          //  Quita la extensión del nombre del archivo
-                          const baseName = file.name.replace(/\.[^/.]+$/, "");
-                          setDatasetNameMasivo(baseName);
-                        } else {
-                          setUploadedFileMasivo(null);
-                        }
-                      }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => document.getElementById("fileInputMasivo")?.click()}
-                      className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded shadow text-sm"
-                    >
-                      Seleccionar Archivo
-                    </button>
-                    <span className="flex-grow text-gray-900 text-sm text-right pl-3 truncate">
-                      {uploadedFileMasivo ? uploadedFileMasivo.name : "Ningún archivo seleccionado"}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Nombre dataset */}
-                <label className="flex justify-between items-center">
-                  <span className="text-sm font-medium text-gray-700">Nombre del Dataset:</span>
-                  <input
-                    type="text"
-                    value={datasetNameMasivo}
-                    onChange={(e) => setDatasetNameMasivo(e.target.value)}
-                    placeholder="Ej: VentasMasivas2024"
-                    className="border rounded px-2 py-1 w-48"
-                  />
-                </label>
-                {/* Checkbox cabecera */}
-                <label className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    checked={useHeadersMasivo}
-                    onChange={(e) => setUseHeadersMasivo(e.target.checked)}
-                  />
-                  <span className="text-sm">Usar primera fila como cabecera</span>
-                </label>
-                {/* Loader de progreso */}
-                {uploadingMasivo && (
-                  <div className="w-full mt-4">
-                    <div className="text-sm text-gray-600 mb-1">Subiendo archivo... {progressMasivo}%</div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div
-                        className="bg-blue-600 h-2 rounded-full transition-all"
-                        style={{ width: `${progressMasivo}%` }}
-                      ></div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Botones */}
-              <div className="flex justify-end space-x-2 mt-4">
-                <button
-                  onClick={handleFileUploadMasivo}
-                  disabled={uploadingMasivo}
-                  className={`px-4 py-2 rounded text-white ${
-                    uploadingMasivo
-                      ? "bg-gray-400 cursor-not-allowed"
-                      : "bg-blue-600 hover:bg-blue-700"
-                  }`}
-                >
-                  {uploadingMasivo ? "Cargando..." : "Aceptar"}
-                </button>
-                <button
-                  onClick={() => setShowUploadModalMasivo(false)}
-                  disabled={uploadingMasivo}
-                  className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-gray-500"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-        {/* MODAL: Exportación */}
-        {showExportModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/40">
-            <div className="bg-white p-6 rounded shadow-lg w-80 space-y-4">
-              <h2 className="text-lg font-bold mb-2">Exportar Datos</h2>
-              <p className="text-sm text-gray-600">Selecciona el formato:</p>
-                <div className="flex flex-col space-y-2">
-                  <button
-                    onClick={() => exportData("xlsx")}
-                    className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-green-600"
-                  >
-                    Excel (.xlsx)
-                  </button>
-                  <button
-                    onClick={() => exportData("csv")}
-                    className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-green-600"
-                  >
-                    CSV (.csv)
-                  </button>
-                  <button
-                    onClick={() => exportData("json")}
-                    className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-green-600"
-                  >
-                    JSON (.json)
-                  </button>
-                  <button
-                    onClick={() => exportData("xml")}
-                    className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-green-600"
-                  >
-                    XML (.xml)
-                  </button>
-                  <button
-                    onClick={() => exportData("txt")}
-                    className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-green-600"
-                  >
-                    TXT (.txt)
-                  </button> 
-                </div>
-                {/* Selector de pestaña */}
-                <label className="flex flex-col text-sm font-medium text-gray-700">
-                  Selecciona la pestaña de muestreo:
-                  <select
-                    value={selectedTabId}
-                    onChange={(e) => setSelectedTabId(e.target.value)}
-                    className="mt-1 border rounded px-2 py-1"
-                  >
-                    <option value="">--Seleccionar pestaña--</option>
-                    {tabs.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              <p className="text-xs text-gray-500">
-                Solo se exportarán los datos de la pestaña seleccionada.
-              </p>
-              <div className="flex justify-end mt-3">
-                <button
-                  onClick={() => setShowExportModal(false)}
-                  className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
-                >
-                  Cerrar
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-        {/* MODAL: Exportación Masivo */}
-        {showExportModalMasivo && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/40">
-            <div className="bg-white p-6 rounded shadow-lg w-80 space-y-4">
-              <h2 className="text-lg font-bold mb-2">Exportar Datos Masivos</h2>
-
-              {/* 🔁 INTERRUPTOR DE MODO */}
-              <div className="flex items-center space-x-2 border border-gray-300 rounded px-2 py-1 bg-gray-50">
-                <input
-                  id="streamingToggle"
-                  type="checkbox"
-                  checked={useStreaming}
-                  onChange={(e) => setUseStreaming(e.target.checked)}
-                  className="cursor-pointer w-4 h-4 accent-green-600"
+                  columns={tabs.find((t) => t.id === activeTab)?.columns || []}
                 />
-                <label htmlFor="streamingToggle" className="text-sm text-gray-700 select-none">
-                  Usar exportación segura (Streaming)
-                </label>
+              )}
+            </>
+          )}
+
+          {/* === MASIVO === */}
+          {subTab === "masivo" && (
+            <>
+              {/* Barra de pestañas */}
+              <div className="flex space-x-2 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300">
+                {tabs.map((tab) => (
+                  <div
+                    key={tab.id}
+                    className={`flex items-center px-4 py-1 rounded-t-lg cursor-pointer select-none ${activeTab === tab.id
+                        ? "bg-gradient-to-r from-[#550000] to-[#800000] text-white shadow-md"
+                        : "bg-gray-400 text-gray-100 hover:bg-[#800000]"
+                      }`}
+                    onClick={() => setActiveTab(tab.id)}
+                  >
+                    <span className="truncate max-w-[100px]">{tab.name}</span>
+                    <button
+                      onClick={() => closeTab(tab.id)}
+                      className="ml-2 text-xs font-bold hover:text-red-500"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
               </div>
+              {/* Contenido */}
+              {activeTab === "historial" ? (
+                filteredHistorial.length === 0 ? (
+                  <div className="p-6 text-gray-500 text-center">
+                    No hay registros en el historial aún.
+                  </div>
+                ) : (
+                  <>
+                    <div className="space-y-4">
+                      {/* Filtros */}
+                      <div className="flex gap-2 flex-wrap">
+                        <button
+                          onClick={() => setHistorialCategoria("imports")}
+                          className={`px-4 py-2 rounded ${historialCategoria === "imports"
+                              ? "bg-blue-600 text-white"
+                              : "bg-gray-300"
+                            }`}
+                        >
+                          Importaciones
+                        </button>
+                        <button
+                          onClick={() => setHistorialCategoria("muestras")}
+                          className={`px-4 py-2 rounded ${historialCategoria === "muestras"
+                              ? "bg-blue-600 text-white"
+                              : "bg-gray-300"
+                            }`}
+                        >
+                          Muestreos
+                        </button>
 
-              <p className="text-sm text-gray-600">Selecciona el formato:</p>
+                        <button
+                          onClick={() => setHistorialCategoria("exports")}
+                          className={`px-4 py-2 rounded ${historialCategoria === "exports"
+                              ? "bg-blue-600 text-white"
+                              : "bg-gray-300"
+                            }`}
+                        >
+                          Exportaciones
+                        </button>
+                        <button
+                          onClick={() => setHistorialCategoria("todo")}
+                          className={`px-4 py-2 rounded ${historialCategoria === "todo"
+                              ? "bg-green-600 text-white"
+                              : "bg-gray-300"
+                            }`}
+                        >
+                          Todo
+                        </button>
+                      </div>
 
-              {/* BOTONES DE EXPORTACIÓN */}
-              <div className="flex flex-col space-y-2">
-                <button
-                  onClick={() =>
-                    useStreaming
-                      ? exportDataMasivoStreaming("csv")
-                      : exportDataMasivo("csv")
-                  }
-                  className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-green-600"
-                >
-                  CSV (.csv)
-                </button>
-                <button
-                  onClick={() =>
-                    useStreaming
-                      ? exportDataMasivoStreaming("json")
-                      : exportDataMasivo("json")
-                  }
-                  className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-green-600"
-                >
-                  JSON (.json)
-                </button>
-                <button
-                  onClick={() =>
-                    useStreaming
-                      ? exportDataMasivoStreaming("xml")
-                      : exportDataMasivo("xml")
-                  }
-                  className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-green-600"
-                >
-                  XML (.xml)
-                </button>
-                <button
-                  onClick={() =>
-                    useStreaming
-                      ? exportDataMasivoStreaming("txt")
-                      : exportDataMasivo("txt")
-                  }
-                  className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-green-600"
-                >
-                  TXT (.txt)
-                </button>
-              </div>
+                      {/* Buscador */}
+                      <input
+                        type="text"
+                        placeholder="Buscar por nombre, usuario, archivo, hash..."
+                        className="w-full border px-4 py-2 rounded"
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                      />
+                    </div>
 
-              {/* SELECCIONADOR DE PESTAÑA */}
-              <label className="flex flex-col text-sm font-medium text-gray-600">
-                Selecciona la pestaña de muestreo:
-                <select
-                  value={selectedTabIdMasivo}
-                  onChange={(e) => setSelectedTabIdMasivo(e.target.value)}
-                  className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1"
-                >
-                  {tabs.map((tab) => (
-                    <option key={tab.id} value={tab.id}>
-                      {tab.name} — {tab.source || "Sin fuente registrada"}
-                    </option>
-                  ))}
-                </select>
+                    <TablaHistorial historial={filteredHistorial} />
+                  </>
+                )
+              ) : (
+                <TablaGenerica
+                  rows={sanitizeRows(currentRows)}
+                  columns={tabs.find((t) => t.id === activeTab)?.columns || []}
+                />
+              )}
+            </>
+          )}
+        </div>
+        {/* SIDEBAR */}
+        <div className="w-60 bg-gray-50 p-6 space-y-4 self-start">
+          {/* Cargar Datos */}
+          <button
+            onClick={() => {
+              if (subTab === "estandar") {
+                setDatasetName("");
+                setUploadedFile(null);
+                setShowUploadModal(true); // modal estándar
+              } else {
+                setDatasetNameMasivo("");
+                setUploadedFileMasivo(null);
+                setShowUploadModalMasivo(true);
+              }
+            }}
+            className="w-full flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded shadow transition-colors"
+          >
+            <Upload size={18} />
+            Cargar Datos
+          </button>
+
+          {/* Muestreo */}
+          <button
+            onClick={() => {
+              // === MUETREO MASIVO ===
+              if (subTab === "masivo") {
+                const activeDataset = tabs.find(t => t.id === activeTab && t.type === "masivo");
+                if (!activeDataset) {
+                  alert("⚠️ Selecciona primero una pestaña masiva antes de abrir el muestreo.");
+                  return;
+                }
+                // Fijar dataset actual para el modal
+                setSelectedTabIdMasivo(activeDataset.id);
+                setShowModalMasivo(true);
+              }
+              // === MUESTREO ESTÁNDAR (sin cambios)
+              else if (subTab === "estandar") {
+                const tab = tabs.find(t => t.id === activeTab);
+                if (!tab) return;
+
+                // 1️⃣ MUY IMPORTANTE: asignar pestaña activa
+                setSelectedTabId(activeTab ?? "");
+                const totalRows = tab.totalRows ?? tab.rows?.length ?? 0;
+                // 2️⃣ NO BORRAR EL FILE NAME
+                const nombreDetectado =
+                  tab.displayName ||
+                  tab.fileName ||
+                  tab.name ||
+                  `Dataset_${activeTab}`;
+
+                // 3️⃣ Cargar valores iniciales
+                setSampleParams(prev => ({
+                  ...prev,
+                  records: 0,
+                  fileName: nombreDetectado,
+                  seed: Math.floor(Math.random() * 9000) + 1000,
+                  start: 1,
+                  end: totalRows,
+                  totalRows,
+                }));
+
+                // 4️⃣ Abrir modal
+                setShowModal(true);
+              }
+            }}
+            className="w-full flex items-center gap-2 bg-gray-400 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded shadow transition-colors"
+          >
+            <FileBarChart size={18} />
+            Muestreo
+          </button>
+
+          {/* Exportar */}
+          <button
+            onClick={() => {
+              if (subTab === "estandar") {
+                setShowExportModal(true);
+              } else {
+                setShowExportModalMasivo(true);
+              }
+            }}
+            className="w-full flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded shadow transition-colors"
+          >
+            <Download size={18} />
+            Exportar DataSet
+          </button>
+
+          {/* Historial */}
+          <button
+              onClick={() => {
+                setActiveTab("historial");
+                openHistorial();
+              }}
+            className="w-full flex items-center gap-2 bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-2 px-4 rounded shadow transition-colors"
+          >
+            <History size={18} />
+            Historial
+          </button>
+
+          {/* Imprimir Historial */}
+          <button
+            onClick={async () => {
+              if (pdfLoading) return;
+              try {
+                setPdfLoading(true);
+                await exportPdf();
+              } finally {
+                setPdfLoading(false);
+              }
+            }}
+            disabled={pdfLoading}
+            className={`w-full flex items-center gap-2 ${pdfLoading ? 'bg-purple-300 cursor-wait' : 'bg-purple-600 hover:bg-purple-900'} text-white font-semibold py-2 px-4 rounded shadow transition-colors`}
+          >
+            <Printer size={18} />
+            {pdfLoading ? 'Generando PDF...' : 'Imprimir Historial'}
+          </button>
+
+          {/* Limpiar Historial */}
+          {/* <button
+                    onClick={() => {
+                      if (subTab === "estandar") {
+                        clearHistorial();
+                      } else {
+                        clearHistorialMasivo();
+                      }
+                    }}
+                    className="w-full flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded shadow transition-colors"
+                  >
+                    <Trash2 size={18} />
+                    Limpiar Historial
+                  </button> */}
+        </div>
+      </div>
+      {/* MODAL: Muestreo */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/30">
+          <div className="bg-white p-6 rounded-lg shadow-lg w-96 space-y-4 z-50">
+            <h2 className="text-lg font-bold mb-2">Opciones de Muestra:</h2>
+            <div className="space-y-3">
+              {/* Número de registros */}
+              <label className="flex justify-between">
+                Número de Registros:
+                <input
+                  type="number"
+                  min="1"
+                  value={sampleParams.records ?? ""}
+                  onChange={(e) =>
+                    setSampleParams((prev) => ({
+                      ...prev,
+                      records: e.target.value === "" ? 0 : parseInt(e.target.value, 10),
+                    }))
+                  }
+                  className="border rounded px-2 py-1 w-20 text-center no-spin"
+                />
               </label>
 
-              {/* BOTÓN DE CIERRE */}
-              <div className="flex justify-end mt-3">
-                <button
-                  onClick={() => setShowExportModalMasivo(false)}
-                  className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
-                >
-                  Cerrar
-                </button>
-              </div>
+              {/* Semilla */}
+              <label className="flex justify-between">
+                Semilla Número Aleatorio:
+                <input
+                  type="number"
+                  min="1"
+                  value={sampleParams.seed ?? ""}
+                  onChange={(e) =>
+                    setSampleParams((prev) => ({
+                      ...prev,
+                      seed: e.target.value === "" ? 0 : parseInt(e.target.value, 10),
+                    }))
+                  }
+                  className="border rounded px-2 py-1 w-20 text-center no-spin"
+                />
+              </label>
+
+              {/* Inicio */}
+              <label className="flex justify-between">
+                Inicio:
+                <input
+                  type="number"
+                  min="1"
+                  value={sampleParams.start ?? ""}
+                  onChange={(e) => {
+                    const v = e.target.value === "" ? 0 : parseInt(e.target.value, 10);
+                    setSampleParams((prev) => ({
+                      ...prev,
+                      start: Math.max(1, v), // nunca menor que 1
+                    }));
+                  }}
+                  className="border rounded px-2 py-1 w-20 text-center no-spin"
+                />
+              </label>
+
+              {/* Fin */}
+              <label className="flex justify-between">
+                Fin:
+                <input
+                  type="number"
+                  min="1"
+                  value={sampleParams.end ?? ""}
+                  onChange={(e) => {
+                    const v = e.target.value === "" ? 0 : parseInt(e.target.value, 10);
+                    const maxLen = currentRows.length || Number.MAX_SAFE_INTEGER;
+                    setSampleParams((prev) => ({
+                      ...prev,
+                      end: Math.min(Math.max(1, v), maxLen), // clamp entre 1 y dataset.length
+                    }));
+                  }}
+                  className="border rounded px-2 py-1 w-20 text-center no-spin"
+                />
+              </label>
+
+              {/* Checkbox duplicados */}
+              <label className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  checked={sampleParams.allowDuplicates}
+                  onChange={(e) =>
+                    setSampleParams((prev) => ({
+                      ...prev,
+                      allowDuplicates: e.target.checked,
+                    }))
+                  }
+                />
+                <span>Seleccionar Duplicados</span>
+              </label>
+
+              {/* Nombre del archivo */}
+              <label className="flex justify-between">
+                Nombre del Archivo:
+                <input
+                  type="text"
+                  value={sampleParams.fileName}
+                  onChange={(e) =>
+                    setSampleParams((prev) => ({ ...prev, fileName: e.target.value }))
+                  }
+                  className="border rounded px-2 py-1 w-40"
+                />
+              </label>
+              <p className="italic text-gray-600 text-sm text-right mb-2">
+                El archivo tiene {(tabs.find(t => t.id === activeTab)?.totalRows ?? currentRows.length ?? 0)} filas cargadas.
+              </p>
+            </div>
+
+            <div className="flex justify-end space-x-1 mt-2">
+              <button
+                onClick={handleOk}
+                className="bg-sky-600 text-white px-4 py-2 rounded"
+              >
+                Aceptar
+              </button>
+              <button
+                onClick={() => setShowModal(false)}
+                className="bg-gray-400 text-white px-4 py-2 rounded"
+              >
+                Cancelar
+              </button>
             </div>
           </div>
-        )}
+        </div>
+      )}
+      {/* MODAL: Muestreo Masivo */}
+      {showModalMasivo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/30">
+          <div className="bg-white p-6 rounded-lg shadow-lg w-96 space-y-4 z-50">
+            <h2 className="text-lg font-bold mb-2">Opciones de Muestra (Masivo):</h2>
+            <div className="space-y-3">
+              {/* Número de registros */}
+              <label className="flex justify-between">
+                Número de Registros:
+                <input
+                  type="number"
+                  min="1"
+                  value={sampleParamsMasivo.records ?? ""}
+                  onChange={(e) =>
+                    setSampleParamsMasivo((prev) => ({
+                      ...prev,
+                      records: e.target.value === "" ? 0 : parseInt(e.target.value, 10),
+                    }))
+                  }
+                  className="border rounded px-2 py-1 w-20 text-center no-spin"
+                />
+              </label>
 
-  </div>
+              {/* Semilla */}
+              <label className="flex justify-between">
+                Semilla Número Aleatorio:
+                <input
+                  type="number"
+                  min="1"
+                  value={sampleParamsMasivo.seed ?? ""}
+                  onChange={(e) =>
+                    setSampleParamsMasivo((prev) => ({
+                      ...prev,
+                      seed: e.target.value === "" ? 0 : parseInt(e.target.value, 10),
+                    }))
+                  }
+                  className="border rounded px-2 py-1 w-20 text-center no-spin"
+                />
+              </label>
+
+              {/* Inicio */}
+              <label className="flex justify-between">
+                Inicio:
+                <input
+                  type="number"
+                  min="1"
+                  value={sampleParamsMasivo.start ?? ""}
+                  onChange={(e) => {
+                    const v = e.target.value === "" ? 0 : parseInt(e.target.value, 10);
+                    setSampleParamsMasivo((prev) => ({
+                      ...prev,
+                      start: Math.max(1, v),
+                    }));
+                  }}
+                  className="border rounded px-2 py-1 w-20 text-center no-spin"
+                />
+              </label>
+
+              {/* Fin */}
+              <label className="flex justify-between">
+                Fin:
+                <input
+                  type="number"
+                  min="1"
+                  value={sampleParamsMasivo.end ?? ""}
+                  onChange={(e) => {
+                    const v = e.target.value === "" ? 0 : parseInt(e.target.value, 10);
+                    setSampleParamsMasivo((prev) => ({
+                      ...prev,
+                      end: Math.max(1, v),
+                    }));
+                  }}
+                  className="border rounded px-2 py-1 w-20 text-center no-spin"
+                />
+              </label>
+
+              {/* Checkbox duplicados */}
+              <label className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  checked={sampleParamsMasivo.allowDuplicates}
+                  onChange={(e) =>
+                    setSampleParamsMasivo((prev) => ({
+                      ...prev,
+                      allowDuplicates: e.target.checked,
+                    }))
+                  }
+                />
+                <span>Seleccionar Duplicados</span>
+              </label>
+
+              {/* Nombre del archivo */}
+              <label className="flex justify-between">
+                Nombre del Archivo:
+                <input
+                  type="text"
+                  value={sampleParamsMasivo.fileName}
+                  onChange={(e) =>
+                    setSampleParamsMasivo((prev) => ({ ...prev, fileName: e.target.value }))
+                  }
+                  className="border rounded px-2 py-1 w-40"
+                />
+              </label>
+              <p className="italic text-gray-600 text-sm text-right mb-2">
+                Mostrando {(currentTabMasivo?.rows?.filter?.((r: any) => !r?.__sep).length ?? 0)} de{" "}
+                {(indexInfo.adjustedTotalRows ?? sampleParamsMasivo.totalRows ?? currentTabMasivo?.totalRows ?? 0).toLocaleString("es-BO")}{" "}
+                filas reales detectadas.
+              </p>
+            </div>
+            {/* Estado del índice */}
+            <div className="mt-3 p-2 bg-gray-50 rounded border border-gray-200 text-sm">
+              <strong>Estado del índice:</strong>
+              <span
+                className={`ml-2 font-semibold ${indexInfo.exists ? "text-green-600" : "text-orange-600"
+                  }`}
+              >
+                {indexInfo.message}
+              </span>
+              {/* === Barra de progreso del indexado === */}
+              {!indexInfo.exists && (
+                <div className="mt-4 bg-gray-100 p-3 rounded shadow-sm">
+                  <p className="text-sm text-blue-700 font-semibold mb-1 text-center">
+                    📊 Indexando {progressFile || "archivo"}...
+                  </p>
+
+                  {/* Filas procesadas */}
+                  <p className="text-xs text-gray-600 text-center mb-2">
+                    {processedLines.toLocaleString("es-BO")} filas procesadas
+                  </p>
+
+                  {/* Barra visual */}
+                  <div className="w-full bg-gray-300 rounded-full h-3 overflow-hidden">
+                    <div
+                      className="h-full bg-blue-500 transition-all duration-300"
+                      style={{ width: `${progressLog || 0}%` }}
+                    ></div>
+                  </div>
+
+                  {/* Porcentaje */}
+                  <p className="text-xs text-gray-700 mt-1 text-center">
+                    {progressLog.toFixed(2)}%
+                  </p>
+                </div>
+              )}
+              {/* === Indexado completado === */}
+              {indexInfo.exists && (
+                <div className="mt-3 text-green-600 text-center font-semibold text-sm">
+                  ✅ Indexado completado correctamente
+                </div>
+              )}
+            </div>
+            {/* Estado dinámico del proceso masivo */}
+            {isSampling && (
+              <div className="mt-4 text-center">
+                {progressIndex > 0 && (
+                  <div className="w-full bg-gray-200 h-2 rounded mt-2">
+                    <div className="bg-blue-500 h-2 rounded transition-all duration-500"
+                      style={{ width: `${progressIndex}%` }}>
+                    </div>
+                  </div>
+                )}
+                <p className="text-xs text-gray-700 mt-1">
+                  Progreso: {progressIndex.toFixed(2)}%
+                </p>
+                <div className="flex items-center justify-center space-x-3">
+                  {/* 🔄 Spinner animado */}
+                  <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                  {/* Mensaje dinámico */}
+                  <span className="text-blue-700 font-medium text-sm">
+                    {masivoStatus || "Procesando muestreo masivo..."}
+                  </span>
+                </div>
+                {/* Barra de progreso real del indexado */}
+                {masivoStatus.toLowerCase().includes("indice") && (
+                  <div className="mt-3">
+                    <div className="text-xs text-gray-600 mb-1">
+                      Progreso del indexado: {progressIndex.toFixed(1)}%
+                    </div>
+                    <div className="w-full bg-gray-200 h-2 rounded-full">
+                      <div
+                        className="bg-blue-500 h-2 rounded-full transition-all duration-500"
+                        style={{ width: `${progressIndex}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            {/* === PROGRESO EN VIVO DEL LOG === */}
+            {progressLines.length > 0 && (
+              <div className="bg-neutral-900 text-white p-2 mt-3 text-xs font-mono rounded max-h-40 overflow-y-auto border border-gray-700">
+                {progressLines.map((l, i) => (
+                  <div key={i}>{l}</div>
+                ))}
+              </div>
+            )}
+            <div className="flex justify-end space-x-1 mt-2">
+              <Button
+                onClick={handleOkMasivo}
+                disabled={isSampling}
+                className={`${isSampling ? "bg-gray-400 cursor-not-allowed" : "bg-blue-500 hover:bg-blue-600"
+                  } text-white px-4 py-2 rounded`}
+              >
+                {isSampling ? (
+                  <div className="flex items-center justify-center space-x-2">
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>Procesando...</span>
+                  </div>
+                ) : (
+                  "Aceptar"
+                )}
+              </Button>
+              <button
+                onClick={() => {
+                  setShowModalMasivo(false);
+                  setMasivoStatus("");
+                  setIsSampling(false);
+                  setProgressLog(0);
+                  setProcessedLines(0);
+                  setProgressFile("");
+                }} className="bg-gray-400 text-white px-4 py-2 rounded">
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* MODAL: Cargar Datos */}
+      {showUploadModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/30">
+          <div className="bg-white p-6 rounded-lg shadow-lg w-[32rem] space-y-4">
+            <h2 className="text-lg font-bold mb-2">Cargar Datos</h2>
+            <div className="space-y-3">
+
+              {/* Selección de archivo */}
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-gray-700">Archivo:</span>
+                <div className="flex items-center space-x-3 w-full ml-4">
+                  {/* Input oculto */}
+                  <input
+                    id="fileInput"
+                    type="file"
+                    accept=".xlsx,.xls,.csv,.txt,.json,.xml"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        setUploadedFile(file);
+
+                        //  Extraer nombre base sin extensión
+                        const baseName = file.name.replace(/\.[^/.]+$/, "");
+                        setDatasetName(baseName);
+                      } else {
+                        setUploadedFile(null);
+                      }
+                    }}
+                  />
+                  {/* Botón abrir selector */}
+                  <button
+                    type="button"
+                    onClick={() => document.getElementById("fileInput")?.click()}
+                    className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded shadow text-sm"
+                  >
+                    Seleccionar Archivo
+                  </button>
+                  {/* Nombre del archivo */}
+                  <span className="flex-grow text-gray-900 text-sm text-right pl-3 truncate">
+                    {uploadedFile ? uploadedFile.name : "Ningún archivo seleccionado"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Nombre dataset */}
+              <label className="flex justify-between items-center">
+                <span className="text-sm font-medium text-gray-700">Nombre del Dataset:</span>
+                <input
+                  type="text"
+                  value={datasetName}
+                  onChange={(e) => setDatasetName(e.target.value)}
+                  placeholder="Ej: Ventas2024"
+                  className="border rounded px-2 py-1 w-48"
+                />
+              </label>
+
+              {/* Checkbox cabecera */}
+              <label className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  checked={useHeaders}
+                  onChange={(e) => setUseHeaders(e.target.checked)}
+                />
+                <span className="text-sm">Usar primera fila como cabecera</span>
+              </label>
+
+              {/* Loader de progreso */}
+              {uploading && (
+                <div className="w-full mt-4">
+                  <div className="text-sm text-gray-600 mb-1">Subiendo archivo... {progress}%</div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div
+                      className="bg-blue-600 h-2 rounded-full transition-all"
+                      style={{ width: `${progress}%` }}
+                    ></div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Botones */}
+            <div className="flex justify-end space-x-2 mt-4">
+              <button
+                onClick={handleFileUpload}
+                disabled={uploading}
+                className={`px-4 py-2 rounded text-white ${uploading
+                    ? "bg-gray-400 cursor-not-allowed"
+                    : "bg-blue-600 hover:bg-blue-700"
+                  }`}
+              >
+                {uploading ? "Cargando..." : "Aceptar"}
+              </button>
+              <button
+                onClick={() => setShowUploadModal(false)}
+                disabled={uploading}
+                className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-gray-500"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* MODAL: Cargar Datos Masivo */}
+      {showUploadModalMasivo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/30">
+          <div className="bg-white p-6 rounded-lg shadow-lg w-[32rem] space-y-4">
+            <h2 className="text-lg font-bold mb-2">Cargar Datos Masivos</h2>
+            <div className="space-y-3">
+              {/* Selección de archivo */}
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-gray-700">Archivo:</span>
+                <div className="flex items-center space-x-3 w-full ml-4">
+                  <input
+                    id="fileInputMasivo"
+                    type="file"
+                    accept=".csv,.json,.xml,.txt"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        setUploadedFileMasivo(file);
+
+                        //  Quita la extensión del nombre del archivo
+                        const baseName = file.name.replace(/\.[^/.]+$/, "");
+                        setDatasetNameMasivo(baseName);
+                      } else {
+                        setUploadedFileMasivo(null);
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => document.getElementById("fileInputMasivo")?.click()}
+                    className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded shadow text-sm"
+                  >
+                    Seleccionar Archivo
+                  </button>
+                  <span className="flex-grow text-gray-900 text-sm text-right pl-3 truncate">
+                    {uploadedFileMasivo ? uploadedFileMasivo.name : "Ningún archivo seleccionado"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Nombre dataset */}
+              <label className="flex justify-between items-center">
+                <span className="text-sm font-medium text-gray-700">Nombre del Dataset:</span>
+                <input
+                  type="text"
+                  value={datasetNameMasivo}
+                  onChange={(e) => setDatasetNameMasivo(e.target.value)}
+                  placeholder="Ej: VentasMasivas2024"
+                  className="border rounded px-2 py-1 w-48"
+                />
+              </label>
+              {/* Checkbox cabecera */}
+              <label className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  checked={useHeadersMasivo}
+                  onChange={(e) => setUseHeadersMasivo(e.target.checked)}
+                />
+                <span className="text-sm">Usar primera fila como cabecera</span>
+              </label>
+              {/* Loader de progreso */}
+              {uploadingMasivo && (
+                <div className="w-full mt-4">
+                  <div className="text-sm text-gray-600 mb-1">Subiendo archivo... {progressMasivo}%</div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div
+                      className="bg-blue-600 h-2 rounded-full transition-all"
+                      style={{ width: `${progressMasivo}%` }}
+                    ></div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Botones */}
+            <div className="flex justify-end space-x-2 mt-4">
+              <button
+                onClick={handleFileUploadMasivo}
+                disabled={uploadingMasivo}
+                className={`px-4 py-2 rounded text-white ${uploadingMasivo
+                    ? "bg-gray-400 cursor-not-allowed"
+                    : "bg-blue-600 hover:bg-blue-700"
+                  }`}
+              >
+                {uploadingMasivo ? "Cargando..." : "Aceptar"}
+              </button>
+              <button
+                onClick={() => setShowUploadModalMasivo(false)}
+                disabled={uploadingMasivo}
+                className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-gray-500"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* MODAL: Exportación */}
+      {showExportModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/40">
+          <div className="bg-white p-6 rounded shadow-lg w-80 space-y-4">
+            <h2 className="text-lg font-bold mb-2">Exportar Datos</h2>
+            <p className="text-sm text-gray-600">Selecciona el formato:</p>
+            <div className="flex flex-col space-y-2">
+              <button
+                onClick={() => exportData("xlsx")}
+                className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-green-600"
+              >
+                Excel (.xlsx)
+              </button>
+              <button
+                onClick={() => exportData("csv")}
+                className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-green-600"
+              >
+                CSV (.csv)
+              </button>
+              <button
+                onClick={() => exportData("json")}
+                className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-green-600"
+              >
+                JSON (.json)
+              </button>
+              <button
+                onClick={() => exportData("xml")}
+                className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-green-600"
+              >
+                XML (.xml)
+              </button>
+              <button
+                onClick={() => exportData("txt")}
+                className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-green-600"
+              >
+                TXT (.txt)
+              </button>
+            </div>
+            {/* Selector de pestaña */}
+            <label className="flex flex-col text-sm font-medium text-gray-700">
+              Selecciona la pestaña de muestreo:
+              <select
+                value={selectedTabId}
+                onChange={(e) => setSelectedTabId(e.target.value)}
+                className="mt-1 border rounded px-2 py-1"
+              >
+                <option value="">--Seleccionar pestaña--</option>
+                {tabs.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p className="text-xs text-gray-500">
+              Solo se exportarán los datos de la pestaña seleccionada.
+            </p>
+            <div className="flex justify-end mt-3">
+              <button
+                onClick={() => setShowExportModal(false)}
+                className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* MODAL: Exportación Masivo */}
+      {showExportModalMasivo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/40">
+          <div className="bg-white p-6 rounded shadow-lg w-80 space-y-4">
+            <h2 className="text-lg font-bold mb-2">Exportar Datos Masivos</h2>
+
+            {/* 🔁 INTERRUPTOR DE MODO */}
+            <div className="flex items-center space-x-2 border border-gray-300 rounded px-2 py-1 bg-gray-50">
+              <input
+                id="streamingToggle"
+                type="checkbox"
+                checked={useStreaming}
+                onChange={(e) => setUseStreaming(e.target.checked)}
+                className="cursor-pointer w-4 h-4 accent-green-600"
+              />
+              <label htmlFor="streamingToggle" className="text-sm text-gray-700 select-none">
+                Usar exportación segura (Streaming)
+              </label>
+            </div>
+
+            <p className="text-sm text-gray-600">Selecciona el formato:</p>
+
+            {/* BOTONES DE EXPORTACIÓN */}
+            <div className="flex flex-col space-y-2">
+              <button
+                onClick={() =>
+                  useStreaming
+                    ? exportDataMasivoStreaming("csv")
+                    : exportDataMasivo("csv")
+                }
+                className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-green-600"
+              >
+                CSV (.csv)
+              </button>
+              <button
+                onClick={() =>
+                  useStreaming
+                    ? exportDataMasivoStreaming("json")
+                    : exportDataMasivo("json")
+                }
+                className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-green-600"
+              >
+                JSON (.json)
+              </button>
+              <button
+                onClick={() =>
+                  useStreaming
+                    ? exportDataMasivoStreaming("xml")
+                    : exportDataMasivo("xml")
+                }
+                className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-green-600"
+              >
+                XML (.xml)
+              </button>
+              <button
+                onClick={() =>
+                  useStreaming
+                    ? exportDataMasivoStreaming("txt")
+                    : exportDataMasivo("txt")
+                }
+                className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-green-600"
+              >
+                TXT (.txt)
+              </button>
+            </div>
+
+            {/* SELECCIONADOR DE PESTAÑA */}
+            <label className="flex flex-col text-sm font-medium text-gray-600">
+              Selecciona la pestaña de muestreo:
+              <select
+                value={selectedTabIdMasivo}
+                onChange={(e) => setSelectedTabIdMasivo(e.target.value)}
+                className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1"
+              >
+                {tabs.map((tab) => (
+                  <option key={tab.id} value={tab.id}>
+                    {tab.name} — {tab.source || "Sin fuente registrada"}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            {/* BOTÓN DE CIERRE */}
+            <div className="flex justify-end mt-3">
+              <button
+                onClick={() => setShowExportModalMasivo(false)}
+                className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+    </div>
   );
 }

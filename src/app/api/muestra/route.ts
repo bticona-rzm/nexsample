@@ -466,33 +466,47 @@ export async function POST(req: Request) {
 
     // === HISTORIAL ===
     if (action === "historial") {
-      const { userId } = options;
-      console.log("🟢 Consultando historial estándar:",userId);
-      if (!userId) return NextResponse.json({ error: "Falta userId" }, { status: 400 });
       try {
+        const { userId } = options; // <-- AQUI USAMOS 'options', NO 'body'
+
+        if (!userId) {
+          return NextResponse.json(
+            { error: "Falta userId" },
+            { status: 400 }
+          );
+        }
+
+        // TU MODELO REAL ES historialMuestra
         const historial = await prisma.historialMuestra.findMany({
-          where: { userId},
+          where: { userId },
           orderBy: { createdAt: "desc" },
-          include: { user: { select: { name: true, email: true } } },
         });
 
-        const result = historial.map((h) => ({
-          id: h.id,
-          name: h.name,
-          createdAt: h.createdAt,
-          userDisplay: h.user?.name ?? h.user?.email ?? h.userId,
-          records: h.records,
-          range: h.range,
-          seed: h.seed,
-          allowDuplicates: h.allowDuplicates,
-          source: h.source,
-          hash: h.hash,
-          tipo: h.tipo,
-        }));
+        const respuesta = {
+          imports: [],
+          muestras: historial.map((x: any) => ({
+            id: x.id,
+            name: x.name,
+            fecha: x.createdAt,
+            hash: x.hash,
+            user: x.userId,
+            records: x.records,
+            range: x.range,
+            seed: x.seed,
+            allowDuplicates: x.allowDuplicates,
+            source: x.source,
+          })),
+          exports: [],
+        };
 
-        return NextResponse.json(result);
-      } catch (err: any) {
-        return NextResponse.json({ error: "Error al consultar historial", details: err.message }, { status: 500 });
+        return NextResponse.json(respuesta);
+
+      } catch (e) {
+        console.error("Error historial:", e);
+        return NextResponse.json(
+          { error: "No se pudo obtener historial" },
+          { status: 500 }
+        );
       }
     }
 
