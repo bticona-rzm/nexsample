@@ -6,6 +6,9 @@ export interface SampleSettings {
     sampleInterval: number;
     highValueLimit: number;
     precisionValue: number; // Valor 'A' (precisión)
+    tolerableError: number;
+    populationValue: number;
+    sampleSize: number;
 }
 
 // Datos de entrada que el front-end enviará al back-end

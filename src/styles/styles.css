@@ -549,3 +549,23 @@
     page-break-inside: avoid;
   }
 }
+
+/* En tu archivo global CSS o en un CSS module */
+@media print {
+  .print-hidden {
+    display: none !important;
+  }
+  
+  .page-break {
+    page-break-after: always;
+  }
+  
+  body {
+    font-size: 12px;
+    line-height: 1.2;
+  }
+  
+  table {
+    font-size: 10px;
+  }
+}

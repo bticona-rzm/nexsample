@@ -1,32 +1,34 @@
 // /lib/apiClient.ts
+import * as XLSX from 'xlsx';
 
-// --- Funciones de Muestreo por Atributos ---
-type RandomSampleParams = {
-    excelData: any[];
-    calculatedSampleSize: number;
-    startRandomNumber: number;
-    startRecordToSelect: number;
-    endRecordToSelect: number;
-    allowDuplicates: boolean;
-};
+// --- TIPOS UNIFICADOS ---
 
-type EvaluationParams = {
-    evaluatedSampleSize: number;
-    observedDeviations: number;
-    desiredConfidence: number;
-};
+export type ExcelRow = Record<string, string | number | null>;
 
-export type ExcelRow = Record<string, string | number | null>; 
+export type PopulationType = "positive" | "negative" | "absolute";
+export type ErrorType = "importe" | "percentage";
+export type PrecisionLimits = 'upper' | 'upper-lower';
+export type EvaluationMethod = 'cell' | 'classical-pps' | 'stringer-bound';
 
-type PlanificationParams = {
+// --- INTERFACES PRINCIPALES ---
+
+interface BasePlanificationParams {
+    confidenceLevel: number;
+    errorType: ErrorType;
+    tolerableError: number;
+    expectedError: number;
+}
+
+export interface FetchDataResponse {
+    headers: string[];
+    data: ExcelRow[];
+}
+
+export interface MumPlanificationParams extends BasePlanificationParams {
     excelData: ExcelRow[];
     useFieldValue: boolean;
     selectedField: string | null;
-    selectedPopulationType: "positive" | "negative" | "absolute";
-    confidenceLevel: number;
-    errorType: "importe" | "percentage";
-    tolerableError: number;
-    expectedError: number;
+    selectedPopulationType: PopulationType;
     modifyPrecision: boolean;
     precisionValue: number;
     populationSize: number;
@@ -34,258 +36,24 @@ type PlanificationParams = {
     tolerableDeviation: number;
     alphaConfidenceLevel: number;
     controlType: string;
-};
-
-type PlanificationResult = {
-    estimatedPopulationValue: number;
-    estimatedSampleSize: number;
-    sampleInterval: number;
-    tolerableContamination: number;
-    conclusion: string;
-    minSampleSize: number;
-};
-
-/**
- * Función para cargar y procesar un archivo en el backend.
- * Nota: Esta función asume que tienes una ruta /api/atributos/upload
- * que maneja la lógica del servidor para leer el archivo.
- */
-export const fetchData = async (file: File) => {
-    const formData = new FormData();
-    formData.append("file", file);
-
-    // CORRECCIÓN CLAVE: La URL de subida DEBE apuntar a la ruta que estás definiendo abajo.
-    const response = await fetch("/api/upload", { 
-        method: "POST",
-        body: formData,
-    });
-
-    if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Respuesta del servidor:", errorText);
-        throw new Error('Error al cargar el archivo en el servidor.');
-    }
-    
-    return response.json();
-};
-
-export async function calculatePlanification(
-    planificationData: {
-        populationSize: number;
-        expectedDeviation: number;
-        tolerableDeviation: number;
-        confidenceLevel: number;
-        alphaConfidenceLevel: number;
-        controlType: string;
-    },
-    // Añade el archivo (File) como argumento
-    dataFile: File | null 
-) {
-    if (!dataFile) {
-        throw new Error('Debe proporcionar un archivo de datos para la planificación.');
-    }
-    
-    // 1. Crear el FormData
-    const formData = new FormData();
-    
-    // 2. Adjuntar el archivo
-    formData.append('file', dataFile); // El backend esperará un campo llamado 'file'
-    
-    // 3. Adjuntar los metadatos JSON como un string (clave: 'data')
-    // Es CRÍTICO que el backend sepa parsear este campo 'data' como JSON.
-    formData.append('data', JSON.stringify(planificationData));
-
-    // Nota: Cuando se usa FormData, NO se debe establecer 'Content-Type': 'application/json'
-    const response = await fetch('/api/atributos/planification', {
-        method: 'POST',
-        // Headers ya no incluyen 'Content-Type', el navegador lo establece automáticamente
-        body: formData, 
-    });
-
-    if (!response.ok) {
-        const status = response.status;
-        let errorMessage = 'El servidor no pudo procesar la solicitud.';
-
-        try {
-            // 1. Intenta parsear el cuerpo de la respuesta como JSON.
-            const errorData = await response.json();
-            
-            // 2. Busca el mensaje de error real en la respuesta del servidor (backend).
-            //    Asume que el backend usa campos comunes como 'message' o 'error'.
-            errorMessage = errorData.message || errorData.error || errorMessage;
-            
-        } catch (e) {
-            // Si falla el parseo (ej: la respuesta es un texto simple o HTML),
-            // se mantiene el mensaje por defecto.
-        }
-        
-        // Lanza un error mucho más informativo para el cliente y la consola.
-        throw new Error(`Error en la planificación (HTTP ${status}): ${errorMessage}`);
-    }
-
-    return response.json();
 }
 
-/**
- * Función para generar la muestra aleatoria por atributos.
- */
-export async function createRandomSample(sampleData: {
-    calculatedSampleSize: number;
-    startRandomNumber: number;
-    startRecordToSelect: number;
-    endRecordToSelect: number;
-    allowDuplicates: boolean;
-    excelData: any[];
-}) {
-    const response = await fetch('/api/atributos/aleatorio', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(sampleData),
-    });
-
-    if (!response.ok) {
-        throw new Error('Error al generar la muestra aleatoria.');
-    }
-
-    return response.json();
+export interface IdeaPlanificationParams extends BasePlanificationParams {
+    excelData: ExcelRow[];
+    useFieldValue: boolean;
+    selectedField: string | null;
+    selectedPopulationType: PopulationType;
+    estimatedPopulationValue?: number;
 }
 
-/**
- * Función para evaluar la muestra por atributos.
- */
+interface EvaluationParams {
+    evaluatedSampleSize: number;
+    observedDeviations: number;
+    desiredConfidence: number;
+}
 
-export const calculateEvaluation = async (params: EvaluationParams): Promise<EvaluationResult> => {
-    const response = await fetch('/api/atributos/evaluar', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(params),
-    });
-
-    if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Fallo en la evaluación del muestreo.');
-    }
-
-    return response.json();
-};
-
-/**
- * Función principal que llama a la API del servidor para realizar la evaluación completa.
- * @param data Los datos del formulario del frontend.
- * @returns Una promesa con los resultados de la evaluación.
- */
-export const performEvaluation = async (data: EvaluationData): Promise<EvaluationResult> => {
-    // LLAMADA AL ENDPOINT DEL SERVIDOR (URL ASUMIENDO LA RUTA DE CARPETA MUM)
-    const response = await fetch('/api/mum/evaluation', { 
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data), // Envía los datos (incluyendo el contenido del archivo)
-    });
-
-    if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Respuesta del servidor:", errorText);
-        throw new Error(`Error al evaluar la muestra. Detalles: ${response.status} - ${errorText}`);
-    }
-
-    const result = await response.json();
-    return result as EvaluationResult;
-};
-
-export const mumApi = {
-    planification: async (params: PlanificationParams): Promise<PlanificationResult> => {
-        const response = await fetch('/api/mum/planification', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(params),
-        });
-
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Fallo en la planificación del muestreo MUM.');
-        }
-
-        return response.json();
-    },
-    // ... aquí se añadirán extraction y summary ...
-    extraction: async (body: any): Promise<Blob> => {
-        // Esta función retornará un blob/archivo, por lo que su implementación es diferente.
-        // La dejaremos pendiente hasta implementar el route.ts de extraction.
-        throw new Error("MUM Extraction not implemented yet.");
-    },
-    summary: async (body: any): Promise<any> => {
-        // 1. Quitar el 'throw new Error()' para que el flujo no se detenga.
-        // console.log("MUM Summary route called with body:", body); 
-        
-        await new Promise(resolve => setTimeout(resolve, 500)); // Simular retraso de red
-
-        // Determinar el método de evaluación del body (asumiendo que viene en la solicitud)
-        const evaluationMethod = body.evaluationMethod || 'cell-classical'; 
-        const isCellClassical = evaluationMethod === 'cell-classical';
-
-        const baseResults = {
-            // Datos comunes a ambos métodos (con valores simulados)
-            isEvaluationDone: true,
-            confidenceLevel: body.confidenceLevel || 95.00, // Usar el valor enviado
-            sampleInterval: 50000.00,
-            precisionValue: 105510.51,
-            populationExcludingHigh: 990000.00,
-            populationIncludingHigh: 1500000.00,
-            estimatedSampleSize: body.sampleSize || 100, // Usar el valor enviado
-            numErrores: 2,
-            errorMasProbableBruto: 8550.00,
-            errorMasProbableNeto: -1500.00,
-            precisionTotal: 105000.00,
-            limiteErrorSuperiorBruto: 110000.00,
-            limiteErrorSuperiorNeto: -95000.00,
-            highValueCountResume: 5,
-            // Los props que no vienen de 'results' deben ser manejados en el componente padre
-            // Por eso, no se incluyen setActiveTab ni handleSummary aquí.
-        };
-        
-        // **NOTA CLAVE:** highValueLimit y highValueTotal son cruciales,
-        // pero son más relevantes en 'cell-classical'. Los simularemos.
-
-        const responseResults = {
-            isEvaluationDone: true,
-            confidenceLevel: body.confidenceLevel || 95.00,
-            sampleInterval: 50000.00,
-            precisionValue: 105510.51,
-            populationExcludingHigh: 990000.00,
-            populationIncludingHigh: 1500000.00,
-            estimatedSampleSize: body.sampleSize || 100,
-            numErrores: 2,
-            errorMasProbableBruto: 8550.00,
-            errorMasProbableNeto: -1500.00,
-            precisionTotal: 105000.00,
-            limiteErrorSuperiorBruto: 110000.00,
-            limiteErrorSuperiorNeto: -95000.00,
-
-            // Datos específicos de Valores Altos (CRUCIALES para el error actual)
-            // Se incluyen en ambos métodos por si el componente los usa en el Stringer Bound también, 
-            // aunque son más relevantes para Cell/PPS Clásico.
-            highValueLimit: 10000.00, 
-            highValueCountResume: isCellClassical ? 5 : 0, 
-            highValueTotal: isCellClassical ? 510000.00 : 0.00,
-        };
-
-        return {
-            status: "success",
-            method: evaluationMethod,
-            results: responseResults
-        };
-    },
-};
-
-// Definimos la interfaz para los datos de entrada
-interface EvaluationData {
-    method: 'cell' | 'classical-pps';
+export interface MumEvaluationData {
+    method: EvaluationMethod;
     fields: {
         bookValue: string;
         auditedValue: string;
@@ -296,6 +64,7 @@ interface EvaluationData {
         populationValue: number;
         sampleSize: number;
         precisionPricing?: number;
+        sampleInterval?: number;
     };
     highValueHandling: {
         isFile: boolean;
@@ -303,16 +72,28 @@ interface EvaluationData {
         bookValueHigh?: string;
         auditedValueHigh?: string;
         referenceHigh?: string;
+        highValueItems?: any[];
     };
-    precisionLimits: 'upper' | 'upper-lower';
+    precisionLimits: PrecisionLimits;
     resultName: string;
-    // Aquí se incluirá la referencia al archivo Excel original
-    // Por ejemplo, su contenido en un formato que puedas procesar
-    excelFileContent: ArrayBuffer; 
+    sampleData: any[];
+    populationExcludingHigh?: number;
+    highValueTotal?: number;
+    highValueCountResume?: number;
 }
 
-// Interfaz para los resultados que devolverá la función de evaluación
-interface EvaluationResult {
+interface PlanificationResult {
+    estimatedPopulationValue: number;
+    estimatedSampleSize: number;
+    sampleInterval: number;
+    tolerableContamination: number;
+    conclusion: string;
+    minSampleSize: number;
+    randomStartPoint?: number;
+    highValueLimit?: number;
+}
+
+export interface EvaluationResult {
     confidenceLevel: number;
     sampleInterval: number;
     highValueLimit: number;
@@ -328,33 +109,401 @@ interface EvaluationResult {
     limiteErrorSuperiorBruto: number;
     limiteErrorSuperiorNeto: number;
     highValueCountResume: number;
-    sampleDeviationRate: number;
-    unilateralUpperLimit: number;
-    bilateralLowerLimit: number;
-    bilateralUpperLimit: number;
+    sampleDeviationRate?: number;
+    unilateralUpperLimit?: number;
+    bilateralLowerLimit?: number;
+    bilateralUpperLimit?: number;
+    // Datos específicos de métodos
+    cellClassicalData?: any;
+    stringerBoundData?: any;
 }
 
+// --- FUNCIONES DE ARCHIVOS ---
 
-export const estimateSample = async (data: {
-    estimatedPopulationValue: number;
-    confidenceLevel: number;
-    tolerableError: number;
-    expectedError: number;
-    errorType: "importe" | "percentage"; // <--- ¡Añadir este campo!
-}) => {
-    const response = await fetch('/api/mum/planification', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
+/**
+ * Función para cargar y procesar un archivo en el backend
+ */
+/**
+ * ✅ Función ORIGINAL - solo datos
+ */
+export const fetchData = async (file: File): Promise<ExcelRow[]> => {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await fetch("/api/upload", { 
+        method: "POST",
+        body: formData,
     });
-    return response.json();
+
+    if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Respuesta del servidor:", errorText);
+        throw new Error('Error al cargar el archivo en el servidor.');
+    }
+    
+    const data = await response.json();
+    return data as ExcelRow[];
 };
 
+/**
+ * ✅ NUEVA función con headers y datos
+ */
+export const fetchDataWithHeaders = async (file: File): Promise<FetchDataResponse> => {
+    const formData = new FormData();
+    formData.append("file", file);
 
+    const response = await fetch("/api/upload", { 
+        method: "POST",
+        body: formData,
+    });
 
+    if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Respuesta del servidor:", errorText);
+        throw new Error('Error al cargar el archivo en el servidor.');
+    }
+    
+    const result = await response.json();
+    
+    // Si el backend ya devuelve headers, usarlos
+    if (result.headers && result.data) {
+        return {
+            headers: result.headers,
+            data: result.data as ExcelRow[]
+        };
+    } else {
+        // Si no, extraer headers de los datos
+        const data = result as ExcelRow[];
+        const headers = data.length > 0 ? Object.keys(data[0]) : [];
+        return {
+            headers,
+            data
+        };
+    }
+};
+/**
+ * Leer archivo Excel directamente en el frontend
+ */
+export const readExcelFile = (file: File): Promise<ExcelRow[]> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        
+        reader.onload = (e) => {
+            try {
+                const data = new Uint8Array(e.target?.result as ArrayBuffer);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                const jsonData = XLSX.utils.sheet_to_json(worksheet);
+                
+                // ✅ CORRECCIÓN: Type assertion para unknown[] -> ExcelRow[]
+                const typedData = jsonData as ExcelRow[];
+                resolve(typedData);
+                
+            } catch (error) {
+                reject(new Error('Error leyendo archivo Excel: ' + error));
+            }
+        };
+        
+        reader.onerror = () => reject(new Error('Error leyendo archivo'));
+        reader.readAsArrayBuffer(file);
+    });
+};
 
-// ... otros tipos de Extraction y Summary ...
+// --- FUNCIONES DE FORMATEO ---
 
-// --- Funciones de la API para MUM ---
+/**
+ * Función para formatear números con separadores de miles y decimales
+ */
+export const formatNumber = (value: number, decimals: number = 2): string => {
+    if (value === null || value === undefined || isNaN(value)) {
+        return '0.00';
+    }
+    return new Intl.NumberFormat('en-US', {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals,
+    }).format(value);
+};
+
+/**
+ * Parseo para formato inglés
+ */
+const parseFormattedNumber = (value: string): number => {
+    if (!value) return 0;
+    const cleanedValue = value.replace(/,/g, '');
+    const parsed = parseFloat(cleanedValue);
+    return isNaN(parsed) ? 0 : parsed;
+};
+
+/**
+ * Función específica para errores que dependen del tipo
+ */
+export const formatErrorValue = (value: number, isPercentage: boolean): string => {
+    return formatNumber(value, isPercentage ? 2 : 0);
+};
+
+/**
+ * Función para manejar el cambio en los inputs de error
+ */
+export const handleErrorChange = (
+    value: string, 
+    setter: (value: number) => void, 
+    isPercentage: boolean
+): void => {
+    const parsed = parseFormattedNumber(value);
+    if (!isNaN(parsed)) {
+        setter(parsed);
+    }
+};
+
+// --- API CLIENT UNIFICADO ---
+
+export const apiClient = {
+    // ✅ MUESTREO POR ATRIBUTOS
+    atributos: {
+        planification: async (planificationData: any, dataFile: File | null) => {
+            if (!dataFile) {
+                throw new Error('Debe proporcionar un archivo de datos para la planificación.');
+            }
+            
+            const formData = new FormData();
+            formData.append('file', dataFile);
+            formData.append('data', JSON.stringify(planificationData));
+
+            const response = await fetch('/api/atributos/planification', {
+                method: 'POST',
+                body: formData,
+            });
+
+            if (!response.ok) {
+                const status = response.status;
+                let errorMessage = 'El servidor no pudo procesar la solicitud.';
+
+                try {
+                    const errorData = await response.json();
+                    errorMessage = errorData.message || errorData.error || errorMessage;
+                } catch (e) {
+                    // Mantener mensaje por defecto
+                }
+                
+                throw new Error(`Error en la planificación (HTTP ${status}): ${errorMessage}`);
+            }
+
+            return response.json();
+        },
+
+        createRandomSample: async (sampleData: any) => {
+            const response = await fetch('/api/atributos/aleatorio', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(sampleData),
+            });
+
+            if (!response.ok) {
+                // ✅ CAPTURAR EL ERROR ESPECÍFICO DEL SERVIDOR
+                let errorMessage = 'Error al generar la muestra aleatoria.';
+                try {
+                    const errorData = await response.json();
+                    errorMessage = errorData.error || errorMessage;
+                    console.error("❌ Error del servidor:", errorData);
+                } catch (e) {
+                    console.error("❌ Error parsing response:", e);
+                    errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+                }
+                throw new Error(errorMessage);
+            }
+
+            return response.json();
+        },
+
+        calculateEvaluation: async (params: EvaluationParams): Promise<EvaluationResult> => {
+            const response = await fetch('/api/atributos/evaluar', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(params),
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Fallo en la evaluación del muestreo.');
+            }
+
+            return response.json();
+        }
+    },
+
+    // ✅ MUESTREO DE UNIDADES MONETARIAS (MUM)
+    mum: {
+        // Planificación
+        planification: async (params: MumPlanificationParams): Promise<PlanificationResult> => {
+            const response = await fetch('/api/mum/planification', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(params),
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Fallo en la planificación del muestreo MUM.');
+            }
+
+            return response.json();
+        },
+
+        ideaPlanification: async (params: IdeaPlanificationParams): Promise<PlanificationResult> => {
+            const response = await fetch('/api/idea/planification', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(params),
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Fallo en la planificación IDEA.');
+            }
+
+            return response.json();
+        },
+
+        // Extracción
+        extraction: async (body: any): Promise<any> => {
+            const response = await fetch('/api/mum/extraction', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Error en la extracción');
+            }
+
+            return response.json();
+        },
+
+        // Evaluación
+        evaluate: async (data: MumEvaluationData): Promise<EvaluationResult> => {
+            const response = await fetch('/api/mum/evaluation', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data),
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error("Respuesta del servidor:", errorText);
+                throw new Error(`Error al evaluar la muestra. Detalles: ${response.status} - ${errorText}`);
+            }
+
+            return response.json();
+        },
+
+        cellClassicalEvaluation: async (data: any): Promise<EvaluationResult> => {
+            const response = await fetch('/api/mum/evaluation/cell-classical', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data),
+            });
+            
+            if (!response.ok) {
+                throw new Error('Error en evaluación Cell & Classical');
+            }
+            
+            return response.json();
+        },
+
+        stringerBoundEvaluation: async (data: any): Promise<EvaluationResult> => {
+            const response = await fetch('/api/mum/evaluation/stringer-bound', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data),
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                console.error("❌ Error response:", errorData);
+                throw new Error(errorData.error || 'Error en evaluación Stringer Bound');
+            }
+            
+            return response.json();
+        },
+
+        // Resumen
+        summary: async (body: any): Promise<any> => {
+            const response = await fetch('/api/mum/summary', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Error en el resumen');
+            }
+
+            return response.json();
+        }
+    },
+
+    // ✅ ESTIMACIÓN DE MUESTRA (función auxiliar)
+    estimateSample: async (data: {
+        estimatedPopulationValue: number;
+        confidenceLevel: number;
+        tolerableError: number;
+        expectedError: number;
+        errorType: ErrorType;
+    }) => {
+        const response = await fetch('/api/mum/planification', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Error en la estimación de muestra');
+        }
+
+        return response.json();
+    }
+};
+
+// --- ALIAS PARA BACKWARD COMPATIBILITY ---
+
+/**
+ * @deprecated Use apiClient.mum.evaluate instead
+ */
+export const performEvaluation = apiClient.mum.evaluate;
+
+/**
+ * @deprecated Use apiClient.mum.stringerBoundEvaluation instead  
+ */
+export const StringerBoundClient = {
+    evaluate: apiClient.mum.stringerBoundEvaluation
+};
+
+/**
+ * @deprecated Use apiClient.estimateSample instead
+ */
+export const estimateSample = apiClient.estimateSample;
+
+/**
+ * @deprecated Use apiClient.atributos.calculateEvaluation instead
+ */
+export const calculateEvaluation = apiClient.atributos.calculateEvaluation;
+
+/**
+ * @deprecated Use apiClient.atributos.createRandomSample instead
+ */
+export const createRandomSample = apiClient.atributos.createRandomSample;
+
+/**
+ * @deprecated Use apiClient.mum.planification instead
+ */
+export const mumApi = {
+    planification: apiClient.mum.planification,
+    extraction: apiClient.mum.extraction,
+    summary: apiClient.mum.summary,
+    cellClassicalEvaluation: apiClient.mum.cellClassicalEvaluation,
+    stringerBoundEvaluation: apiClient.mum.stringerBoundEvaluation
+};
