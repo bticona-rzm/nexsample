@@ -23,16 +23,8 @@ interface SampleOptions {
   allowDuplicates: boolean;
   fileName?: string;
 }
-
 // ---------- Configuración ----------
 const DATASETS_DIR = "F:/datasets";
-
-// // Un solo store global
-// if (!(globalThis as any).datasetStore) {
-//   (globalThis as any).datasetStore = {};
-// }
-// const datasetStore: Record<string, { rows: RowData[] }> = (globalThis as any).datasetStore;
-
 
 // ---------- Utilidades ----------
 function mulberry32(a: number) {
@@ -43,7 +35,6 @@ function mulberry32(a: number) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-
 function randomSample(
   array: RowData[],
   n: number,
@@ -75,11 +66,9 @@ function randomSample(
   }
   return result;
 }
-
 function generateHash(data: any): string {
   return createHash("sha256").update(JSON.stringify(data)).digest("hex").slice(0, 12);
 }
-
 function toXML(rows: RowData[]): string {
   let xml = "<rows>\n";
   rows.forEach((row) => {
@@ -92,7 +81,6 @@ function toXML(rows: RowData[]): string {
   xml += "</rows>";
   return xml;
 }
-
 // === DETECTOR UNIVERSAL DE DELIMITADOR ===
 function detectarDelimitador(linea: string): string {
   const candidatos = [";", "|", "\t", ","];
@@ -112,10 +100,40 @@ function detectarDelimitador(linea: string): string {
 
 // ---------- API ----------
 export async function POST(req: Request) {
+  async function registrarExport({
+    userId,
+    nombreExportado,
+    rutaExportacion,
+    formato,
+    rangoInicio,
+    rangoFin,
+    registrosExportados,
+    muestraId,
+    archivoFuenteNombre
+  }: any) {
+    try {
+      await prisma.historialExport.create({
+        data: {
+          nombreExportado,
+          rutaExportacion,
+          formatoExportacion: formato,
+          rangoInicio,
+          rangoFin,
+          registrosExportados,
+          muestraId,
+          archivoFuenteNombre,
+          usuarioId: userId,
+        },
+      });
+    } catch (err) {
+      console.error("❌ Error guardando historial de exportación:", err);
+    }
+  }
   try {
     const contentType = req.headers.get("content-type") || "";
 
     //  1) SUBIDA DESDE EL MODAL
+    // === SUBIDA DESDE EL MODAL (IMPORTACIÓN ESTÁNDAR) ===
     if (contentType.includes("multipart/form-data")) {
       const formData = await req.formData();
       const file = formData.get("file") as File | null;
@@ -123,72 +141,66 @@ export async function POST(req: Request) {
       const useHeader = formData.get("useHeader") === "true";
 
       if (!file) {
-        return NextResponse.json({ error: "No se recibió ningún archivo" }, { status: 400 });
+        return NextResponse.json({ error: "No se recibió archivo" }, { status: 400 });
       }
 
-      //  Detección de formato
+      // Detectar formato
       const lower = file.name.toLowerCase();
       const isXlsx = lower.endsWith(".xlsx") || lower.endsWith(".xls");
       const isCsv = lower.endsWith(".csv") || lower.endsWith(".txt");
       const isJson = lower.endsWith(".json");
       const isXml = lower.endsWith(".xml");
       const format = lower.split(".").pop() || "desconocido";
-      console.log(`📁 Subida de archivo: ${file.name} (formato: ${format})`);
-      
-      //  Crear carpeta datasets si no existe
+
+      // Crear carpeta
       fs.mkdirSync(DATASETS_DIR, { recursive: true });
 
-      //  Limpiar nombre del archivo (sin espacios ni caracteres raros)
+      // Nombre seguro
       const safeName = file.name.replace(/\s+/g, "_").replace(/[^\w.-]/g, "");
       const savePath = path.join(DATASETS_DIR, safeName);
-      
-      //  Buffer
-      const bytes = await file.arrayBuffer();
-      const buffer = Buffer.from(bytes);
 
-      //  Guardar archivo en disco
+      // Buffer
+      const buffer = Buffer.from(await file.arrayBuffer());
+
+      // Guardar archivo
       fs.writeFileSync(savePath, buffer);
-      console.log(" Archivo guardado en:", savePath);
 
-      // Parseo del contenido
+      // Parsear contenido
       const rows: RowData[] = [];
 
+      let sheetName: string | null = null;   // 
+      let delimitadorDetectado: string | null = null;
+
       if (isXlsx) {
-        // Leemos directamente desde el buffer para evitar bloqueo del archivo
         const wb = XLSX.read(buffer, { type: "buffer" });
-        const sheetName = wb.SheetNames[0];
+        sheetName = wb.SheetNames[0];
         const ws = wb.Sheets[sheetName];
         const json = XLSX.utils.sheet_to_json(ws, { header: useHeader ? undefined : 1 });
-        rows.push(...(Array.isArray(json) ? (json as RowData[]) : [json as RowData]));
+        rows.push(...(Array.isArray(json) ? json : [json]) as RowData[]);
       }
       else if (isCsv) {
         const primeraLinea = buffer.toString("utf8").split(/\r?\n/)[0];
-        const delimitador = detectarDelimitador(primeraLinea);
-
-        console.log("📌 Delimitador detectado:", delimitador);
+        delimitadorDetectado = detectarDelimitador(primeraLinea);
 
         await new Promise<void>((resolve, reject) => {
           fs.createReadStream(savePath)
-            .pipe(csv({ separator: delimitador }))
-            .on("data", (row: any) => rows.push(row as RowData))
+            .pipe(csv({ separator: delimitadorDetectado! }))
+            .on("data", (row: any) => rows.push(row))
             .on("end", resolve)
             .on("error", reject);
         });
       }
       else if (isJson) {
         const json = JSON.parse(buffer.toString("utf8"));
-        rows.push(...(Array.isArray(json) ? json : [json]) as RowData[]);
-      } 
+        rows.push(...(Array.isArray(json) ? json : [json]));
+      }
       else if (isXml) {
         await new Promise<void>((resolve, reject) => {
           const xmlStream = xmlFlow(fs.createReadStream(savePath));
-          xmlStream.on("tag:row", (row: any) => rows.push(row as RowData));
+          xmlStream.on("tag:row", (row: any) => rows.push(row));
           xmlStream.on("end", resolve);
           xmlStream.on("error", reject);
         });
-      } 
-      else {
-        return NextResponse.json({ error: "Formato de archivo no soportado" }, { status: 400 });
       }
 
       // Guardar en memoria global
@@ -197,12 +209,52 @@ export async function POST(req: Request) {
         rows,
         fileName: safeName,
         displayName: datasetName,
-        format: lower.split(".").pop(),
+        format,
       };
 
-      console.log(` Dataset '${datasetName}' cargado con ${rows.length} filas`);
+      // ========= REGISTRAR IMPORTACIÓN ==========
+      try {
+        const session = await getServerSession(authOptions);
+        const userId = session?.user?.id;
 
-      // Respuesta final
+        if (userId) {
+          await prisma.historialImport.create({
+            data: {
+              nombreArchivo: safeName,
+              rutaArchivo: savePath,
+              tamanoBytes: buffer.length,
+              tipoMime: file.type ?? null,
+
+              origenDatos: isXlsx
+                ? "excel"
+                : isCsv
+                ? "csv/txt"
+                : isJson
+                ? "json"
+                : isXml
+                ? "xml"
+                : "desconocido",
+
+              nombreHoja: sheetName,
+              tieneEncabezados: useHeader,
+              delimitadorDetectado,
+              previewInicio: 1,
+              previewFin: rows.length > 5 ? 5 : rows.length,
+              registrosTotales: rows.length,
+              datasetId,
+              metadata: {
+                originalName: file.name,
+                format,
+              },
+              usuarioId: userId, // ← YA NO ES undefined
+            },
+          });
+        }
+      } catch (err) {
+        console.error("❌ Error registrando importación:", err);
+      }
+
+      // === Respuesta final ===
       return NextResponse.json({
         datasetId,
         rows,
@@ -321,131 +373,104 @@ export async function POST(req: Request) {
 
     // === EXPORT ===
     if (action === "export") {
-      const { datasetId, format, rows: providedRows } = options as {
-        datasetId?: string;
-        format: string;
-        rows?: RowData[];
-      };
+      const session = await getServerSession(authOptions);
+      const userId = session?.user?.id;
 
-      // Preferir rows proporcionadas en el body (cliente puede enviar la muestra directamente)
-      let rows: RowData[] | undefined = providedRows as RowData[] | undefined;
+      const { datasetId, format, rows: providedRows } = options;
 
-      // Si no hay rows en el body, buscar el dataset en memoria por datasetId
-      let meta: any;
+      let rows = providedRows;
+      let meta;
+
       if (!rows) {
         if (!datasetId) {
-          console.error("⚠️ No se proporcionó datasetId ni rows para exportar");
           return NextResponse.json({ error: "Falta datasetId o rows" }, { status: 400 });
         }
 
-        //  Buscar primero en memoria (estándar o masivo)
         meta =
-        datasetStoreEstandar[datasetId] ||
-        datasetStoreMasivo[datasetId] ||
-        (globalThis as any).datasetStore?.[datasetId] ||
-        (globalThis as any).datasetStoreMasivo?.[datasetId];
+          datasetStoreEstandar[datasetId] ||
+          datasetStoreMasivo[datasetId];
 
         if (!meta) {
-          console.error("⚠️ Dataset no encontrado en memoria:", datasetId);
           return NextResponse.json({ error: "Dataset no registrado" }, { status: 404 });
         }
 
         rows = meta.rows;
       }
+
       if (!rows || rows.length === 0) {
         return NextResponse.json({ error: "Dataset vacío" }, { status: 400 });
       }
-      // 🔹 Nombre seguro del archivo
+
       const safeName = meta?.fileName || datasetId || "dataset";
-      
-      //  Exportar como JSON
+      const exportName = `${safeName}.${format}`;
+      const exportPath = path.join(DATASETS_DIR, exportName);
+
+      // GUARDAR EXPORTACIÓN EN HISTORIAL (solo si es muestreo)
+      if (userId) {
+        await registrarExport({
+          userId,
+          nombreExportado: exportName,
+          rutaExportacion: exportPath,
+          formato: format.toUpperCase(),
+          rangoInicio: rows[0]?._POS_ORIGINAL ?? 0,
+          rangoFin: rows[rows.length - 1]?._POS_ORIGINAL ?? rows.length,
+          registrosExportados: rows.length,
+          muestraId: datasetId,
+          archivoFuenteNombre: meta?.fileName || "desconocido"
+        });
+      }
+
+      // ---------------------------------------------
+      // AHORA GENERAR Y DEVOLVER EL ARCHIVO EXPORTADO
+      // ---------------------------------------------
+
       if (format === "json") {
         return new Response(JSON.stringify(rows, null, 2), {
           headers: {
             "Content-Type": "application/json",
-            "Content-Disposition": `attachment; filename=${meta?.fileName || datasetId || "dataset"}.json`,
+            "Content-Disposition": `attachment; filename=${exportName}`,
           },
         });
       }
 
-      //  Exportar como XML
       if (format === "xml") {
-        const escapeXml = (unsafe: any) =>
-          String(unsafe)
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;")
-            .replace(/'/g, "&apos;");
-
-        let xml = "<rows>\n";
-        rows.forEach((row: RowData) => {
-          xml += "  <row>\n";
-          Object.entries(row).forEach(([key, value]) => {
-            xml += `    <${key}>${escapeXml(value)}</${key}>\n`;
-          });
-          xml += "  </row>\n";
-        });
-        xml += "</rows>";
-
+        const xml = toXML(rows);
         return new Response(xml, {
           headers: {
             "Content-Type": "application/xml",
-            "Content-Disposition": `attachment; filename=${safeName}.xml`,
+            "Content-Disposition": `attachment; filename=${exportName}`,
           },
         });
       }
 
-      // Exportar como TXT limpio (sin separadores ni líneas vacías)
       if (format === "txt") {
         const headers = Object.keys(rows[0]);
+        const lines = [headers.join(","),...rows.map((row: RowData) => headers.map((h: string) => String(row[h] ?? "")).join(",")),];
+        const txt = lines.join("\n");
 
-        // Construcción simple tipo CSV
-        const lines = [
-          headers.join(","), // Encabezado
-          ...rows.map((row: RowData) =>
-            headers
-              .map((h) => {
-                let val = row[h];
-                if (val === null || val === undefined) val = "";
-                return String(val).replace(/[\n\r,]+/g, " ").trim();
-              })
-              .join(",")
-          ),
-        ];
-
-        const content = lines.join("\n");
-
-        return new Response(content, {
+        return new Response(txt, {
           headers: {
-            "Content-Type": "text/plain; charset=utf-8",
-            "Content-Disposition": `attachment; filename=${meta?.fileName || datasetId || "dataset"}.${format}`
+            "Content-Type": "text/plain",
+            "Content-Disposition": `attachment; filename=${exportName}`,
           },
         });
       }
 
-
-      //  Exportar como CSV
       if (format === "csv") {
         const headers = Object.keys(rows[0]);
         const csvData =
           headers.join(",") +
           "\n" +
-          rows
-            .map((row: RowData) =>
-              headers.map((h) => JSON.stringify(row[h] ?? "")).join(",")
-            )
-            .join("\n");
+          rows.map((row: any) => headers.map((h) => row[h]).join(","))
 
         return new Response(csvData, {
           headers: {
             "Content-Type": "text/csv",
-            "Content-Disposition": `attachment; filename=${datasetId}.csv`,
+            "Content-Disposition": `attachment; filename=${exportName}`,
           },
         });
       }
 
-      //  Exportar como XLSX
       if (format === "xlsx") {
         const wb = XLSX.utils.book_new();
         const ws = XLSX.utils.json_to_sheet(rows);
@@ -454,20 +479,20 @@ export async function POST(req: Request) {
 
         return new Response(buffer, {
           headers: {
-            "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            "Content-Disposition": `attachment; filename=${datasetId}.xlsx`,
+            "Content-Type":
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "Content-Disposition": `attachment; filename=${exportName}`,
           },
         });
       }
 
-      // ❌ Si el formato no coincide
       return NextResponse.json({ error: "Formato no soportado" }, { status: 400 });
     }
 
     // === HISTORIAL ===
     if (action === "historial") {
       try {
-        const { userId } = options; // <-- AQUI USAMOS 'options', NO 'body'
+        const { userId } = options;
 
         if (!userId) {
           return NextResponse.json(
@@ -476,31 +501,36 @@ export async function POST(req: Request) {
           );
         }
 
-        // TU MODELO REAL ES historialMuestra
         const historial = await prisma.historialMuestra.findMany({
           where: { userId },
           orderBy: { createdAt: "desc" },
+
+          include: {
+            user: {
+              select: { name: true, email: true },
+            },
+          },
         });
 
         const respuesta = {
           imports: [],
           muestras: historial.map((x: any) => ({
             id: x.id,
+            userId: x.userId,
             name: x.name,
             fecha: x.createdAt,
-            hash: x.hash,
-            user: x.userId,
+            userDisplay: x.user?.name || "—",
             records: x.records,
             range: x.range,
             seed: x.seed,
             allowDuplicates: x.allowDuplicates,
             source: x.source,
+            hash: x.hash,
+            tipo: x.tipo,
           })),
           exports: [],
         };
-
         return NextResponse.json(respuesta);
-
       } catch (e) {
         console.error("Error historial:", e);
         return NextResponse.json(

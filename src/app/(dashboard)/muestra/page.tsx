@@ -13,7 +13,6 @@ import {
 } from "@tanstack/react-table";
 import { ChevronUp, ChevronDown } from "lucide-react";
 
-
 type SampleParams = {
   records: number;
   seed: number;
@@ -31,6 +30,11 @@ const DEFAULT_SAMPLE_PARAMS: SampleParams = {
   allowDuplicates: false,
   fileName: "",
   totalRows: 0,        //  NUEVO
+};
+type HistorialState = {
+  imports: any[];
+  muestras: any[];
+  exports: any[];
 };
 
 const NO_SPIN_CSS = `
@@ -55,53 +59,6 @@ const PROGRESS_CSS = `
     100% { background-position: -200% 0; }
   }
 `;
-// === COMPONENTES DE TABLAS ===
-const TablaHistorial = ({ historial }: { historial: any[] }) => (
-  <div className="overflow-x-auto bg-white rounded shadow-md">
-    <table className="min-w-full divide-y divide-gray-200">
-      <thead className="bg-gray-50">
-        <tr>
-          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">NOMBRE</th>
-          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">FECHA</th>
-          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">USUARIO</th>
-          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">REGISTROS</th>
-          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">RANGO</th>
-          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">SEMILLA</th>
-          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">DUPLICADOS</th>
-          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">ARCHIVO FUENTE</th>
-          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">HASH</th>
-          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">TIPO</th>
-        </tr>
-      </thead>
-      <tbody>
-        {historial.map((h, i) => (
-          <tr key={i} className="text-sm text-gray-600">
-            <td className="px-6 py-2">{h.name}</td>
-            <td className="px-6 py-2">{formatDate(h.fecha)}</td>
-            <td className="px-6 py-2">{h.userDisplay}</td>
-            <td className="px-6 py-2">{h.records}</td>
-            <td className="px-6 py-2">{h.range}</td>
-            <td className="px-6 py-2">{h.seed}</td>
-            <td className="px-6 py-2">{Boolean(h.allowDuplicates) ? "Sí" : "No"}</td>
-            <td className="px-6 py-2">{h.source || "Desconocido"}</td>
-            <td className="px-6 py-2 font-mono text-xs">{h.hash}</td>
-            <td className="px-6 py-2 text-center font-bold">
-              {h.tipo?.toLowerCase() === "masivo" ? (
-                <span className="bg-[#e7b952] text-[#003055] px-3 py-1 rounded font-semibold">
-                  Masivo
-                </span>
-              ) : (
-                <span className="bg-[#5e7eb9] text-white px-3 py-1 rounded font-semibold">
-                  Estandar
-                </span>
-              )}
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  </div>
-);
 
 const TablaGenerica = ({ rows, columns }: { rows: any[]; columns?: string[] }) => {
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -300,6 +257,154 @@ const TablaGenerica = ({ rows, columns }: { rows: any[]; columns?: string[] }) =
     </div>
   );
 };
+// === VISTA PRINCIPAL DEL HISTORIAL (3 TABS) ===
+const HistorialTabs = ({ historial }: { historial: HistorialState }) => {
+  const [tab, setTab] = useState<"imports" | "muestras" | "exports">("muestras");
+
+  return (
+    <div className="mt-4 bg-white p-4 rounded shadow-md">
+
+      {/* === BOTONES DE TABS === */}
+      <div className="flex gap-2 mb-4">
+        <button
+          onClick={() => setTab("imports")}
+          className={`px-4 py-2 rounded font-semibold ${
+            tab === "imports"
+              ? "bg-purple-600 text-white"
+              : "bg-gray-200 hover:bg-gray-300"
+          }`}
+        >
+          Importaciones
+        </button>
+
+        <button
+          onClick={() => setTab("muestras")}
+          className={`px-4 py-2 rounded font-semibold ${
+            tab === "muestras"
+              ? "bg-blue-600 text-white"
+              : "bg-gray-200 hover:bg-gray-300"
+          }`}
+        >
+          Muestreos
+        </button>
+
+        <button
+          onClick={() => setTab("exports")}
+          className={`px-4 py-2 rounded font-semibold ${
+            tab === "exports"
+              ? "bg-green-600 text-white"
+              : "bg-gray-200 hover:bg-gray-300"
+          }`}
+        >
+          Exportaciones
+        </button>
+      </div>
+
+      {/* === TABLAS === */}
+      {tab === "imports" && (
+        <TablaImportaciones rows={historial.imports} />
+      )}
+
+      {tab === "muestras" && (
+        <TablaMuestreos rows={historial.muestras} />
+      )}
+
+      {tab === "exports" && (
+        <TablaExportaciones rows={historial.exports} />
+      )}
+    </div>
+  );
+};
+
+const TablaImportaciones = ({ rows }: { rows: any[] }) => (
+  <TablaGenerica
+    rows={rows}
+    columns={[
+      "nombreArchivo",
+      "fecha",
+      "tamanoBytes",
+      "origenDatos",
+      "ruta",
+      "datasetId",
+    ]}
+  />
+);
+// === TABLA DE MUESTREOS (DISEÑO CLÁSICO Y CAMPOS CORRECTOS) ===
+// === TABLA BONITA DE MUESTREOS ===
+const TablaMuestreos = ({ rows }: { rows: any[] }) => (
+  <div className="overflow-x-auto bg-white shadow-lg rounded-xl border border-gray-200">
+    <table className="min-w-full text-sm">
+      <thead className="bg-[#003055] text-white">
+        <tr>
+          <th className="px-6 py-3 text-left font-semibold">NOMBRE</th>
+          <th className="px-6 py-3 text-left font-semibold">FECHA</th>
+          <th className="px-6 py-3 text-left font-semibold">USUARIO</th>
+          <th className="px-6 py-3 text-left font-semibold">REGISTROS</th>
+          <th className="px-6 py-3 text-left font-semibold">RANGO</th>
+          <th className="px-6 py-3 text-left font-semibold">SEMILLA</th>
+          <th className="px-6 py-3 text-left font-semibold">DUPLICADOS</th>
+          <th className="px-6 py-3 text-left font-semibold">ARCHIVO FUENTE</th>
+          <th className="px-6 py-3 text-left font-semibold">HASH</th>
+          <th className="px-6 py-3 text-left font-semibold">TIPO</th>
+        </tr>
+      </thead>
+
+      <tbody className="divide-y divide-gray-200">
+        {rows.map((h, i) => (
+          <tr key={i} className="hover:bg-gray-100 transition">
+            
+            <td className="px-6 py-3 font-medium">{h.name}</td>
+
+            <td className="px-6 py-3">{formatDate(h.fecha)}</td>
+
+            <td className="px-6 py-3">{h.userDisplay}</td>
+
+            <td className="px-6 py-3">{h.records}</td>
+
+            <td className="px-6 py-3">{h.range}</td>
+
+            <td className="px-6 py-3">{h.seed}</td>
+
+            <td className="px-6 py-3">{h.allowDuplicates ? "Sí" : "No"}</td>
+
+            <td className="px-6 py-3">{h.source}</td>
+
+            <td className="px-6 py-3 font-mono text-xs">{h.hash}</td>
+
+            <td className="px-6 py-3">
+              {h.tipo === "masivo" ? (
+                <span className="px-3 py-1 rounded-md bg-yellow-300 text-[#003055] font-semibold">
+                  Masivo
+                </span>
+              ) : (
+                <span className="px-3 py-1 rounded-md bg-blue-600 text-white font-semibold">
+                  Estandar
+                </span>
+              )}
+            </td>
+
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+);
+const TablaExportaciones = ({ rows }: { rows: any[] }) => (
+  <TablaGenerica
+    rows={rows}
+    columns={[
+      "nombreExportado",
+      "rutaExportacion",
+      "formato",
+      "registrosExportados",
+      "rangoInicio",
+      "rangoFin",
+      "muestraId",
+      "archivoFuenteNombre",
+      "fecha",
+    ]}
+  />
+);
 
 export default function MuestraPage() {
   const { data: session } = useSession();
@@ -315,13 +420,6 @@ export default function MuestraPage() {
     }
     return [];
   });
-
-  // Importante: historial SIEMPRE como array vacío (no localStorage)
-  type HistorialState = {
-    imports: any[];
-    muestras: any[];
-    exports: any[];
-  };
 
   const [historial, setHistorial] = useState<HistorialState>({
     imports: [],
@@ -1853,94 +1951,29 @@ export default function MuestraPage() {
 
   // === ABRIR HISTORIAL (fusionado estándar + masivo) ===
   const openHistorial = async () => {
-    console.log("🟢 Ejecutando openHistorial combinado.");
-    setActiveTab("historial");
+    console.log("🟦 Ejecutando historial...");
+
     try {
-      // === Sesión ===
-      const sessionRes = await fetch("/api/auth/session", { credentials: "include" });
-      const session = await sessionRes.json();
-      const userId = session?.user?.id;
-
-      if (!userId) {
-        alert("No se encontró sesión de usuario.");
-        return;
-      }
-      // --- Función auxiliar para normalizar fechas ----
-      const normalizeFecha = (x: any) =>
-        x.fecha || x.createdAt || x.date || null;
-
-      const resEstandar = await fetch("/api/muestra", {
+      const res = await fetch("/api/muestra", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ action: "historial", userId }),
+        body: JSON.stringify({
+          action: "historial",
+          userId: session?.user?.id,
+        }),
       });
 
-      const dataEstandar = resEstandar.ok ? await resEstandar.json() : {};
+      const data = await res.json();
 
-      // Tu API devuelve dataEstandar.data
-      const estandarList = Array.isArray(dataEstandar?.data)
-        ? dataEstandar.data
-        : [];
-
-      const muestrasEstandar = estandarList.map((x: any) => ({
-        ...x,
-        origen: "muestra",
-        fecha: normalizeFecha(x),
-        tipo: "estandar",
-      }));
-
-      // IMPORTACIONES Y EXPORTACIONES aún no existen en tu API
-      const imports: any[] = [];
-      const exports: any[] = [];
-
-      const resMasivo = await fetch("/api/muestra-masiva", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ action: "historial", userId }),
-      });
-
-      let muestrasMasivo: any[] = [];
-
-      if (resMasivo.ok) {
-        const dataMasivo = await resMasivo.json();
-
-        if (Array.isArray(dataMasivo)) {
-          muestrasMasivo = dataMasivo.map((x: any) => ({
-            ...x,
-            origen: "muestra",
-            tipo: "masivo",
-            fecha: normalizeFecha(x),
-          }));
-        } else if (Array.isArray(dataMasivo?.muestras)) {
-          muestrasMasivo = dataMasivo.muestras.map((x: any) => ({
-            ...x,
-            origen: "muestra",
-            tipo: "masivo",
-            fecha: normalizeFecha(x),
-          }));
-        } else {
-          console.warn("⚠️ Respuesta inesperada de /api/muestra-masiva:", dataMasivo);
-        }
-      }
+      console.log("🟩 Historial COMPLETO cargado.", data);
 
       setHistorial({
-        imports,
-        muestras: [...muestrasEstandar, ...muestrasMasivo],
-        exports,
+        imports: data.imports || [],
+        muestras: data.muestras || [],
+        exports: data.exports || [],
       });
-
-      console.log("🟢 Historial fusionado cargado");
     } catch (err) {
       console.error("❌ Error cargando historial:", err);
-
-      // Estructura segura vacía
-      setHistorial({
-        imports: [],
-        muestras: [],
-        exports: [],
-      });
     }
   };
 
@@ -2079,8 +2112,8 @@ export default function MuestraPage() {
                         onChange={(e) => setSearchTerm(e.target.value)}
                       />
                     </div>
-
-                    <TablaHistorial historial={filteredHistorial} />
+                    
+                    <HistorialTabs historial={historial} />
                   </>
                 )
               ) : (
@@ -2091,7 +2124,6 @@ export default function MuestraPage() {
               )}
             </>
           )}
-
           {/* === MASIVO === */}
           {subTab === "masivo" && (
             <>
@@ -2175,7 +2207,7 @@ export default function MuestraPage() {
                       />
                     </div>
 
-                    <TablaHistorial historial={filteredHistorial} />
+                    <HistorialTabs historial={historial} />
                   </>
                 )
               ) : (
