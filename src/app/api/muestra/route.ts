@@ -24,7 +24,7 @@ interface SampleOptions {
   fileName?: string;
 }
 // ---------- Configuración ----------
-const DATASETS_DIR = "F:/datasets";
+const DATASETS_DIR = "D:/datasets";
 
 // ---------- Utilidades ----------
 function mulberry32(a: number) {

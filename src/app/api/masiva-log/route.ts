@@ -3,7 +3,7 @@ import fs from "fs";
 import path from "path";
 import { NextResponse } from "next/server";
 
-const DATASETS_DIR = "F:/datasets";
+const DATASETS_DIR = "D:/datasets";
 
 export async function POST(req: Request) {
   const { fileName } = await req.json();

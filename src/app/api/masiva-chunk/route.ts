@@ -1,4 +1,6 @@
 // src/app/api/masiva-chunk/route.ts
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/pages/api/auth/[...nextauth]";
 import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
@@ -14,6 +16,7 @@ import { createHash } from "crypto";
 import { pipeline } from "stream";
 import { promisify } from "util";
 import { spawn } from "child_process";
+import { prisma } from "@/lib/prisma";
 
 
 const pipe = promisify(pipeline);
@@ -22,7 +25,7 @@ export const runtime = "nodejs";
 export const maxDuration = 7200; // hasta 2 horas
 const STREAM_CHUNK = 1024 * 1024; // 1 MB
 
-const DEFAULT_DATASETS_DIR = "F:/datasets";
+const DEFAULT_DATASETS_DIR = "D:/datasets";
 const DATASETS_DIR = process.env.DATASETS_DIR || DEFAULT_DATASETS_DIR;
 const UPLOADS_DIR = path.join(DATASETS_DIR, "uploads");
 fs.mkdirSync(UPLOADS_DIR, { recursive: true });
@@ -431,6 +434,46 @@ export async function POST(req: Request) {
       await fs.promises.rename(tmpPath, finalSafePath);
       console.log(`✅ Archivo final ensamblado: ${safeName}`);
     }
+    // ======================================================
+    // === HISTORIALIMPORT MASIVO — REGISTRO INICIAL ========
+    // ======================================================
+    try {
+      const session = (await getServerSession(authOptions)) as any;
+      const userId = session?.user?.id;
+
+      if (!userId) {
+        console.log("⚠️ No hay usuario autenticado, no se registrará historialImport.");
+      } else {
+        const statsFinal = await fs.promises.stat(finalSafePath);
+
+        await prisma.historialImport.create({
+          data: {
+            nombreArchivo: safeName,
+            rutaArchivo: finalSafePath,
+            tamanoBytes: statsFinal.size,
+            tipoMime: chunk.type || undefined,
+            origenDatos: format,
+            nombreHoja: null,
+            tieneEncabezados: useHeaders,
+            delimitadorDetectado: null,
+            previewInicio: 0,
+            previewFin: 0,
+            registrosTotales: 0,
+            datasetId,
+            metadata: {
+              estado: "UPLOAD_COMPLETED",
+              receivedAt: new Date().toISOString(),
+            },
+            usuarioId: userId, // <-- ahora garantizado string, no null
+          },
+        });
+
+        console.log("🟢 HistorialImport MASIVO creado (PRELIMINAR)");
+      }
+    } catch (error) {
+      console.error("❌ Error registrando HistorialImport preliminar:", error);
+    }
+    
     // 🧹 Limpieza de temporales residuales
     try {
       if (fs.existsSync(tmpPath)) await fs.promises.unlink(tmpPath);
@@ -515,7 +558,6 @@ export async function POST(req: Request) {
         }, null, 2)
       );
     }
-
 
     global.gc?.(); // limpia buffers de chunks del proceso principal
     liberarDataset(datasetId); // tu función actual

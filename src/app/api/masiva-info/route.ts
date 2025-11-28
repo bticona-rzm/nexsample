@@ -2,8 +2,9 @@
 import fs from "fs";
 import path from "path";
 import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
 
-const DEFAULT_DATASETS_DIR = "F:/datasets";
+const DEFAULT_DATASETS_DIR = "D:/datasets";
 const DATASETS_DIR = process.env.DATASETS_DIR || DEFAULT_DATASETS_DIR;
 
 export async function POST(req: Request) {
@@ -15,7 +16,6 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
-
     // Normalizar
     const clean = path.basename(fileName).trim().replace(/\s+/g, "_");
     const base = path.join(DATASETS_DIR, clean);
@@ -98,6 +98,34 @@ export async function POST(req: Request) {
         progress,
         fileName: clean,
       });
+    }
+
+    // ==========================================================
+    // === HISTORIALIMPORT MASIVO — ACTUALIZACIÓN FINAL =========
+    // ==========================================================
+    try {
+      await prisma.historialImport.updateMany({
+        where: {
+          datasetId: meta.datasetId,
+        },
+        data: {
+          delimitadorDetectado: meta.delimiter ?? null,
+          registrosTotales: meta.totalRows ?? 0,
+          previewInicio: Array.isArray(meta.previewStart) ? meta.previewStart.length : 0,
+          previewFin: Array.isArray(meta.previewEnd) ? meta.previewEnd.length : 0,
+          metadata: {
+            estado: "READY",
+            columns: meta.columns,
+            previewStart: meta.previewStart,
+            previewEnd: meta.previewEnd,
+            updatedAt: meta.updatedAt,
+          },
+        },
+      });
+
+      console.log("🟢 HistorialImport MASIVO actualizado (FINAL)");
+    } catch (err) {
+      console.error("❌ Error actualizando historial import masivo:", err);
     }
 
     // ======================

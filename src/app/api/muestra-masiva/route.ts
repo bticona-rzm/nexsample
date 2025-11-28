@@ -15,7 +15,7 @@ import { generarMetaMasivo } from "@/lib/generarMetaMasivo";
   
   console.log("⚠️ [muestra-masiva] Backend MUESTRA-MASIVA cargado (NUEVO)");
   // === CONFIGURACIÓN ===
-  const DATASETS_DIR = process.env.DATASETS_DIR || "F:/datasets";
+  const DATASETS_DIR = process.env.DATASETS_DIR || "D:/datasets";
   const LOG_FILE = path.join(DATASETS_DIR, "muestra-masiva.log");
 
   // === FUNCIÓN DE LOG A ARCHIVO + CONSOLA ===
@@ -435,6 +435,48 @@ import { generarMetaMasivo } from "@/lib/generarMetaMasivo";
           });
 
           logToFile(`✅ [EXPORT] Enviando archivo (${format.toUpperCase()})`);
+
+          // =======================================================
+          // === HISTORIALEXPORT MASIVO — REGISTRO =================
+          // =======================================================
+          try {
+            const session = (await getServerSession(authOptions)) as Session | null;
+            const userId = session?.user?.id ?? null;
+
+            if (userId) {
+              // Obtener número de filas (si es CSV)
+              let registrosExportados = 0;
+              try {
+                const raw = fs.readFileSync(filePath, "utf8");
+                const lines = raw.split(/\r?\n/).filter(l => l.trim().length > 0);
+                registrosExportados = Math.max(0, lines.length - 1); // -1 si tiene header
+              } catch {
+                registrosExportados = 0;
+              }
+
+              await prisma.historialExport.create({
+                data: {
+                  nombreExportado: path.basename(filePath),
+                  rutaExportacion: filePath,
+                  formatoExportacion: format,
+                  rangoInicio: start ?? 0,
+                  rangoFin: end ?? registrosExportados,
+                  registrosExportados,
+                  muestraId: null, // si luego quieres enlazar con historialMuestra
+                  archivoFuenteNombre: fileName,
+                  metadata: {
+                    exportAt: new Date().toISOString(),
+                    action: "export",
+                  },
+                  usuarioId: userId,
+                },
+              });
+
+              logToFile("🧾 HistorialExport masivo registrado correctamente");
+            }
+          } catch (err) {
+            logToFile("❌ Error registrando HistorialExport: " + err);
+          }
           return new Response(stream as any, { headers });
         } catch (err: any) {
           logToFile("💥 [EXPORT] Error en exportación: " + err.message);

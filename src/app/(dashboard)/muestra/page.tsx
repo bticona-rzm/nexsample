@@ -1329,15 +1329,15 @@ export default function MuestraPage() {
     console.log("🧾 Exportando contenido de muestreo:", tab.name);
 
     try {
-      const res = await fetch("/api/muestra", {
+      const res = await fetch("/api/muestra-masiva", {   // ← CAMBIO AQUÍ
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
           action: "export",
           format,
-          rows: tab.rows,  // 👈 enviamos directamente las filas de la muestra
-          fileName: `${tab.name}.${format}`,
+          rows: tab.rows,
+          fileName: tab.archivoResultado,
         }),
       });
 
