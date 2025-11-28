@@ -81,7 +81,6 @@ function toXML(rows: RowData[]): string {
   xml += "</rows>";
   return xml;
 }
-// === DETECTOR UNIVERSAL DE DELIMITADOR ===
 function detectarDelimitador(linea: string): string {
   const candidatos = [";", "|", "\t", ","];
 
@@ -151,17 +150,13 @@ export async function POST(req: Request) {
       const isJson = lower.endsWith(".json");
       const isXml = lower.endsWith(".xml");
       const format = lower.split(".").pop() || "desconocido";
-
       // Crear carpeta
       fs.mkdirSync(DATASETS_DIR, { recursive: true });
-
       // Nombre seguro
       const safeName = file.name.replace(/\s+/g, "_").replace(/[^\w.-]/g, "");
       const savePath = path.join(DATASETS_DIR, safeName);
-
       // Buffer
       const buffer = Buffer.from(await file.arrayBuffer());
-
       // Guardar archivo
       fs.writeFileSync(savePath, buffer);
 
@@ -207,8 +202,8 @@ export async function POST(req: Request) {
       const datasetId = `std_${Date.now()}`;
       datasetStoreEstandar[datasetId] = {
         rows,
-        fileName: safeName,
-        displayName: datasetName,
+        fileName: safeName,          // ✔ Nombre real del archivo
+        displayName: datasetName,    // ✔ Nombre visible
         format,
       };
 
@@ -305,9 +300,12 @@ export async function POST(req: Request) {
       } else {
         return NextResponse.json({ error: "Formato de archivo no soportado" }, { status: 400 });
       }
-
-      datasetStoreEstandar[datasetId] = { rows };
-
+      datasetStoreEstandar[datasetId] = {
+        rows,
+        fileName,                
+        displayName: fileName,
+        format,
+      };
       return NextResponse.json({
         datasetId,
         total: rows.length,
@@ -319,42 +317,43 @@ export async function POST(req: Request) {
     // === SAMPLE ===
     if (action === "sample") {
       const { datasetId, n, seed, start, end, allowDuplicates, fileName: customName } = options as SampleOptions;
-
-      // Buscar dataset en memoria (estándar o masivo)
+      
+      // Buscar dataset en memoria
       const meta = datasetStoreEstandar[datasetId] || datasetStoreMasivo?.[datasetId];
+
+      if (!meta?.fileName) {
+        meta.fileName = meta?.metadata?.originalName || meta?.displayName || "dataset";
+      }
       if (!meta.rows || meta.rows.length === 0) {
         return NextResponse.json({ error: "Dataset vacío o no inicializado" }, { status: 400 });
       }
 
-      // Generar la muestra aleatoria
       const sample = randomSample(meta.rows, n, seed, start, end, allowDuplicates);
       const hash = generateHash({ n, seed, start, end, allowDuplicates });
 
-      // Determinar el nombre visible del dataset (para historial)
-      const displayName = customName || meta.displayName || meta.fileName || `Dataset_${datasetId}`;
+      const displayName =
+        customName || meta.displayName || meta.fileName || `Dataset_${datasetId}`;
       meta.displayName = displayName;
 
-      // Determinar la fuente exacta (el nombre del archivo subido)
-      const fuente = meta.fileName || "archivo no especificado";
+      const fuente = meta?.fileName || meta?.metadata?.originalName || meta?.displayName || "desconocido";
 
-      // Obtener sesión de usuario
+      // Guardar historial
       const session = (await getServerSession(authOptions)) as Session | null;
       const userId = session?.user?.id;
 
-      // Guardar en historial si hay usuario logueado
       if (userId) {
         try {
           await prisma.historialMuestra.create({
             data: {
-              name: displayName,           // 🔹 Nombre visible del dataset o muestra
-              records: sample.length,      // 🔹 Cantidad de registros
-              range: `${start}-${end}`,    // 🔹 Rango seleccionado
-              seed,                        // 🔹 Semilla
-              allowDuplicates,             // 🔹 Permitir duplicados
-              source: fuente,              // 🔹 Nombre real del archivo subido (ej: cita.xlsx)
-              hash,                        // 🔹 Identificador hash único
-              tipo: "estandar",            // 🔹 Tipo de muestreo
-              userId,                      // 🔹 Usuario actual
+              name: displayName,
+              records: sample.length,
+              range: `${start}-${end}`,
+              seed,
+              allowDuplicates,
+              source: fuente,
+              hash,
+              tipo: "estandar",
+              userId,
             },
           });
         } catch (err) {
@@ -362,67 +361,72 @@ export async function POST(req: Request) {
         }
       }
 
-      // Devolver respuesta al frontend
+      // 🔥 DEVOLVER INFORMACIÓN COMPLETA PARA EXPORT
       return NextResponse.json({
         sample,
         hash,
         totalRows: meta.rows.length,
         datasetName: displayName,
+        sourceFile: fuente,    // ← archivo original REAL
+        rangeStart: start,     // ← rango real del sampleo
+        rangeEnd: end,
+        datasetId,
       });
     }
-
     // === EXPORT ===
     if (action === "export") {
       const session = await getServerSession(authOptions);
       const userId = session?.user?.id;
 
-      const { datasetId, format, rows: providedRows } = options;
+      const {
+        datasetId,
+        format,
+        rows: providedRows,
+        sourceFile,
+        rangeStart,
+        rangeEnd
+      } = options;
 
-      let rows = providedRows;
-      let meta;
-
-      if (!rows) {
-        if (!datasetId) {
-          return NextResponse.json({ error: "Falta datasetId o rows" }, { status: 400 });
-        }
-
-        meta =
-          datasetStoreEstandar[datasetId] ||
-          datasetStoreMasivo[datasetId];
-
-        if (!meta) {
-          return NextResponse.json({ error: "Dataset no registrado" }, { status: 404 });
-        }
-
-        rows = meta.rows;
-      }
+      // 1) Filas
+      let rows = providedRows as RowData[] | undefined;
 
       if (!rows || rows.length === 0) {
         return NextResponse.json({ error: "Dataset vacío" }, { status: 400 });
       }
 
-      const safeName = meta?.fileName || datasetId || "dataset";
-      const exportName = `${safeName}.${format}`;
+      // 2) Archivo fuente real (llega del SAMPLE)
+      const archivoFuenteNombre = sourceFile || "desconocido";
+
+      // 3) Nombre exportado
+      const baseName = (datasetId || "dataset")
+        .replace(/\s+/g, "_")
+        .replace(/[^\w.-]/g, "");
+
+      const exportName = `${baseName}.${format}`;
       const exportPath = path.join(DATASETS_DIR, exportName);
 
-      // GUARDAR EXPORTACIÓN EN HISTORIAL (solo si es muestreo)
+      // 4) Guardar historial export
       if (userId) {
-        await registrarExport({
-          userId,
-          nombreExportado: exportName,
-          rutaExportacion: exportPath,
-          formato: format.toUpperCase(),
-          rangoInicio: rows[0]?._POS_ORIGINAL ?? 0,
-          rangoFin: rows[rows.length - 1]?._POS_ORIGINAL ?? rows.length,
-          registrosExportados: rows.length,
-          muestraId: datasetId,
-          archivoFuenteNombre: meta?.fileName || "desconocido"
-        });
+        try {
+          await prisma.historialExport.create({
+            data: {
+              nombreExportado: exportName,
+              rutaExportacion: exportPath,
+              formatoExportacion: format.toUpperCase(),
+              rangoInicio: rangeStart,
+              rangoFin: rangeEnd,
+              registrosExportados: rows.length,
+              muestraId: datasetId,
+              archivoFuenteNombre,
+              usuarioId: userId,
+            },
+          });
+        } catch (err) {
+          console.error("❌ Error registrando exportación:", err);
+        }
       }
 
-      // ---------------------------------------------
-      // AHORA GENERAR Y DEVOLVER EL ARCHIVO EXPORTADO
-      // ---------------------------------------------
+      // === GENERAR ARCHIVO ===
 
       if (format === "json") {
         return new Response(JSON.stringify(rows, null, 2), {
@@ -445,8 +449,10 @@ export async function POST(req: Request) {
 
       if (format === "txt") {
         const headers = Object.keys(rows[0]);
-        const lines = [headers.join(","),...rows.map((row: RowData) => headers.map((h: string) => String(row[h] ?? "")).join(",")),];
-        const txt = lines.join("\n");
+        const txt = [
+          headers.join(","),
+          ...rows.map(r => headers.map(h => String(r[h] ?? "")).join(","))
+        ].join("\n");
 
         return new Response(txt, {
           headers: {
@@ -458,12 +464,12 @@ export async function POST(req: Request) {
 
       if (format === "csv") {
         const headers = Object.keys(rows[0]);
-        const csvData =
+        const csv =
           headers.join(",") +
           "\n" +
-          rows.map((row: any) => headers.map((h) => row[h]).join(","))
+          rows.map(r => headers.map(h => r[h]).join(",")).join("\n");
 
-        return new Response(csvData, {
+        return new Response(csv, {
           headers: {
             "Content-Type": "text/csv",
             "Content-Disposition": `attachment; filename=${exportName}`,
@@ -489,7 +495,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Formato no soportado" }, { status: 400 });
     }
 
-    // === HISTORIAL ===
     if (action === "historial") {
       try {
         const { userId } = options;
@@ -501,36 +506,80 @@ export async function POST(req: Request) {
           );
         }
 
-        const historial = await prisma.historialMuestra.findMany({
+        const importes = await prisma.historialImport.findMany({
+          where: { usuarioId: userId },
+          orderBy: { creadoEn: "desc" },
+        });
+
+        const importList = importes.map(i => ({
+          id: i.id,
+          fecha: i.creadoEn,
+          nombreArchivo: i.nombreArchivo,
+          rutaArchivo: i.rutaArchivo,
+          tamanoBytes: i.tamanoBytes,
+          tipoMime: i.tipoMime,
+          origenDatos: i.origenDatos,
+          nombreHoja: i.nombreHoja,
+          tieneEncabezados: i.tieneEncabezados,
+          delimitadorDetectado: i.delimitadorDetectado,
+          previewInicio: i.previewInicio,
+          previewFin: i.previewFin,
+          registrosTotales: i.registrosTotales,
+          datasetId: i.datasetId,
+          metadata: i.metadata,
+        }));
+
+        const muestras = await prisma.historialMuestra.findMany({
           where: { userId },
           orderBy: { createdAt: "desc" },
-
           include: {
             user: {
-              select: { name: true, email: true },
+              select: { name: true },
             },
           },
         });
 
-        const respuesta = {
-          imports: [],
-          muestras: historial.map((x: any) => ({
-            id: x.id,
-            userId: x.userId,
-            name: x.name,
-            fecha: x.createdAt,
-            userDisplay: x.user?.name || "—",
-            records: x.records,
-            range: x.range,
-            seed: x.seed,
-            allowDuplicates: x.allowDuplicates,
-            source: x.source,
-            hash: x.hash,
-            tipo: x.tipo,
-          })),
-          exports: [],
-        };
-        return NextResponse.json(respuesta);
+        const muestraList = muestras.map(m => ({
+          id: m.id,
+          userId: m.userId,
+          name: m.name,
+          fecha: m.createdAt,
+          userDisplay: m.user?.name || "—",
+          records: m.records,
+          range: m.range,
+          seed: m.seed,
+          allowDuplicates: m.allowDuplicates,
+          source: m.source,
+          hash: m.hash,
+          tipo: m.tipo,
+        }));
+
+        const exportes = await prisma.historialExport.findMany({
+          where: { usuarioId: userId },
+          orderBy: { creadoEn: "desc" },
+        });
+
+        const exportList = exportes.map(e => ({
+          id: e.id,
+          fecha: e.creadoEn,
+          nombreExportado: e.nombreExportado,
+          rutaExportacion: e.rutaExportacion,
+          formato: e.formatoExportacion,
+          rangoInicio: e.rangoInicio,
+          rangoFin: e.rangoFin,
+          registrosExportados: e.registrosExportados,
+          muestraId: e.muestraId,
+          archivoFuenteNombre: e.archivoFuenteNombre,
+          metadata: e.metadata,
+        }));
+
+        // ✔ Respuesta final
+        return NextResponse.json({
+          imports: importList,
+          muestras: muestraList,
+          exports: exportList,
+        });
+
       } catch (e) {
         console.error("Error historial:", e);
         return NextResponse.json(
@@ -539,7 +588,6 @@ export async function POST(req: Request) {
         );
       }
     }
-
     // === LIMPIAR HISTORIAL ===
     if (action === "clearHistorial") {
       const { userId } = options;

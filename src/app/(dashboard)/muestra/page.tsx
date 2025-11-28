@@ -260,6 +260,22 @@ const TablaGenerica = ({ rows, columns }: { rows: any[]; columns?: string[] }) =
 // === VISTA PRINCIPAL DEL HISTORIAL (3 TABS) ===
 const HistorialTabs = ({ historial }: { historial: HistorialState }) => {
   const [tab, setTab] = useState<"imports" | "muestras" | "exports">("muestras");
+  const [search, setSearch] = useState("");
+
+  const norm = (s: any) =>
+    (s ?? "").toString().trim().toLowerCase();
+
+  const filteredImports = historial.imports.filter(item =>
+    Object.values(item).some(val => norm(val).includes(norm(search)))
+  );
+
+  const filteredMuestras = historial.muestras.filter(item =>
+    Object.values(item).some(val => norm(val).includes(norm(search)))
+  );
+
+  const filteredExports = historial.exports.filter(item =>
+    Object.values(item).some(val => norm(val).includes(norm(search)))
+  );
 
   return (
     <div className="mt-4 bg-white p-4 rounded shadow-md">
@@ -269,9 +285,7 @@ const HistorialTabs = ({ historial }: { historial: HistorialState }) => {
         <button
           onClick={() => setTab("imports")}
           className={`px-4 py-2 rounded font-semibold ${
-            tab === "imports"
-              ? "bg-purple-600 text-white"
-              : "bg-gray-200 hover:bg-gray-300"
+            tab === "imports" ? "bg-purple-800 text-white" : "bg-gray-200"
           }`}
         >
           Importaciones
@@ -280,9 +294,7 @@ const HistorialTabs = ({ historial }: { historial: HistorialState }) => {
         <button
           onClick={() => setTab("muestras")}
           className={`px-4 py-2 rounded font-semibold ${
-            tab === "muestras"
-              ? "bg-blue-600 text-white"
-              : "bg-gray-200 hover:bg-gray-300"
+            tab === "muestras" ? "bg-blue-600 text-white" : "bg-gray-200"
           }`}
         >
           Muestreos
@@ -291,46 +303,73 @@ const HistorialTabs = ({ historial }: { historial: HistorialState }) => {
         <button
           onClick={() => setTab("exports")}
           className={`px-4 py-2 rounded font-semibold ${
-            tab === "exports"
-              ? "bg-green-600 text-white"
-              : "bg-gray-200 hover:bg-gray-300"
+            tab === "exports" ? "bg-green-600 text-white" : "bg-gray-200"
           }`}
         >
           Exportaciones
         </button>
       </div>
 
+      {/* === BUSCADOR === */}
+      <div className="mb-4">
+        <input
+          type="text"
+          placeholder="Buscar por nombre, usuario, archivo, hash..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full px-4 py-2 border rounded-lg shadow-sm focus:ring focus:ring-blue-300"
+        />
+      </div>
+
       {/* === TABLAS === */}
-      {tab === "imports" && (
-        <TablaImportaciones rows={historial.imports} />
-      )}
-
-      {tab === "muestras" && (
-        <TablaMuestreos rows={historial.muestras} />
-      )}
-
-      {tab === "exports" && (
-        <TablaExportaciones rows={historial.exports} />
-      )}
+      {tab === "imports" && <TablaImportaciones rows={filteredImports} />}
+      {tab === "muestras" && <TablaMuestreos rows={filteredMuestras} />}
+      {tab === "exports" && <TablaExportaciones rows={filteredExports} />}
     </div>
   );
 };
 
 const TablaImportaciones = ({ rows }: { rows: any[] }) => (
-  <TablaGenerica
-    rows={rows}
-    columns={[
-      "nombreArchivo",
-      "fecha",
-      "tamanoBytes",
-      "origenDatos",
-      "ruta",
-      "datasetId",
-    ]}
-  />
+  <div className="overflow-x-auto bg-white shadow-lg rounded-xl border border-gray-200">
+    <table className="min-w-full text-sm">
+      <thead className="bg-[#4c428f] text-white">
+        <tr>
+          <th className="px-6 py-3 text-left font-semibold">ARCHIVO</th>
+          <th className="px-6 py-3 text-left font-semibold">FECHA</th>
+          <th className="px-6 py-3 text-left font-semibold">TAMAÑO</th>
+          <th className="px-6 py-3 text-left font-semibold">ORIGEN</th>
+          <th className="px-6 py-3 text-left font-semibold">ENCABEZADOS</th>
+          <th className="px-6 py-3 text-left font-semibold">REGISTROS</th>
+          <th className="px-6 py-3 text-left font-semibold">DATASET ID</th>
+        </tr>
+      </thead>
+
+      <tbody className="divide-y divide-gray-200">
+        {rows.map((i, idx) => (
+          <tr key={idx} className="hover:bg-gray-100 transition">
+
+            <td className="px-6 py-3 font-medium">{i.nombreArchivo}</td>
+
+            <td className="px-6 py-3">{formatDate(i.fecha)}</td>
+
+            <td className="px-6 py-3">{(i.tamanoBytes / 1024).toFixed(1)} KB</td>
+
+            <td className="px-6 py-3">{i.origenDatos}</td>
+
+            <td className="px-6 py-3">
+              {i.tieneEncabezados ? "Sí" : "No"}
+            </td>
+
+            <td className="px-6 py-3">{i.registrosTotales}</td>
+
+            <td className="px-6 py-3 font-mono text-xs">{i.datasetId}</td>
+
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
 );
-// === TABLA DE MUESTREOS (DISEÑO CLÁSICO Y CAMPOS CORRECTOS) ===
-// === TABLA BONITA DE MUESTREOS ===
 const TablaMuestreos = ({ rows }: { rows: any[] }) => (
   <div className="overflow-x-auto bg-white shadow-lg rounded-xl border border-gray-200">
     <table className="min-w-full text-sm">
@@ -390,20 +429,40 @@ const TablaMuestreos = ({ rows }: { rows: any[] }) => (
   </div>
 );
 const TablaExportaciones = ({ rows }: { rows: any[] }) => (
-  <TablaGenerica
-    rows={rows}
-    columns={[
-      "nombreExportado",
-      "rutaExportacion",
-      "formato",
-      "registrosExportados",
-      "rangoInicio",
-      "rangoFin",
-      "muestraId",
-      "archivoFuenteNombre",
-      "fecha",
-    ]}
-  />
+  <div className="overflow-x-auto bg-white shadow-lg rounded-xl border border-gray-200">
+    <table className="min-w-full text-sm">
+      <thead className="bg-[#5c9ca7] text-white">
+        <tr>
+          <th className="px-6 py-3 text-left font-semibold">EXPORTADO</th>
+          <th className="px-6 py-3 text-left font-semibold">FECHA</th>
+          <th className="px-6 py-3 text-left font-semibold">FORMATO</th>
+          <th className="px-6 py-3 text-left font-semibold">REGISTROS</th>
+          <th className="px-6 py-3 text-left font-semibold">RANGO</th>
+          <th className="px-6 py-3 text-left font-semibold">ARCHIVO FUENTE</th>
+        </tr>
+      </thead>
+
+      <tbody className="divide-y divide-gray-200">
+        {rows.map((e, idx) => (
+          <tr key={idx} className="hover:bg-gray-100 transition">
+
+            <td className="px-6 py-3 font-medium">{e.nombreExportado}</td>
+
+            <td className="px-6 py-3">{formatDate(e.fecha)}</td>
+
+            <td className="px-6 py-3">{e.formato}</td>
+
+            <td className="px-6 py-3">{e.registrosExportados}</td>
+
+            <td className="px-6 py-3">{`${e.rangoInicio} - ${e.rangoFin}`}</td>
+
+            <td className="px-6 py-3">{e.archivoFuenteNombre}</td>
+
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
 );
 
 export default function MuestraPage() {
@@ -573,11 +632,11 @@ export default function MuestraPage() {
   const [masivoStatus, setMasivoStatus] = useState<string>("");
   const [progressLines, setProgressLines] = useState<string[]>([]);
   // === Estados de Historial ===
+  const [search, setSearch] = useState("");
   const [historialCategoria, setHistorialCategoria] =
     useState<"imports" | "muestras" | "exports" | "todo">("todo");
 
   const [searchTerm, setSearchTerm] = useState("");
-
   const filteredHistorial = [
     ...(historial?.imports ?? []),
     ...(historial?.muestras ?? []),
@@ -846,15 +905,10 @@ export default function MuestraPage() {
   };
 
   // === Muestreo vía API con validaciones y manejo de error ===
+  // === Integración con la interfaz principal (handleOk ESTÁNDAR) ===
   const handleOk = async () => {
-    if (!validateParams()) return;
-    const currentTab = tabs.find((t) => t.id === activeTab);
     if (!currentTab) {
-      alert("No hay pestaña activa con datos cargados");
-      return;
-    }
-    if (!currentTab.datasetId) {
-      alert("Este dataset no tiene identificador válido.");
+      alert("No hay dataset seleccionado.");
       return;
     }
 
@@ -865,25 +919,34 @@ export default function MuestraPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "sample",
-          datasetId: currentTab.datasetId,  //  ID real del dataset cargado
-          n: sampleParams.records,          //  Cantidad de registros
-          seed: sampleParams.seed,          //  Semilla del muestreo
-          start: sampleParams.start,        //  Inicio del rango
-          end: sampleParams.end,            //  Fin del rango
-          allowDuplicates: sampleParams.allowDuplicates, //  Duplicados permitidos
-          fileName: sampleParams.fileName || currentTab.name, //  Nombre visible
+          datasetId: currentTab.datasetId,              // ID real del dataset cargado
+          n: sampleParams.records,                      // Cantidad de registros
+          seed: sampleParams.seed,                      // Semilla del muestreo
+          start: sampleParams.start,                    // Inicio del rango
+          end: sampleParams.end,                        // Fin del rango
+          allowDuplicates: sampleParams.allowDuplicates,
+          fileName: sampleParams.fileName || currentTab.name,
         }),
       });
 
-      //  Manejo de errores de red o backend
       if (!response.ok) {
         const err = await response.json().catch(() => ({} as any));
         alert(`Error: ${err.details || err.error || "No se pudo generar la muestra"}`);
         return;
       }
 
-      //  Procesar respuesta del backend
-      const { sample, hash, totalRows, datasetName } = await response.json();
+      // ⬅️ AHORA SÍ LEEMOS TODO LO QUE MANDA EL BACKEND
+      const {
+        sample,
+        hash,
+        totalRows,
+        datasetName,
+        sourceFile,
+        rangeStart,
+        rangeEnd,
+        datasetId: sampleDatasetId,
+      } = await response.json();
+
       const newTabId = Date.now().toString();
 
       //  Crear nueva pestaña con los datos de la muestra
@@ -893,17 +956,24 @@ export default function MuestraPage() {
           id: newTabId,
           name: datasetName || sampleParams.fileName || `Muestra-${newTabId}`,
           rows: sample,
-          datasetId: currentTab.datasetId,
-          sourceFile: currentTab.sourceFile,
+          // datasetId de la muestra (por si el backend quiere usar uno propio,
+          // si no, usamos el que ya tenías)
+          datasetId: sampleDatasetId || currentTab.datasetId,
+          // fuente REAL que viene del backend (safeName / originalName):
+          sourceFile: sourceFile || currentTab.sourceFile,
           datasetLabel: currentTab.datasetLabel,
+
+          // 🔥 NUEVO: guardamos el rango real del muestreo
+          rangeStart: rangeStart ?? sampleParams.start,
+          rangeEnd: rangeEnd ?? sampleParams.end,
         },
       ]);
-      // Forzar reinicio de paginación una vez se active la nueva pestaña
+
       setTimeout(() => setCurrentPage(1), 50);
       setActiveTab(newTabId);
 
-      // 5 Guardar en historial estándar en el backend
-      setHistorial(prev => ({
+      // (Opcional) tu actualización local de historial de muestras la puedes dejar igual
+      setHistorial((prev) => ({
         ...prev,
         muestras: [
           ...prev.muestras,
@@ -918,8 +988,10 @@ export default function MuestraPage() {
             seed: sampleParams.seed,
             allowDuplicates: sampleParams.allowDuplicates ? "Sí" : "No",
             source: currentTab.fileName || "dataset local",
-          }]
+          },
+        ],
       }));
+
       setShowModal(false);
     } catch (e: any) {
       alert(`Error inesperado: ${e.message}`);
@@ -1173,25 +1245,36 @@ export default function MuestraPage() {
     }
 
     try {
-      // calcular datasetId real (algunas pestañas guardan datasetId por separado)
+      // calcular datasetId real (
       const datasetId = tab.datasetId || tab.id;
-      //  Envío de solicitud al backend (incluye credenciales por si usa sesión)
       const res = await fetch("/api/muestra", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
           action: "export",
-          // preferir enviar las filas visibles de la pestaña (muestra)
+
+          // ✔ Filas reales del muestreo
           rows: tab.rows,
-          // también enviamos datasetId como respaldo
+
+          // ✔ Dataset de la pestaña (igual que lo tenías)
           datasetId,
+
+          // ✔ Formato (igual que antes)
           format,
+
+          // ✔ Archivo original REAL del SAMPLE
+          sourceFile: tab.sourceFile || tab.fileName || "desconocido",
+
+          // ✔ Rango real del SAMPLE (viene del backend en SAMPLE)
+          rangeStart: tab.rangeStart,
+          rangeEnd: tab.rangeEnd,
+
+          // ✔ Nombre del archivo exportado
           fileName: tab.fileName || `${tab.name}.${format}`,
         }),
       });
-
-      //  Manejo de errores de red o backend: intentar parsear JSON, si no -> texto
+      //  Manejo de errores de red o backend: intentar parsear JSON, 
       if (!res.ok) {
         let errBody: any = {};
         try {
@@ -2051,7 +2134,6 @@ export default function MuestraPage() {
                   </div>
                 ))}
               </div>
-
               {/* Contenido */}
               {activeTab === "historial" ? (
                 filteredHistorial.length === 0 ? (
@@ -2060,59 +2142,6 @@ export default function MuestraPage() {
                   </div>
                 ) : (
                   <>
-                    <div className="space-y-4">
-                      {/* Filtros */}
-                      <div className="flex gap-2 flex-wrap">
-                        <button
-                          onClick={() => setHistorialCategoria("imports")}
-                          className={`px-4 py-2 rounded ${historialCategoria === "imports"
-                              ? "bg-blue-600 text-white"
-                              : "bg-gray-300"
-                            }`}
-                        >
-                          Importaciones
-                        </button>
-
-                        <button
-                          onClick={() => setHistorialCategoria("muestras")}
-                          className={`px-4 py-2 rounded ${historialCategoria === "muestras"
-                              ? "bg-blue-600 text-white"
-                              : "bg-gray-300"
-                            }`}
-                        >
-                          Muestreos
-                        </button>
-
-                        <button
-                          onClick={() => setHistorialCategoria("exports")}
-                          className={`px-4 py-2 rounded ${historialCategoria === "exports"
-                              ? "bg-blue-600 text-white"
-                              : "bg-gray-300"
-                            }`}
-                        >
-                          Exportaciones
-                        </button>
-
-                        <button
-                          onClick={() => setHistorialCategoria("todo")}
-                          className={`px-4 py-2 rounded ${historialCategoria === "todo"
-                              ? "bg-green-600 text-white"
-                              : "bg-gray-300"
-                            }`}
-                        >
-                          Todo
-                        </button>
-                      </div>
-
-                      {/* Buscador */}
-                      <input
-                        type="text"
-                        placeholder="Buscar por nombre, usuario, archivo, hash..."
-                        className="w-full border px-4 py-2 rounded"
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                      />
-                    </div>
-                    
                     <HistorialTabs historial={historial} />
                   </>
                 )
@@ -2156,57 +2185,6 @@ export default function MuestraPage() {
                   </div>
                 ) : (
                   <>
-                    <div className="space-y-4">
-                      {/* Filtros */}
-                      <div className="flex gap-2 flex-wrap">
-                        <button
-                          onClick={() => setHistorialCategoria("imports")}
-                          className={`px-4 py-2 rounded ${historialCategoria === "imports"
-                              ? "bg-blue-600 text-white"
-                              : "bg-gray-300"
-                            }`}
-                        >
-                          Importaciones
-                        </button>
-                        <button
-                          onClick={() => setHistorialCategoria("muestras")}
-                          className={`px-4 py-2 rounded ${historialCategoria === "muestras"
-                              ? "bg-blue-600 text-white"
-                              : "bg-gray-300"
-                            }`}
-                        >
-                          Muestreos
-                        </button>
-
-                        <button
-                          onClick={() => setHistorialCategoria("exports")}
-                          className={`px-4 py-2 rounded ${historialCategoria === "exports"
-                              ? "bg-blue-600 text-white"
-                              : "bg-gray-300"
-                            }`}
-                        >
-                          Exportaciones
-                        </button>
-                        <button
-                          onClick={() => setHistorialCategoria("todo")}
-                          className={`px-4 py-2 rounded ${historialCategoria === "todo"
-                              ? "bg-green-600 text-white"
-                              : "bg-gray-300"
-                            }`}
-                        >
-                          Todo
-                        </button>
-                      </div>
-
-                      {/* Buscador */}
-                      <input
-                        type="text"
-                        placeholder="Buscar por nombre, usuario, archivo, hash..."
-                        className="w-full border px-4 py-2 rounded"
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                      />
-                    </div>
-
                     <HistorialTabs historial={historial} />
                   </>
                 )
@@ -2316,7 +2294,6 @@ export default function MuestraPage() {
             <History size={18} />
             Historial
           </button>
-
           {/* Imprimir Historial */}
           <button
             onClick={async () => {
@@ -2329,26 +2306,11 @@ export default function MuestraPage() {
               }
             }}
             disabled={pdfLoading}
-            className={`w-full flex items-center gap-2 ${pdfLoading ? 'bg-purple-300 cursor-wait' : 'bg-purple-600 hover:bg-purple-900'} text-white font-semibold py-2 px-4 rounded shadow transition-colors`}
+            className={`w-full flex items-center gap-2 ${pdfLoading ? 'bg-purple-800 cursor-wait' : 'bg-purple-800 hover:bg-[#4c428f]'} text-white font-semibold py-2 px-4 rounded shadow transition-colors`}
           >
             <Printer size={18} />
             {pdfLoading ? 'Generando PDF...' : 'Imprimir Historial'}
           </button>
-
-          {/* Limpiar Historial */}
-          {/* <button
-                    onClick={() => {
-                      if (subTab === "estandar") {
-                        clearHistorial();
-                      } else {
-                        clearHistorialMasivo();
-                      }
-                    }}
-                    className="w-full flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded shadow transition-colors"
-                  >
-                    <Trash2 size={18} />
-                    Limpiar Historial
-                  </button> */}
         </div>
       </div>
       {/* MODAL: Muestreo */}
@@ -3068,7 +3030,6 @@ export default function MuestraPage() {
           </div>
         </div>
       )}
-
     </div>
   );
 }

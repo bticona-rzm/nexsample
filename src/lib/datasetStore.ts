@@ -1,6 +1,3 @@
-// ========================================================
-// 🔹 Definiciones Globales y Tipos Compartidos
-// ========================================================
 export type RowData = Record<string, any>;
 
 export interface DatasetMeta {
@@ -9,12 +6,10 @@ export interface DatasetMeta {
   displayName?: string;
   format?: string;
   totalRows?: number;   //  agregado
-  lastAccess?: number; // opcional: para control de expiración futura
-}
-
-// ========================================================
-// 🔹 Declaraciones globales separadas
-// ========================================================
+  lastAccess?: number;
+  metadata?: any;
+  sourceFile?: string;   
+};
 
 declare global {
   // Caché para datasets pequeños (muestra estándar)

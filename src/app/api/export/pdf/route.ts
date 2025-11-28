@@ -11,109 +11,179 @@ export async function POST(req: Request) {
     if (!userId)
       return NextResponse.json({ error: "Usuario no autenticado" }, { status: 401 });
 
-    // Traer TODO el historial (masivo + estandar)
-    const historial = await prisma.historialMuestra.findMany({
+    const importes = await prisma.historialImport.findMany({
+      where: { usuarioId: userId },
+      orderBy: { creadoEn: "desc" },
+    });
+
+
+    const muestras = await prisma.historialMuestra.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },
-      include: { user: { select: { name: true, email: true } } },
+      include: { user: { select: { name: true } } },
     });
 
-    if (!historial.length) {
-      return NextResponse.json({ error: "No hay registros en el historial" }, { status: 404 });
+
+    const exportes = await prisma.historialExport.findMany({
+      where: { usuarioId: userId },
+      orderBy: { creadoEn: "desc" },
+    });
+
+
+    if (!importes.length && !muestras.length && !exportes.length) {
+      return NextResponse.json({ error: "No hay historial" }, { status: 404 });
     }
 
-    // Crear PDF
     const pdfDoc = await PDFDocument.create();
-    const page = pdfDoc.addPage([860, 600]);
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-    const { width, height } = page.getSize();
+    const page = pdfDoc.addPage([900, 650]);
+    let currentPage = page;
+    let y = 600;
+    const margin = 40;
+    const { height } = currentPage.getSize();
 
-    let y = height - 50;
-    const margin = 30;
+    const newPage = () => {
+      const p = pdfDoc.addPage([900, 650]);
+      currentPage = p;
+      y = 600;
+    };
 
-    // 🔷 Título general
-    page.drawText(`Historial General de Muestras`, {
-      x: margin,
-      y,
-      size: 18,
-      font: fontBold,
-      color: rgb(0, 0.2, 0.6),
-    });
-    y -= 25;
-
-    // Encabezado de tabla
-    const headers = [
-      "NOMBRE",
-      "FECHA",
-      "USUARIO",
-      "REGISTROS",
-      "RANGO",
-      "SEMILLA",
-      "DUPLICADOS",
-      "FUENTE",
-      "HASH",
-      "TIPO",
-    ];
-
-    const colWidths = [80, 100, 90, 60, 60, 60, 70, 90, 70, 50];
-
-    let x = margin;
-    headers.forEach((h, i) => {
-      page.drawText(h, {
-        x,
+    const drawTitle = (text: string) => {
+      currentPage.drawText(text, {
+        x: margin,
         y,
-        size: 9,
+        size: 18,
+        color: rgb(0, 0.25, 0.6),
         font: fontBold,
-        color: rgb(0.9, 0.9, 1),
       });
-      x += colWidths[i];
-    });
+      y -= 25;
+    };
 
-    // Línea azul bajo encabezado
-    y -= 10;
-    page.drawRectangle({
-      x: margin - 5,
-      y: y - 2,
-      width: width - 2 * margin,
-      height: 0.5,
-      color: rgb(0.2, 0.4, 0.8),
-    });
-
-    // Filas
-    y -= 12;
-    const lineHeight = 12;
-    historial.forEach((h) => {
-      if (y < 60) {
-        const newPage = pdfDoc.addPage([860, 600]);
-        y = height - 50;
-      }
-
-      const values = [
-        h.name || "-",
-        new Date(h.createdAt).toLocaleString("es-BO"),
-        h.user?.name || h.userId,
-        String(h.records ?? "-"),
-        h.range ?? "-",
-        String(h.seed ?? "-"),
-        h.allowDuplicates ? "Sí" : "No",
-        h.source ?? "-",
-        (h.hash || "").slice(0, 8),
-        h.tipo?.toUpperCase() ?? "-",
-      ];
-
+    const drawHeaders = (headers: string[], widths: number[], color: any) => {
       let x = margin;
-      values.forEach((v, i) => {
-        page.drawText(String(v), {
+
+      currentPage.drawRectangle({
+        x: margin - 5,
+        y: y - 3,
+        width: widths.reduce((a, b) => a + b, 0) + 10,
+        height: 18,
+        color,
+      });
+
+      headers.forEach((h, i) => {
+        currentPage.drawText(h, {
           x,
           y,
-          size: 8,
+          size: 9,
+          font: fontBold,
+          color: rgb(0, 0, 0.4),
+        });
+        x += widths[i];
+      });
+
+      y -= 18;
+    };
+
+    const drawRow = (values: string[], widths: number[]) => {
+      if (y < 40) newPage();
+
+      let x = margin;
+
+      values.forEach((val, i) => {
+        currentPage.drawText(String(val), {
+          x,
+          y,
+          size: 8.5,
           font,
           color: rgb(0, 0, 0),
         });
-        x += colWidths[i];
+
+        x += widths[i];
       });
-      y -= lineHeight;
+
+      y -= 14;
+    };
+
+    drawTitle("Historial de Importaciones");
+
+    drawHeaders(
+      ["ARCHIVO", "FECHA", "TAMAÑO", "ORIGEN", "ENCAB", "REGISTROS", "DATASET"],
+      [160, 120, 60, 80, 50, 70, 100],
+      rgb(0.90, 0.85, 1)
+    );
+
+    importes.forEach(i => {
+      drawRow(
+        [
+          i.nombreArchivo.slice(0, 40),
+          i.creadoEn.toLocaleString("es-BO"),
+          ((i.tamanoBytes ?? 0) / 1024).toFixed(1) + " KB",
+          i.origenDatos || "-",
+          i.tieneEncabezados ? "Sí" : "No",
+          String(i.registrosTotales),
+          i.datasetId || "-"
+        ],
+        [160, 120, 60, 80, 50, 70, 100]
+      );
+    });
+
+    y -= 20;
+
+    // ============================================================
+    // ⭐ SECCIÓN 2 — MUESTREOS
+    // ============================================================
+    drawTitle("Historial de Muestreos");
+
+    drawHeaders(
+      ["NOMBRE", "FECHA", "USUARIO", "REG", "RANGO", "SEM", "DUP", "FUENTE", "HASH", "TIPO"],
+      [100, 120, 90, 40, 60, 40, 40, 120, 60, 50],
+      rgb(0.80, 0.90, 1)
+    );
+
+    muestras.forEach(h => {
+      drawRow(
+        [
+          h.name.slice(0, 18),
+          new Date(h.createdAt).toLocaleString("es-BO"),
+          h.user?.name || "—",
+          String(h.records),
+          h.range,
+          String(h.seed),
+          h.allowDuplicates ? "Sí" : "No",
+          h.source?.slice(0, 15),
+          h.hash?.slice(0, 10),
+          h.tipo
+        ],
+        [100, 120, 90, 40, 60, 40, 40, 120, 60, 50]
+      );
+    });
+
+    y -= 20;
+
+    // ============================================================
+    // ⭐ SECCIÓN 3 — EXPORTACIONES
+    // ============================================================
+    drawTitle("Historial de Exportaciones");
+
+    drawHeaders(
+      ["EXPORTADO", "FECHA", "FORMATO", "REG", "RANGO", "FUENTE"],
+      [150, 120, 60, 40, 80, 140],
+      rgb(0.85, 1, 0.90)
+    );
+
+    exportes.forEach(e => {
+      drawRow(
+        [
+          e.nombreExportado.slice(0, 25),
+          e.creadoEn.toLocaleString("es-BO"),
+          e.formatoExportacion,
+          String(e.registrosExportados),
+          `${e.rangoInicio}-${e.rangoFin}`,
+          e.archivoFuenteNombre?.slice(0, 20) || "-"
+        ],
+        [150, 120, 60, 40, 80, 140]
+      );
     });
 
     const pdfBytes = await pdfDoc.save();
@@ -121,14 +191,12 @@ export async function POST(req: Request) {
     return new Response(Buffer.from(pdfBytes), {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="historial_general.pdf"`,
+        "Content-Disposition": "attachment; filename=historial_general.pdf",
       },
     });
+
   } catch (err: any) {
-    console.error("❌ Error al generar PDF historial:", err);
-    return NextResponse.json(
-      { error: "Error generando PDF historial", details: err.message },
-      { status: 500 }
-    );
+    console.error("❌ Error PDF:", err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
