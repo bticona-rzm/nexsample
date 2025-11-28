@@ -123,14 +123,11 @@ export interface EvaluationResult {
 /**
  * Función para cargar y procesar un archivo en el backend
  */
-/**
- * ✅ Función ORIGINAL - solo datos
- */
 export const fetchData = async (file: File): Promise<ExcelRow[]> => {
     const formData = new FormData();
     formData.append("file", file);
 
-    const response = await fetch("/api/upload", { 
+    const response = await fetch("/api/upload", {
         method: "POST",
         body: formData,
     });
@@ -140,7 +137,7 @@ export const fetchData = async (file: File): Promise<ExcelRow[]> => {
         console.error("Respuesta del servidor:", errorText);
         throw new Error('Error al cargar el archivo en el servidor.');
     }
-    
+
     const data = await response.json();
     return data as ExcelRow[];
 };
@@ -152,7 +149,7 @@ export const fetchDataWithHeaders = async (file: File): Promise<FetchDataRespons
     const formData = new FormData();
     formData.append("file", file);
 
-    const response = await fetch("/api/upload", { 
+    const response = await fetch("/api/upload", {
         method: "POST",
         body: formData,
     });
@@ -162,9 +159,9 @@ export const fetchDataWithHeaders = async (file: File): Promise<FetchDataRespons
         console.error("Respuesta del servidor:", errorText);
         throw new Error('Error al cargar el archivo en el servidor.');
     }
-    
+
     const result = await response.json();
-    
+
     // Si el backend ya devuelve headers, usarlos
     if (result.headers && result.data) {
         return {
@@ -181,13 +178,14 @@ export const fetchDataWithHeaders = async (file: File): Promise<FetchDataRespons
         };
     }
 };
+
 /**
  * Leer archivo Excel directamente en el frontend
  */
 export const readExcelFile = (file: File): Promise<ExcelRow[]> => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
-        
+
         reader.onload = (e) => {
             try {
                 const data = new Uint8Array(e.target?.result as ArrayBuffer);
@@ -195,16 +193,16 @@ export const readExcelFile = (file: File): Promise<ExcelRow[]> => {
                 const firstSheetName = workbook.SheetNames[0];
                 const worksheet = workbook.Sheets[firstSheetName];
                 const jsonData = XLSX.utils.sheet_to_json(worksheet);
-                
+
                 // ✅ CORRECCIÓN: Type assertion para unknown[] -> ExcelRow[]
                 const typedData = jsonData as ExcelRow[];
                 resolve(typedData);
-                
+
             } catch (error) {
                 reject(new Error('Error leyendo archivo Excel: ' + error));
             }
         };
-        
+
         reader.onerror = () => reject(new Error('Error leyendo archivo'));
         reader.readAsArrayBuffer(file);
     });
@@ -246,8 +244,8 @@ export const formatErrorValue = (value: number, isPercentage: boolean): string =
  * Función para manejar el cambio en los inputs de error
  */
 export const handleErrorChange = (
-    value: string, 
-    setter: (value: number) => void, 
+    value: string,
+    setter: (value: number) => void,
     isPercentage: boolean
 ): void => {
     const parsed = parseFormattedNumber(value);
@@ -258,192 +256,267 @@ export const handleErrorChange = (
 
 // --- API CLIENT UNIFICADO ---
 
+const atributosApi = {
+    planification: async (planificationData: any, dataFile: File | null) => {
+        if (!dataFile) {
+            throw new Error('Debe proporcionar un archivo de datos para la planificación.');
+        }
+
+        const formData = new FormData();
+        formData.append('file', dataFile);
+        formData.append('data', JSON.stringify(planificationData));
+
+        const response = await fetch('/api/atributos/planification', {
+            method: 'POST',
+            body: formData,
+        });
+
+        if (!response.ok) {
+            const status = response.status;
+            let errorMessage = 'El servidor no pudo procesar la solicitud.';
+
+            try {
+                const errorData = await response.json();
+                errorMessage = errorData.message || errorData.error || errorMessage;
+            } catch (e) {
+                // Mantener mensaje por defecto
+            }
+
+            throw new Error(`Error en la planificación (HTTP ${status}): ${errorMessage}`);
+        }
+
+        return response.json();
+    },
+
+    createRandomSample: async (sampleData: any) => {
+        const response = await fetch('/api/atributos/aleatorio', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(sampleData),
+        });
+
+        if (!response.ok) {
+            let errorMessage = 'Error al generar la muestra aleatoria.';
+            try {
+                const errorData = await response.json();
+                errorMessage = errorData.error || errorMessage;
+            } catch (e) {
+                errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+            }
+            throw new Error(errorMessage);
+        }
+
+        return response.json();
+    },
+
+    // ✅ NUEVO: Generar muestra reducida (Streaming Web)
+    generateReducedSample: async (file: File, params: { sampleSize: number; seed: number }): Promise<{ sample: any[], blob: Blob }> => {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('sampleSize', params.sampleSize.toString());
+        formData.append('seed', params.seed.toString());
+
+        const response = await fetch('/api/atributos/generate-reduced', {
+            method: 'POST',
+            body: formData,
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Error generating reduced sample: ${errorText}`);
+        }
+
+        const blob = await response.blob();
+
+        // Parsear el blob para devolver los datos al frontend
+        const arrayBuffer = await blob.arrayBuffer();
+        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        const sample = XLSX.utils.sheet_to_json(worksheet);
+
+        return { sample, blob };
+    },
+
+    // ✅ NUEVO: Generar muestra masiva (Local Path)
+    generateMassiveSample: async (params: { filePath: string; sampleSize: number; seed: number }): Promise<{ sample: any[], blob: Blob }> => {
+        const response = await fetch('/api/atributos/generate-massive', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(params),
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Error generating massive sample: ${errorText}`);
+        }
+
+        const blob = await response.blob();
+
+        // Parsear el blob para devolver los datos al frontend
+        const arrayBuffer = await blob.arrayBuffer();
+        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        const sample = XLSX.utils.sheet_to_json(worksheet);
+
+        return { sample, blob };
+    },
+
+    // ✅ NUEVO: Obtener info de archivo masivo (Local Path)
+    getMassiveFileInfo: async (filePath: string) => {
+        const response = await fetch('/api/atributos/utils/massive-file-info', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filePath }),
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Error reading massive file info: ${errorText}`);
+        }
+
+        return response.json();
+    },
+
+    ideaPlanification: async (params: IdeaPlanificationParams): Promise<PlanificationResult> => {
+        const response = await fetch('/api/idea/planification', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(params),
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Fallo en la planificación IDEA.');
+        }
+
+        return response.json();
+    },
+
+    // Extracción
+    extraction: async (body: any): Promise<any> => {
+        const response = await fetch('/api/mum/extraction', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Error en la extracción');
+        }
+
+        return response.json();
+    },
+
+    // Evaluación
+    evaluate: async (data: MumEvaluationData): Promise<EvaluationResult> => {
+        const response = await fetch('/api/mum/evaluation', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error("Respuesta del servidor:", errorText);
+            throw new Error(`Error al evaluar la muestra. Detalles: ${response.status} - ${errorText}`);
+        }
+
+        return response.json();
+    },
+
+    cellClassicalEvaluation: async (data: any): Promise<EvaluationResult> => {
+        const response = await fetch('/api/mum/evaluation/cell-classical', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
+        });
+
+        if (!response.ok) {
+            throw new Error('Error en evaluación Cell & Classical');
+        }
+
+        return response.json();
+    },
+
+    stringerBoundEvaluation: async (data: any): Promise<EvaluationResult> => {
+        const response = await fetch('/api/mum/evaluation/stringer-bound', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            console.error("❌ Error response:", errorData);
+            throw new Error(errorData.error || 'Error en evaluación Stringer Bound');
+        }
+
+        return response.json();
+    },
+
+    // Resumen
+    summary: async (body: any): Promise<any> => {
+        const response = await fetch('/api/mum/summary', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Error en el resumen');
+        }
+
+        return response.json();
+    },
+
+    calculateEvaluation: async (params: EvaluationParams): Promise<EvaluationResult> => {
+        const response = await fetch('/api/atributos/evaluar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(params),
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Fallo en la evaluación del muestreo.');
+        }
+
+        return response.json();
+    },
+
+    // ✅ NUEVO: Obtener historial
+    getHistory: async () => {
+        const response = await fetch('/api/atributos/history');
+        if (!response.ok) {
+            throw new Error('Error fetching history');
+        }
+        return response.json();
+    },
+
+    // ✅ NUEVO: Validar hash
+    validateHash: async (hash: string) => {
+        const response = await fetch('/api/atributos/validate-hash', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ hash }),
+        });
+        if (!response.ok) {
+            throw new Error('Error validating hash');
+        }
+        return response.json();
+    }
+};
+
 export const apiClient = {
     // ✅ MUESTREO POR ATRIBUTOS
-    atributos: {
-        planification: async (planificationData: any, dataFile: File | null) => {
-            if (!dataFile) {
-                throw new Error('Debe proporcionar un archivo de datos para la planificación.');
-            }
-            
-            const formData = new FormData();
-            formData.append('file', dataFile);
-            formData.append('data', JSON.stringify(planificationData));
+    atributos: atributosApi,
 
-            const response = await fetch('/api/atributos/planification', {
-                method: 'POST',
-                body: formData,
-            });
-
-            if (!response.ok) {
-                const status = response.status;
-                let errorMessage = 'El servidor no pudo procesar la solicitud.';
-
-                try {
-                    const errorData = await response.json();
-                    errorMessage = errorData.message || errorData.error || errorMessage;
-                } catch (e) {
-                    // Mantener mensaje por defecto
-                }
-                
-                throw new Error(`Error en la planificación (HTTP ${status}): ${errorMessage}`);
-            }
-
-            return response.json();
-        },
-
-        createRandomSample: async (sampleData: any) => {
-            const response = await fetch('/api/atributos/aleatorio', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(sampleData),
-            });
-
-            if (!response.ok) {
-                // ✅ CAPTURAR EL ERROR ESPECÍFICO DEL SERVIDOR
-                let errorMessage = 'Error al generar la muestra aleatoria.';
-                try {
-                    const errorData = await response.json();
-                    errorMessage = errorData.error || errorMessage;
-                    console.error("❌ Error del servidor:", errorData);
-                } catch (e) {
-                    console.error("❌ Error parsing response:", e);
-                    errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-                }
-                throw new Error(errorMessage);
-            }
-
-            return response.json();
-        },
-
-        calculateEvaluation: async (params: EvaluationParams): Promise<EvaluationResult> => {
-            const response = await fetch('/api/atributos/evaluar', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(params),
-            });
-
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.error || 'Fallo en la evaluación del muestreo.');
-            }
-
-            return response.json();
-        }
-    },
-
-    // ✅ MUESTREO DE UNIDADES MONETARIAS (MUM)
-    mum: {
-        // Planificación
-        planification: async (params: MumPlanificationParams): Promise<PlanificationResult> => {
-            const response = await fetch('/api/mum/planification', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(params),
-            });
-
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.error || 'Fallo en la planificación del muestreo MUM.');
-            }
-
-            return response.json();
-        },
-
-        ideaPlanification: async (params: IdeaPlanificationParams): Promise<PlanificationResult> => {
-            const response = await fetch('/api/idea/planification', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(params),
-            });
-
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.error || 'Fallo en la planificación IDEA.');
-            }
-
-            return response.json();
-        },
-
-        // Extracción
-        extraction: async (body: any): Promise<any> => {
-            const response = await fetch('/api/mum/extraction', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body),
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Error en la extracción');
-            }
-
-            return response.json();
-        },
-
-        // Evaluación
-        evaluate: async (data: MumEvaluationData): Promise<EvaluationResult> => {
-            const response = await fetch('/api/mum/evaluation', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data),
-            });
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error("Respuesta del servidor:", errorText);
-                throw new Error(`Error al evaluar la muestra. Detalles: ${response.status} - ${errorText}`);
-            }
-
-            return response.json();
-        },
-
-        cellClassicalEvaluation: async (data: any): Promise<EvaluationResult> => {
-            const response = await fetch('/api/mum/evaluation/cell-classical', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data),
-            });
-            
-            if (!response.ok) {
-                throw new Error('Error en evaluación Cell & Classical');
-            }
-            
-            return response.json();
-        },
-
-        stringerBoundEvaluation: async (data: any): Promise<EvaluationResult> => {
-            const response = await fetch('/api/mum/evaluation/stringer-bound', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data),
-            });
-            
-            if (!response.ok) {
-                const errorData = await response.json();
-                console.error("❌ Error response:", errorData);
-                throw new Error(errorData.error || 'Error en evaluación Stringer Bound');
-            }
-            
-            return response.json();
-        },
-
-        // Resumen
-        summary: async (body: any): Promise<any> => {
-            const response = await fetch('/api/mum/summary', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body),
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Error en el resumen');
-            }
-
-            return response.json();
-        }
-    },
+    // ✅ ALIAS MUM (para compatibilidad)
+    mum: atributosApi,
 
     // ✅ ESTIMACIÓN DE MUESTRA (función auxiliar)
     estimateSample: async (data: {
