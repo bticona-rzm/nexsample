@@ -4,7 +4,7 @@ import path from "path";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-const DEFAULT_DATASETS_DIR = "D:/datasets";
+const DEFAULT_DATASETS_DIR = "F:/datasets";
 const DATASETS_DIR = process.env.DATASETS_DIR || DEFAULT_DATASETS_DIR;
 
 export async function POST(req: Request) {

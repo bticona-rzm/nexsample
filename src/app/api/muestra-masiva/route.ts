@@ -15,7 +15,7 @@ import { generarMetaMasivo } from "@/lib/generarMetaMasivo";
   
   console.log("⚠️ [muestra-masiva] Backend MUESTRA-MASIVA cargado (NUEVO)");
   // === CONFIGURACIÓN ===
-  const DATASETS_DIR = process.env.DATASETS_DIR || "D:/datasets";
+  const DATASETS_DIR = process.env.DATASETS_DIR || "F:/datasets";
   const LOG_FILE = path.join(DATASETS_DIR, "muestra-masiva.log");
 
   // === FUNCIÓN DE LOG A ARCHIVO + CONSOLA ===

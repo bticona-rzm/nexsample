@@ -69,9 +69,6 @@ const TablaGenerica = ({ rows, columns }: { rows: any[]; columns?: string[] }) =
     setPaginaActual(1);
   }, [rows]);
 
-  // =============================
-  // 1. Generar columnas dinámicas
-  // =============================
   const columnDefs =
     (columns && columns.length > 0 ? columns : rows.length > 0 ? Object.keys(rows[0]) : [])
       .map((col) => ({
@@ -88,9 +85,6 @@ const TablaGenerica = ({ rows, columns }: { rows: any[]; columns?: string[] }) =
         ),
       }));
 
-  // =============================
-  // 2. Crear tabla TanStack
-  // =============================
   const table = useReactTable({
     data: rows,
     columns: [
@@ -107,9 +101,6 @@ const TablaGenerica = ({ rows, columns }: { rows: any[]; columns?: string[] }) =
     getSortedRowModel: getSortedRowModel(),
   });
 
-  // =============================
-  // 3. Obtener filas ordenadas y paginadas
-  // =============================
   const sortedRows = table.getRowModel().rows.map((r) => r.original);
   const totalPaginas = Math.ceil(sortedRows.length / filasPorPagina);
   const filasActuales = sortedRows.slice(
@@ -117,6 +108,16 @@ const TablaGenerica = ({ rows, columns }: { rows: any[]; columns?: string[] }) =
     paginaActual * filasPorPagina
   );
 
+  // 🚫 SI NO HAY FILAS → NO RENDERIZAR TABLA
+  if (!rows || rows.length === 0) {
+    return (
+      <div className="p-10 text-center text-gray-500 text-lg">
+        Aún no se cargó ningún dataset.
+        <br />
+        📄 Cargue un archivo para visualizar la información.
+      </div>
+    );
+  }
   return (
     <div className="bg-white rounded shadow-md">
       <div className="overflow-x-auto">
@@ -170,8 +171,6 @@ const TablaGenerica = ({ rows, columns }: { rows: any[]; columns?: string[] }) =
           </tbody>
         </table>
       </div>
-
-      {/* === Paginación === */}
       {/* === Paginación (MISMO DISEÑO, SOLO REORDENADA Y CON INPUT) === */}
       {sortedRows.length > filasPorPagina && (
         <div className="flex items-center justify-between px-6 py-4 bg-gray-50 rounded-b">

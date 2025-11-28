@@ -25,7 +25,7 @@ export const runtime = "nodejs";
 export const maxDuration = 7200; // hasta 2 horas
 const STREAM_CHUNK = 1024 * 1024; // 1 MB
 
-const DEFAULT_DATASETS_DIR = "D:/datasets";
+const DEFAULT_DATASETS_DIR = "F:/datasets";
 const DATASETS_DIR = process.env.DATASETS_DIR || DEFAULT_DATASETS_DIR;
 const UPLOADS_DIR = path.join(DATASETS_DIR, "uploads");
 fs.mkdirSync(UPLOADS_DIR, { recursive: true });
