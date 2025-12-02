@@ -2,14 +2,14 @@
 import fs from "fs";
 import path from "path";
 import { NextResponse } from "next/server";
+import { getDatasetDir } from "@/lib/getDatasetDir";
 
-const DATASETS_DIR = "F:/datasets";
+const DATASETS_DIR = getDatasetDir();
 
 type MetaFile = {
   ok?: boolean;
   ready?: boolean;
 };
-
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));

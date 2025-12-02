@@ -2,63 +2,53 @@
 import fs from "fs";
 import path from "path";
 import { NextResponse } from "next/server";
+import { getDatasetDir } from "@/lib/getDatasetDir";
 
-const DATASETS_DIR = "F:/datasets";
-
-type ProgressData = {
-  lines?: number;
-  file?: string;
-  updatedAt?: string;
-};
+const DATASETS_DIR = getDatasetDir();
 
 export async function GET() {
   try {
-    const files = fs.readdirSync(DATASETS_DIR);
+    const progressPath = path.join(DATASETS_DIR, "progress.json");
 
-    // buscamos cualquier archivo *.meta.log.progress
-    const progressFile = files.find((f) =>
-      f.endsWith(".meta.log.progress")
-    );
-
-    // Si no hay progreso, devolvemos “sin procesamiento”
-    if (!progressFile) {
+    // Si no existe → no hay indexando
+    if (!fs.existsSync(progressPath)) {
       return NextResponse.json({
         ok: true,
         processing: false,
-        progress: 0,
+        percent: 0,
         processedLines: 0,
+        totalRows: 0,
         file: null,
-        updatedAt: null,
+        updatedAt: null
       });
     }
 
-    const fullPath = path.join(DATASETS_DIR, progressFile);
-    const raw = fs.readFileSync(fullPath, "utf8").trim();
+    // Leer JSON real del indexador
+    const raw = fs.readFileSync(progressPath, "utf8").trim();
 
-    let data: ProgressData = {};
-
+    let data;
     try {
-      data = JSON.parse(raw) as ProgressData;
+      data = JSON.parse(raw);
     } catch {
-      // Si el JSON está roto, consideramos que sigue procesando
       return NextResponse.json({
         ok: true,
         processing: true,
-        progress: null,
+        percent: null,
         processedLines: null,
+        totalRows: null,
         file: null,
-        updatedAt: null,
+        updatedAt: null
       });
     }
 
     return NextResponse.json({
       ok: true,
-      processing: true,
-      // aquí usamos “lines” como progreso (nº de filas leídas)
-      progress: data.lines ?? 0,
-      processedLines: data.lines ?? 0,
+      processing: !data.completed,
+      percent: data.percent ?? 0,
+      processedLines: data.processedLines ?? 0,
+      totalRows: data.totalRows ?? 0,
       file: data.file ?? null,
-      updatedAt: data.updatedAt ?? null,
+      updatedAt: data.updatedAt ?? null
     });
 
   } catch (err) {

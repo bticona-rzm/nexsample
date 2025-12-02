@@ -3,9 +3,9 @@ import fs from "fs";
 import path from "path";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getDatasetDir } from "@/lib/getDatasetDir";
+const DATASETS_DIR = getDatasetDir();
 
-const DEFAULT_DATASETS_DIR = "F:/datasets";
-const DATASETS_DIR = process.env.DATASETS_DIR || DEFAULT_DATASETS_DIR;
 
 export async function POST(req: Request) {
   try {

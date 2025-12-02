@@ -11,9 +11,9 @@ import { authOptions } from "@/pages/api/auth/[...nextauth]";
 import type { Session } from "next-auth"; 
 import * as XLSX from "xlsx";
 import { datasetStoreEstandar, datasetStoreMasivo, RowData } from "@/lib/datasetStore";
+import { serializeBigInt } from "@/lib/serialize";
+import { getDatasetDir } from "@/lib/getDatasetDir";
 
-
-// ---------- Tipos ----------
 interface SampleOptions {
   datasetId: string;
   n: number;
@@ -23,8 +23,7 @@ interface SampleOptions {
   allowDuplicates: boolean;
   fileName?: string;
 }
-// ---------- Configuración ----------
-const DATASETS_DIR = "F:/datasets";
+const DATASETS_DIR = getDatasetDir();
 
 // ---------- Utilidades ----------
 function mulberry32(a: number) {
@@ -574,11 +573,13 @@ export async function POST(req: Request) {
         }));
 
         // ✔ Respuesta final
-        return NextResponse.json({
-          imports: importList,
-          muestras: muestraList,
-          exports: exportList,
-        });
+        return NextResponse.json(
+          serializeBigInt({
+            imports: importList,
+            muestras: muestraList,
+            exports: exportList,
+          })
+        );
 
       } catch (e) {
         console.error("Error historial:", e);

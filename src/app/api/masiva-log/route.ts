@@ -2,8 +2,9 @@
 import fs from "fs";
 import path from "path";
 import { NextResponse } from "next/server";
+import { getDatasetDir } from "@/lib/getDatasetDir";
 
-const DATASETS_DIR = "F:/datasets";
+const DATASETS_DIR = getDatasetDir();
 
 export async function POST(req: Request) {
   const { fileName } = await req.json();

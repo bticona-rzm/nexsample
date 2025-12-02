@@ -12,6 +12,8 @@ import {
   SortingState
 } from "@tanstack/react-table";
 import { ChevronUp, ChevronDown } from "lucide-react";
+import { Settings } from "lucide-react";
+
 
 type SampleParams = {
   records: number;
@@ -620,16 +622,23 @@ export default function MuestraPage() {
   const [selectedTabIdMasivo, setSelectedTabIdMasivo] = useState("");
   const [loadingMeta, setLoadingMeta] = useState(false);
   const [isSampling, setIsSampling] = useState(false);
+  // === Progreso del indexado ===
   const [progressIndex, setProgressIndex] = useState<number>(0);
-  // === Estado para el progreso del indexado global ===
   const [progressLog, setProgressLog] = useState(0);
   const [processedLines, setProcessedLines] = useState(0);
   const [progressFile, setProgressFile] = useState("");
-  const [indexInfoGreen, setIndexInfoGreen] = useState({ exists: false, message: "Sin verificar" });
+  // Modal: Carpeta Base
+  const [showDirModal, setShowDirModal] = useState(false);
+  const [directoryInput, setDirectoryInput] = useState("");
+  const [savingDir, setSavingDir] = useState(false);
+  const [currentDir, setCurrentDir] = useState("");
+
   // Mensaje dinámico de estado del proceso masivo
   const [useStreaming, setUseStreaming] = useState(false);
   const [masivoStatus, setMasivoStatus] = useState<string>("");
   const [progressLines, setProgressLines] = useState<string[]>([]);
+  const [targetDir, setTargetDir] = useState("/mnt/data/datasets");   
+
   // === Estados de Historial ===
   const [search, setSearch] = useState("");
   const [historialCategoria, setHistorialCategoria] =
@@ -660,11 +669,13 @@ export default function MuestraPage() {
     exists: boolean;
     totalRows: number | null;          // total reportado por el backend (con o sin cabecera)
     adjustedTotalRows: number | null;  // total real para muestreo (sin cabecera si useHeadersMasivo)
+    fileName: string | null;
     message: string;
   }>({
     exists: false,
     totalRows: null,
     adjustedTotalRows: null,
+    fileName: null,
     message: "Sin verificar",
   });
   // Dataset de pestaña activa (ya lo tienes)
@@ -697,12 +708,13 @@ export default function MuestraPage() {
       if (lockStatus.processing) {
         console.log("⏳ Meta generándose… reintentando en 2s…");
 
-        setIndexInfo({
+        setIndexInfo(prev => ({
           exists: false,
           totalRows: null,
           adjustedTotalRows: null,
+          fileName: prev.fileName ?? null,
           message: "⏳ Generando metadatos…"
-        });
+        }));
 
         // 🔁 Reintentar automáticamente después de 2 segundos
         setTimeout(() => {
@@ -728,19 +740,21 @@ export default function MuestraPage() {
         const adjusted = Math.max(0, useHeadersMasivo ? totalDelBackend - 1 : totalDelBackend);
 
         if (res.ok && data?.ok) {
-          setIndexInfo({
+          setIndexInfo(prev => ({
             exists: true,
             totalRows: totalDelBackend,
             adjustedTotalRows: adjusted,
+            fileName: prev.fileName ?? null,
             message: `✅ Indexado — ${totalDelBackend.toLocaleString("es-BO")} filas`,
-          });
+          }));
         } else {
-          setIndexInfo({
+          setIndexInfo(prev => ({
             exists: false,
             totalRows: null,
             adjustedTotalRows: null,
+            fileName: prev.fileName ?? null,
             message: "⚙️ No indexado, se generará automáticamente",
-          });
+          }));
         }
 
         setSampleParamsMasivo((prev) => ({
@@ -758,12 +772,13 @@ export default function MuestraPage() {
 
       } catch (err) {
         console.error("Error verificando/creando índice:", err);
-        setIndexInfo({
+        setIndexInfo(prev => ({
           exists: false,
           totalRows: null,
           adjustedTotalRows: null,
+          fileName: prev.fileName ?? null,
           message: "❌ Error verificando índice",
-        });
+        }));
       }
     })();
 
@@ -795,32 +810,71 @@ export default function MuestraPage() {
     }));
   }, [showModal, selectedTabId, tabs]);
 
-  // === Monitorear progreso del indexado SOLO cuando el modal está abierto
-  //y el archivo NO está indexado todavía ===
+  // Trackeo de progreso durante el indexado masivo
   useEffect(() => {
     if (!showModalMasivo) return;
-    if (indexInfo?.exists) return; // ya no monitorear si el índice existe
 
-    const interval = setInterval(async () => {
+    // 🚫 Si ya existe el índice → NO hacer polling
+    if (indexInfo?.exists) return;
+
+    let active = true;
+
+    const poll = async () => {
       try {
         const res = await fetch("/api/log-progress");
         if (!res.ok) return;
 
         const data = await res.json();
-        if (data.progress !== undefined) {
-          setProgressLog(data.progress);
-          setProcessedLines(data.processedLines || 0);
-          setProgressFile(data.file || "");
+        if (!active) return;
+
+        // Si ya terminó
+        if (data.completed || data.percent === 100) {
+          setProgressLog(100);
+          setProgressIndex(100);
+          setProcessedLines(data.totalRows ?? 0);
+
+          setIndexInfo((prev: any) => ({
+            ...prev,
+            exists: true,
+            totalRows: data.totalRows,
+            message: "Índice generado correctamente",
+          }));
+
+          return;
         }
-      } catch {
-        // Silenciar errores (evita spam en consola)
+
+        // En progreso
+        setProgressLog(data.percent ?? 0);
+        setProgressIndex(data.percent ?? 0);
+        setProcessedLines(data.processedLines ?? 0);
+
+        if (data.totalRows) {
+          setIndexInfo((prev: any) => ({
+            ...prev,
+            totalRows: data.totalRows,
+            exists: false,
+          }));
+        }
+
+        if (data.file) setProgressFile(data.file);
+
+      } catch (err) {
+        console.error("Error leyendo /api/log-progress:", err);
       }
-    }, 2000);
+    };
 
-    return () => clearInterval(interval);
-  }, [showModalMasivo, indexInfo]);
+    poll();
+    const interval = setInterval(poll, 3000);
 
-    // Guardar historial / parámetros según pestaña activa
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+
+  }, [showModalMasivo, indexInfo.fileName]);
+
+
+  // Guardar historial / parámetros según pestaña activa
   useEffect(() => {
     if (activeTab && activeTab !== "historial") {
       const rows = tabs.find((t) => t.id === activeTab)?.rows || [];
@@ -873,37 +927,6 @@ export default function MuestraPage() {
     });
   };
 
-  // Valida reglas en el cliente con el tamaño real del dataset
-  const validateParams = () => {
-    const len = currentRows.length;
-
-    if (len === 0) {
-      alert("Primero carga un dataset y selecciona su pestaña.");
-      return false;
-    }
-    if (sampleParams.start < 1) {
-      alert("El inicio debe ser al menos 1.");
-      return false;
-    }
-    if (sampleParams.end < sampleParams.start) {
-      alert("El fin no puede ser menor que el inicio.");
-      return false;
-    }
-    if (sampleParams.end > len) {
-      alert(`El fin (${sampleParams.end}) no puede superar el tamaño del dataset (${len}).`);
-      return false;
-    }
-    if (
-      !sampleParams.allowDuplicates &&
-      sampleParams.records > (sampleParams.end - sampleParams.start + 1)
-    ) {
-      alert("No se pueden tomar más registros que el rango disponible sin duplicados.");
-      return false;
-    }
-    return true;
-  };
-
-  // === Muestreo vía API con validaciones y manejo de error ===
   // === Integración con la interfaz principal (handleOk ESTÁNDAR) ===
   const handleOk = async () => {
     if (!currentTab) {
@@ -1611,6 +1634,7 @@ export default function MuestraPage() {
         const chunk = uploadedFileMasivo.slice(start, end);
 
         const formData = new FormData();
+        formData.append("targetDir", targetDir);
         formData.append("useHeaders", useHeadersMasivo ? "true" : "false");
         formData.append("chunk", chunk);
         formData.append("index", i.toString());
@@ -2058,6 +2082,51 @@ export default function MuestraPage() {
       console.error("❌ Error cargando historial:", err);
     }
   };
+  
+  const openDirectoryModal = async () => {
+    setShowDirModal(true);
+
+    try {
+      const res = await fetch("/api/get-dataset-dir");
+      const data = await res.json();
+      if (data.ok) {
+        setCurrentDir(data.dir);
+        setDirectoryInput(data.dir);
+      }
+    } catch (err) {
+      console.error("Error obteniendo carpeta actual:", err);
+    }
+  };
+
+  const saveDirectory = async () => {
+    if (!directoryInput.trim()) {
+      alert("Ingrese una ruta válida.");
+      return;
+    }
+
+    setSavingDir(true);
+
+    try {
+      const res = await fetch("/api/set-dataset-dir", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dir: directoryInput }),
+      });
+
+      const data = await res.json();
+      if (data.ok) {
+        alert("Directorio actualizado correctamente.");
+        setShowDirModal(false);
+        setCurrentDir(directoryInput);
+      } else {
+        alert("Error: " + data.error);
+      }
+    } catch (e: any) {
+      alert("Error inesperado: " + e.message);
+    } finally {
+      setSavingDir(false);
+    }
+  };
 
   // Hasta que esté hidratado, no renders (evita mismatch SSR/CSR)
   if (!hydrated) {
@@ -2066,12 +2135,23 @@ export default function MuestraPage() {
   // === Render ===
   return (
     <div className="h-screen flex flex-col">
-      {/* small local styles used only in this component */}
       <style>{NO_SPIN_CSS}</style>
       <style>{PROGRESS_CSS}</style>
-      <h1 className="text-2xl font-bold px-4 py-3 text-gray-800">
-        Módulo de Muestra
-      </h1>
+      {/* Header superior con botón de configuración */}
+      <div className="flex items-center justify-between px-4 py-3">
+        <h1 className="text-2xl font-bold text-gray-800">
+          Módulo de Muestra
+        </h1>
+
+        <button
+          onClick={openDirectoryModal}
+          className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 
+                    text-white font-semibold py-2 px-4 rounded shadow transition-colors"
+        >
+          <Settings size={18} />
+          Carpeta Base
+        </button>
+      </div>
       {/* === Barra de SubTabs al estilo parametrización === */}
       <div className="border-b border-gray-200">
         <nav className="flex space-x-6" aria-label="Tabs">
@@ -2312,6 +2392,7 @@ export default function MuestraPage() {
           </button>
         </div>
       </div>
+
       {/* MODAL: Muestreo */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/30">
@@ -2542,9 +2623,11 @@ export default function MuestraPage() {
                 />
               </label>
               <p className="italic text-gray-600 text-sm text-right mb-2">
-                Mostrando {(currentTabMasivo?.rows?.filter?.((r: any) => !r?.__sep).length ?? 0)} de{" "}
-                {(indexInfo.adjustedTotalRows ?? sampleParamsMasivo.totalRows ?? currentTabMasivo?.totalRows ?? 0).toLocaleString("es-BO")}{" "}
-                filas reales detectadas.
+                Mostrando{" "}
+                {(currentTabMasivo?.rows?.filter?.((r: any) => !r?.__sep).length ?? 0).toLocaleString("es-BO")}
+                {" "}de{" "}
+                {(indexInfo.totalRows ?? 0).toLocaleString("es-BO")}
+                {" "}filas reales detectadas.
               </p>
             </div>
             {/* Estado del índice */}
@@ -2554,7 +2637,7 @@ export default function MuestraPage() {
                 className={`ml-2 font-semibold ${indexInfo.exists ? "text-green-600" : "text-orange-600"
                   }`}
               >
-                {indexInfo.message}
+                {indexInfo.exists ? "Índice generado correctamente" : "Generando índice..."}
               </span>
               {/* === Barra de progreso del indexado === */}
               {!indexInfo.exists && (
@@ -2600,7 +2683,7 @@ export default function MuestraPage() {
                   </div>
                 )}
                 <p className="text-xs text-gray-700 mt-1">
-                  Progreso: {progressIndex.toFixed(2)}%
+                  Progreso: {progressLog.toFixed(2)}%
                 </p>
                 <div className="flex items-center justify-center space-x-3">
                   {/* 🔄 Spinner animado */}
@@ -2619,7 +2702,7 @@ export default function MuestraPage() {
                     <div className="w-full bg-gray-200 h-2 rounded-full">
                       <div
                         className="bg-blue-500 h-2 rounded-full transition-all duration-500"
-                        style={{ width: `${progressIndex}%` }}
+                        style={{ width: `${progressLog}%` }}
                       />
                     </div>
                   </div>
@@ -2807,6 +2890,17 @@ export default function MuestraPage() {
                   <span className="flex-grow text-gray-900 text-sm text-right pl-3 truncate">
                     {uploadedFileMasivo ? uploadedFileMasivo.name : "Ningún archivo seleccionado"}
                   </span>
+                    {/* Directorio destino
+                    <label className="flex flex-col text-sm font-medium text-gray-700">
+                      Directorio destino:
+                      <input
+                        type="text"
+                        value={targetDir}
+                        onChange={(e) => setTargetDir(e.target.value)}
+                        placeholder="/mnt/data/datasets"
+                        className="mt-1 px-2 py-1 border rounded"
+                      />
+                    </label> */}
                 </div>
               </div>
 
@@ -2913,7 +3007,7 @@ export default function MuestraPage() {
                 onChange={(e) => setSelectedTabId(e.target.value)}
                 className="mt-1 border rounded px-2 py-1"
               >
-                <option value="">--Seleccionar pestaña--</option>
+                <option value="">Seleccionar pestaña</option>
                 {tabs.map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.name}
@@ -3024,6 +3118,58 @@ export default function MuestraPage() {
                 className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
               >
                 Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showDirModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 backdrop-blur-sm flex items-center justify-center z-[9999]">
+          <div className="bg-white w-[460px] rounded-xl shadow-2xl p-6 animate-fade-in">
+
+            {/* Título */}
+            <h2 className="text-xl font-bold text-gray-800 mb-2 flex items-center gap-2">
+              <Settings size={20} />
+              Configurar Carpeta Base
+            </h2>
+
+            {/* Carpeta actual */}
+            <p className="text-sm text-gray-600 mb-4">
+              Carpeta actual:
+              <span className="font-semibold text-gray-800 ml-1">
+                {currentDir || "No configurada"}
+              </span>
+            </p>
+
+            {/* Input de ruta */}
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Nueva carpeta (ruta en el servidor):
+            </label>
+            <input
+              type="text"
+              value={directoryInput}
+              onChange={(e) => setDirectoryInput(e.target.value)}
+              placeholder="Ej: F:/datasets o D:/Muestreos"
+              className="w-full border px-3 py-2 rounded-lg text-gray-800 shadow-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+            />
+
+            {/* Botones */}
+            <div className="flex justify-end mt-6 gap-3">
+              <button
+                onClick={() => setShowDirModal(false)}
+                className="px-4 py-2 rounded-md bg-gray-200 hover:bg-gray-300 text-gray-800"
+              >
+                Cancelar
+              </button>
+
+              <button
+                onClick={saveDirectory}
+                disabled={savingDir}
+                className={`px-4 py-2 rounded-md text-white font-semibold shadow 
+                  ${savingDir ? "bg-indigo-800 cursor-wait" : "bg-indigo-600 hover:bg-indigo-700"}
+                `}
+              >
+                {savingDir ? "Guardando..." : "Guardar"}
               </button>
             </div>
           </div>

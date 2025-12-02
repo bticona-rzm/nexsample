@@ -8,6 +8,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  url = env("DATABASE_URL")
 }
 
 // --- MODELOS DE AUTENTICACIÓN Y USUARIOS ---
@@ -24,7 +25,6 @@ model Account {
   scope             String?
   id_token          String? @db.Text
   session_state     String?
-
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
@@ -55,7 +55,6 @@ model User {
   accounts Account[]
   sessions Session[]
   historial HistorialMuestra[]
-
   historialImport HistorialImport[] @relation("ImportesUsuario")
   historialExport HistorialExport[] @relation("ExportesUsuario")
 
@@ -65,27 +64,23 @@ model User {
 model HistorialImport {
   id          String   @id @default(cuid())
   creadoEn    DateTime @default(now()) @map("creado_en")
-
   // Información básica del archivo importado
   nombreArchivo   String
   rutaArchivo     String
-  tamanoBytes     Int?
+  tamanoBytes     BigInt? @db.BigInt
   tipoMime        String?
-
   // Información de origen
   origenDatos     String?    // Excel, CSV, JSON, TXT
   nombreHoja      String?    // Solo para Excel
-
   // Metadatos detectados automáticamente
   tieneEncabezados   Boolean?
   delimitadorDetectado String?
-  previewInicio       Int?
-  previewFin          Int?
-
-  // Contenido
-  registrosTotales Int
+  // IMPORTANTE: Algunos archivos tienen millones de filas → BigInt
+  previewInicio       BigInt? @db.BigInt
+  previewFin          BigInt? @db.BigInt 
+  // Número total de filas → puede ser enorme
+  registrosTotales    BigInt @db.BigInt
   datasetId        String?     // ID del dataset creado al importar
-
   // Campo extra para almacenar cualquier dato adicional
   metadata         Json?
 

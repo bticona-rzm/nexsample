@@ -12,11 +12,12 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/pages/api/auth/[...nextauth]";
 import type { Session } from "next-auth";
 import { generarMetaMasivo } from "@/lib/generarMetaMasivo";
-  
-  console.log("⚠️ [muestra-masiva] Backend MUESTRA-MASIVA cargado (NUEVO)");
-  // === CONFIGURACIÓN ===
-  const DATASETS_DIR = process.env.DATASETS_DIR || "F:/datasets";
-  const LOG_FILE = path.join(DATASETS_DIR, "muestra-masiva.log");
+import { serializeBigInt } from "@/lib/serialize";
+import { getDatasetDir } from "@/lib/getDatasetDir";
+
+console.log("⚠️ [muestra-masiva] Backend MUESTRA-MASIVA cargado (NUEVO)");
+const DATASETS_DIR = getDatasetDir();
+const LOG_FILE = path.join(DATASETS_DIR, "muestra-masiva.log");
 
   // === FUNCIÓN DE LOG A ARCHIVO + CONSOLA ===
   function logToFile(message: string) {
@@ -70,7 +71,7 @@ import { generarMetaMasivo } from "@/lib/generarMetaMasivo";
             hash: h.hash,
             tipo: h.tipo,
           }));
-          return NextResponse.json(result);
+          return NextResponse.json(serializeBigInt(result));
         } catch (err: any) {
           logToFile("💥 Error consultando historial masivo: " + err.message);
           return NextResponse.json({ error: "Error consultando historial", details: err.message }, { status: 500 });
@@ -151,72 +152,65 @@ import { generarMetaMasivo } from "@/lib/generarMetaMasivo";
       //  MUESTREAR 
       // === 3️⃣ CREAR ÍNDICE ===
       if (action === "buildIndex") {
-        // 🔒 Evitar procesos concurrentes de indexado por archivo (no global)
         const g = globalThis as any;
-        // si aún no existe la tabla de locks, la creamos
-        if (!g.isIndexingMap) {
-          g.isIndexingMap = new Map<string, boolean>();
-        }
+        if (!g.isIndexingMap) g.isIndexingMap = new Map<string, boolean>();
 
-        const key = filePath; // identifica el archivo actual
+        const key = filePath;
 
-        // si ya hay un indexado en curso para este archivo, devolvemos 429
+        // Si ya hay un indexado en proceso → esperar
         if (g.isIndexingMap.get(key)) {
           const msg = `⏳ Ya hay un proceso de indexado en curso para ${path.basename(filePath)}`;
           logToFile(msg);
           return NextResponse.json({ error: msg }, { status: 429 });
         }
 
-        // 🔒 Marcar inicio del proceso de este archivo
+        // Activar lock del archivo
         g.isIndexingMap.set(key, true);
 
         try {
           const indexPath = `${filePath}.index`;
-          const statusPath = `${filePath}.meta.status`;
 
-          // ✅ Reutilizar índice existente si ya está OK
-          if (fs.existsSync(indexPath) && fs.existsSync(statusPath)) {
-            const status = fs.readFileSync(statusPath, "utf8").trim();
-            if (status === "OK") {
-              const rows = Math.floor(fs.statSync(indexPath).size / 8);
+          // ⭐ REUTILIZAR ÍNDICE SI YA EXISTE ⭐
+          if (fs.existsSync(indexPath)) {
+            const stats = fs.statSync(indexPath);
+            if (stats.size > 0) {
+              const rows = Math.floor(stats.size / 8);
+
               logToFile(`✅ [INDEX] Reutilizando índice existente (${rows} filas)`);
 
-              // liberar lock antes de salir
               g.isIndexingMap.set(key, false);
 
               return NextResponse.json({
                 ok: true,
                 reused: true,
                 totalRows: rows,
-                message: "Índice ya existente reutilizado",
+                message: "Índice existente reutilizado"
               });
             }
           }
 
-          // 🧱 Construir índice nuevo
+          // 🔧 Construir índice nuevo
           logToFile(`📘 [INDEX] Construyendo índice para ${fileName}`);
           const t0 = Date.now();
+
           const result = await generarIndiceArchivoMasivo(filePath, { useHeaders });
+
           const secs = ((Date.now() - t0) / 1000).toFixed(2);
 
-          // Guardar estado OK
-          fs.writeFileSync(statusPath, "OK");
           logToFile(`✅ [INDEX] Índice creado (${result.totalRows} filas, ${secs}s)`);
 
           return NextResponse.json({
             ok: true,
             ...result,
-            message: "Índice generado correctamente",
+            message: "Índice generado correctamente"
           });
+
         } catch (err: any) {
           logToFile("💥 Error construyendo índice: " + err.message);
           return NextResponse.json({ error: err.message }, { status: 500 });
         } finally {
-          // 🔓 Liberar el lock solo para este archivo (si existe el mapa)
           const g2 = globalThis as any;
-          if (g2.isIndexingMap) {
-            g2.isIndexingMap.set(key, false);
-          }
+          if (g2.isIndexingMap) g2.isIndexingMap.set(key, false);
         }
       }
 
@@ -302,13 +296,15 @@ import { generarMetaMasivo } from "@/lib/generarMetaMasivo";
             }
           }
 
-          return NextResponse.json({
-            ok: true,
-            sample,
-            hash,
-            archivoResultado,
-            message: "Muestra generada correctamente",
-          });
+          return NextResponse.json(
+            serializeBigInt({
+              ok: true,
+              sample,
+              hash,
+              archivoResultado,
+              message: "Muestra generada correctamente",
+            })
+          );
         } catch (err: any) {
           logToFile("💥 Error en muestreo masivo: " + err.message);
           return NextResponse.json(
@@ -354,13 +350,15 @@ import { generarMetaMasivo } from "@/lib/generarMetaMasivo";
           }
         }
 
-        return NextResponse.json({
-          ok: true,
-          cleaned: true,
-          sample,
-          hash,
-          message: "Archivo limpio e índice generados correctamente",
-        });
+        return NextResponse.json(
+          serializeBigInt({
+            ok: true,
+            cleaned: true,
+            sample,
+            hash,
+            message: "Archivo limpio e índice generados correctamente",
+          })
+        );
       }
       // === 6 EXPORTAR  
       if (action === "export") {
@@ -483,7 +481,6 @@ import { generarMetaMasivo } from "@/lib/generarMetaMasivo";
           return NextResponse.json({ error: err.message }, { status: 500 });
         }
       }
-
       // === 7️⃣ EXPORTAR POR STREAMING (para grandes muestreos) ===
       if (action === "export-stream") {
         try {

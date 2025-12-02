@@ -118,7 +118,7 @@ export async function POST(req: Request) {
         [
           i.nombreArchivo.slice(0, 40),
           i.creadoEn.toLocaleString("es-BO"),
-          ((i.tamanoBytes ?? 0) / 1024).toFixed(1) + " KB",
+          (Number(i.tamanoBytes ?? 0) / 1024).toFixed(1) + " KB",
           i.origenDatos || "-",
           i.tieneEncabezados ? "Sí" : "No",
           String(i.registrosTotales),
@@ -130,9 +130,6 @@ export async function POST(req: Request) {
 
     y -= 20;
 
-    // ============================================================
-    // ⭐ SECCIÓN 2 — MUESTREOS
-    // ============================================================
     drawTitle("Historial de Muestreos");
 
     drawHeaders(
@@ -161,9 +158,6 @@ export async function POST(req: Request) {
 
     y -= 20;
 
-    // ============================================================
-    // ⭐ SECCIÓN 3 — EXPORTACIONES
-    // ============================================================
     drawTitle("Historial de Exportaciones");
 
     drawHeaders(
