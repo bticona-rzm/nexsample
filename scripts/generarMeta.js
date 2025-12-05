@@ -1,12 +1,3 @@
-/**
- * Generador de archivo .meta.json (revisión estable)
- * ---------------------------------------------------------------
- * - Soporta archivos grandes (GB)
- * - Detecta delimitador automáticamente
- * - Guarda previewStart y previewEnd (30 líneas cada uno)
- * - Maneja cabeceras o crea genéricas
- * - Es totalmente tolerante a errores
- */
 //sripts/generarMeta.js
 const fs = require("fs");
 const path = require("path");

@@ -17,7 +17,7 @@ export async function GET() {
     const raw = fs.readFileSync(CONFIG_PATH, "utf8");
     if (!raw.trim()) {
       return Response.json({ ok: true, dir: "F:/datasets" });
-    }
+    } 
 
     const json = JSON.parse(raw);
     return Response.json({ ok: true, dir: json.DATASETS_DIR || "F:/datasets" });
