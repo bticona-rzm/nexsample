@@ -32,9 +32,6 @@ const LOG_FILE = path.join(DATASETS_DIR, "muestra-masiva.log");
     console.log(message);
   }
 
-  // =======================================================
-  // 🔹 CONTROLADOR PRINCIPAL POST
-  // =======================================================
   export async function POST(req: Request) {
     try {
       const body = await req.json();
@@ -219,7 +216,7 @@ const LOG_FILE = path.join(DATASETS_DIR, "muestra-masiva.log");
         try {
           logToFile(`🎯 Generando muestra del archivo ${fileName}`);
 
-          const { sample, hash } = await muestrearArchivoMasivo(filePath, {
+          const { sample, hash }   = await muestrearArchivoMasivo(filePath, {
             n,
             seed,
             start,

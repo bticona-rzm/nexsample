@@ -9,7 +9,7 @@ const DATASETS_DIR = getDatasetDir();
 export async function POST(req: Request) {
   const { fileName } = await req.json();
   const logPath = path.join(DATASETS_DIR, fileName + ".meta.log");
-
+  
   if (!fs.existsSync(logPath))
     return NextResponse.json({ ok: false, log: [] });
 
