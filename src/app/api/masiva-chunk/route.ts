@@ -415,12 +415,24 @@ export async function POST(req: Request) {
     if (!isLast) return NextResponse.json({ ok: true, chunk: index });
 
     // === Último chunk: finalizar ===
+    // === Último chunk: finalizar ===
     const baseName = path.basename(safeOriginalName || "uploaded_file");
-    const safeBase = baseName.normalize("NFKC").replace(/\s+/g, "_").replace(/[^\w.\-]/g, "");
+
+    // Normalizamos el nombre original para evitar espacios raros o caracteres peligrosos,
+    // pero conservamos el nombre "humano" del archivo (sin prefijo msv_).
+    const safeBase = baseName
+      .normalize("NFKC")
+      .replace(/\s+/g, "_")
+      .replace(/[^\w.\-]/g, "");
+    // El formato se sigue detectando igual
     const format = safeBase.split(".").pop()?.toLowerCase() || "txt";
+    // 👉 DatasetId se sigue usando SOLO como identificador lógico (BD, meta.json, etc.),
+    // ya NO se mete en el nombre físico del archivo.
     const datasetId = `msv_${Date.now()}`;
-    const safeName = `${datasetId}_${safeBase}`;
-    // === Ensamblado seguro: evita duplicados si el server se reinicia ===
+    // 👉 Nombre físico final del archivo en /datasets:
+    //     Ctas_especificas.txt   (sin msv_ delante)
+    const safeName = safeBase;
+    // Ruta del archivo final en /datasets
     const finalSafePath = path.join(DATASETS_DIR, safeName);
 
     if (fs.existsSync(finalSafePath)) {

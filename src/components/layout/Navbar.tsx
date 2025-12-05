@@ -97,16 +97,13 @@ const navigationConfig: NavigationItem[] = [
     // 4. PARAMETRIZACION
     { type: 'link', href: '/parametrizacion', label: 'Parámetros de Muestreo' },
     // 5. DATOS DE MUESTRAS
-    { type: 'link', href: '/muestra', label: 'Muestreo Estadistico'},
+    { type: 'link', href: '/muestra', label: 'Muestreo de Controles'},
     // 6. CLIENTES
     { type: 'link', href: '/clientes', label: 'Lista de Clientes'},
     // 7. MUM
     { type: 'link', href: '/mum', label: 'MUM'},
     // 8. Muestreo de Atributos
     { type: 'link', href: '/atributos', label: 'Muestreo de Atributos'},
-    
-    // 8. Muestreo de Atributos
-    { type: 'link', href: '/controles', label: 'Muestreo de Controles'},
 
     
     // --- RESTO DE LOS ÍTEMS ---

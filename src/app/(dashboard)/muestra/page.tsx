@@ -628,10 +628,15 @@ export default function MuestraPage() {
   const [processedLines, setProcessedLines] = useState(0);
   const [progressFile, setProgressFile] = useState("");
   // Modal: Carpeta Base
+  // === Estados del modal de Carpeta Base ===
   const [showDirModal, setShowDirModal] = useState(false);
-  const [directoryInput, setDirectoryInput] = useState("");
-  const [savingDir, setSavingDir] = useState(false);
   const [currentDir, setCurrentDir] = useState("");
+  const [savingDir, setSavingDir] = useState(false);
+  // Estados del explorador tipo Windows
+  const [disks, setDisks] = useState<string[]>([]);
+  const [folders, setFolders] = useState<{ name: string; fullPath: string }[]>([]);
+  const [currentPath, setCurrentPath] = useState("");
+  const [loadingList, setLoadingList] = useState(false);
 
   // Mensaje dinámico de estado del proceso masivo
   const [useStreaming, setUseStreaming] = useState(false);
@@ -687,6 +692,7 @@ export default function MuestraPage() {
   
   const currentTab = tabs.find((t) => t.id === selectedTabId);
   const currentTabMasivo = tabs.find((t) => t.id === selectedTabIdMasivo);
+  
   useEffect(() => {
     if (!showModalMasivo || !selectedTabIdMasivo) return;
 
@@ -2082,42 +2088,42 @@ export default function MuestraPage() {
       console.error("❌ Error cargando historial:", err);
     }
   };
-  
+
   const openDirectoryModal = async () => {
     setShowDirModal(true);
+
+    await loadDisks();
 
     try {
       const res = await fetch("/api/get-dataset-dir");
       const data = await res.json();
       if (data.ok) {
         setCurrentDir(data.dir);
-        setDirectoryInput(data.dir);
+        await loadFolders(data.dir);
       }
     } catch (err) {
       console.error("Error obteniendo carpeta actual:", err);
     }
   };
 
-  const saveDirectory = async () => {
-    if (!directoryInput.trim()) {
-      alert("Ingrese una ruta válida.");
+  const saveDirectory = async (path: string) => {
+    if (!path.trim()) {
+      alert("Seleccione una carpeta válida.");
       return;
     }
-
     setSavingDir(true);
-
     try {
       const res = await fetch("/api/set-dataset-dir", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dir: directoryInput }),
+        body: JSON.stringify({ dir: path }),
       });
 
       const data = await res.json();
       if (data.ok) {
         alert("Directorio actualizado correctamente.");
         setShowDirModal(false);
-        setCurrentDir(directoryInput);
+        setCurrentDir(path);
       } else {
         alert("Error: " + data.error);
       }
@@ -2127,6 +2133,38 @@ export default function MuestraPage() {
       setSavingDir(false);
     }
   };
+
+  const loadDisks = async () => {
+  const res = await fetch("/api/fs/disk");
+  const data = await res.json();
+  if (data.ok) setDisks(data.disks);
+  };
+
+  const goBack = () => {
+  if (!currentPath) return;
+
+  const clean = currentPath.replace(/\\$|\/$/, "");
+  const idx = Math.max(clean.lastIndexOf("\\"), clean.lastIndexOf("/"));
+  if (idx <= 0) return;
+  const parent = clean.substring(0, idx + 1);
+  loadFolders(parent);
+  };
+
+  const loadFolders = async (path: string) => {
+  setLoadingList(true);
+  try {
+    const res = await fetch(`/api/fs/list?path=${encodeURIComponent(path)}`);
+    const data = await res.json();
+
+    if (data.ok) {
+      setCurrentPath(data.path);
+      setFolders(data.folders);
+    }
+  } finally {
+    setLoadingList(false);
+  }
+  };
+
 
   // Hasta que esté hidratado, no renders (evita mismatch SSR/CSR)
   if (!hydrated) {
@@ -3125,50 +3163,67 @@ export default function MuestraPage() {
         </div>
       )}
       {showDirModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 backdrop-blur-sm flex items-center justify-center z-[9999]">
-          <div className="bg-white w-[460px] rounded-xl shadow-2xl p-6 animate-fade-in">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[9999]">
+          <div className="bg-white w-[600px] rounded-xl shadow-xl p-5">
 
-            {/* Título */}
-            <h2 className="text-xl font-bold text-gray-800 mb-2 flex items-center gap-2">
-              <Settings size={20} />
-              Configurar Carpeta Base
-            </h2>
+            <h2 className="text-xl font-bold mb-3">Seleccionar Carpeta</h2>
 
-            {/* Carpeta actual */}
-            <p className="text-sm text-gray-600 mb-4">
-              Carpeta actual:
-              <span className="font-semibold text-gray-800 ml-1">
-                {currentDir || "No configurada"}
-              </span>
-            </p>
+            {/* Discos arriba */}
+            <div className="flex gap-2 mb-3">
+              {disks.map((d) => (
+                <button
+                  key={d}
+                  onClick={() => loadFolders(d)}
+                  className="px-3 py-1 rounded bg-gray-200 hover:bg-gray-300"
+                >
+                  {d}
+                </button>
+              ))}
+            </div>
 
-            {/* Input de ruta */}
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Nueva carpeta (ruta en el servidor):
-            </label>
-            <input
-              type="text"
-              value={directoryInput}
-              onChange={(e) => setDirectoryInput(e.target.value)}
-              placeholder="Ej: F:/datasets o D:/Muestreos"
-              className="w-full border px-3 py-2 rounded-lg text-gray-800 shadow-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-            />
+            {/* Breadcrumb + botón atrás */}
+            <div className="flex items-center gap-3 mb-3">
+              <button
+                onClick={goBack}
+                className="px-2 py-1 bg-gray-200 rounded hover:bg-gray-300"
+              >
+                ⬅
+              </button>
+
+              <div className="text-gray-700 font-mono">{currentPath}</div>
+            </div>
+
+            {/* Lista de carpetas */}
+            <div className="border rounded h-[250px] overflow-auto p-2 bg-gray-50">
+              {loadingList ? (
+                <p>Cargando...</p>
+              ) : (
+                folders.map((f) => (
+                  <div
+                    key={f.fullPath}
+                    onClick={() => loadFolders(f.fullPath)}
+                    className="cursor-pointer px-2 py-1 hover:bg-gray-200 rounded flex items-center gap-2"
+                  >
+                    📁 <span>{f.name}</span>
+                  </div>
+                ))
+              )}
+            </div>
 
             {/* Botones */}
-            <div className="flex justify-end mt-6 gap-3">
+            <div className="flex justify-end gap-3 mt-4">
               <button
                 onClick={() => setShowDirModal(false)}
-                className="px-4 py-2 rounded-md bg-gray-200 hover:bg-gray-300 text-gray-800"
+                className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300"
               >
                 Cancelar
               </button>
+
               <button
-                onClick={openDirectoryModal}
-                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 
-                          text-white font-semibold py-2 px-4 rounded shadow transition-colors"
+                onClick={() => saveDirectory(currentPath)}
+                className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white"
               >
-                <Settings size={18} />
-                Carpeta Base
+                Seleccionar
               </button>
             </div>
           </div>
