@@ -2142,15 +2142,16 @@ export default function MuestraPage() {
         <h1 className="text-2xl font-bold text-gray-800">
           Módulo de Muestra
         </h1>
-
-        <button
-          onClick={openDirectoryModal}
-          className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 
-                    text-white font-semibold py-2 px-4 rounded shadow transition-colors"
-        >
-          <Settings size={18} />
-          Carpeta Base
-        </button>
+        {subTab === "masivo" && (
+          <button
+            onClick={openDirectoryModal}
+            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 
+                      text-white font-semibold py-2 px-4 rounded shadow transition-colors"
+          >
+            <Settings size={18} />
+            Carpeta Base
+          </button>
+        )}
       </div>
       {/* === Barra de SubTabs al estilo parametrización === */}
       <div className="border-b border-gray-200">
@@ -3161,15 +3162,13 @@ export default function MuestraPage() {
               >
                 Cancelar
               </button>
-
               <button
-                onClick={saveDirectory}
-                disabled={savingDir}
-                className={`px-4 py-2 rounded-md text-white font-semibold shadow 
-                  ${savingDir ? "bg-indigo-800 cursor-wait" : "bg-indigo-600 hover:bg-indigo-700"}
-                `}
+                onClick={openDirectoryModal}
+                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 
+                          text-white font-semibold py-2 px-4 rounded shadow transition-colors"
               >
-                {savingDir ? "Guardando..." : "Guardar"}
+                <Settings size={18} />
+                Carpeta Base
               </button>
             </div>
           </div>
